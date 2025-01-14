@@ -5,31 +5,3 @@
 [x-cloak] {
     display: none;
 }
-@layer utilities {
-    .text-title-md {
-        font-size: 1.25rem;
-        line-height: 1.75rem;
-    }
-
-    .text-title-sm {
-        font-size: 1rem;
-        line-height: 1.5rem;
-    }
-
-    .shadow-default {
-        box-shadow: 0px 8px 13px -3px rgba(0, 0, 0, 0.07);
-    }
-
-    .drop-shadow-1 {
-        filter: drop-shadow(0px 4px 4px rgba(0, 0, 0, 0.1));
-    }
-
-    .no-scrollbar::-webkit-scrollbar {
-        display: none;
-    }
-
-    .no-scrollbar {
-        -ms-overflow-style: none;  /* IE and Edge */
-        scrollbar-width: none;  /* Firefox */
-    }
-}
