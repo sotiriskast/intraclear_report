@@ -1,50 +1,42 @@
 <?php
-
 namespace Database\Seeders;
 
-use App\Models\Role;
 use App\Models\User;
-use App\Models\Permission;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\Models\Permission;
 
 class RolesAndPermissionsSeeder extends Seeder
 {
-    public function run(): void
+    public function run()
     {
-        // Create roles
-        $superAdmin = Role::create([
-            'name' => 'Super Admin',
-            'slug' => 'super-admin',
-        ]);
+        // Create Permissions
+        $permissions = [
+            'manage-users',
+            'manage-roles',
+            // Add more permissions as needed
+        ];
 
-        $admin = Role::create([
-            'name' => 'Admin',
-            'slug' => 'admin',
-        ]);
+        foreach ($permissions as $permission) {
+            Permission::firstOrCreate(['name' => $permission]);
+        }
 
-        // Create permissions
-        $manageUsers = Permission::create([
-            'name' => 'Manage Users',
-            'slug' => 'manage-users',
-        ]);
+        // Create Roles and assign Permissions
+        $adminRole = Role::firstOrCreate(['name' => 'admin']);
+        $adminRole->givePermissionTo('manage-users');
+        $adminRole->givePermissionTo('manage-roles');
 
-        $manageRoles = Permission::create([
-            'name' => 'Manage Roles',
-            'slug' => 'manage-roles',
-        ]);
+        $superAdminRole = Role::firstOrCreate(['name' => 'super-admin']);
+        $superAdminRole->givePermissionTo(Permission::all());
 
-        // Assign permissions to roles
-        $superAdmin->permissions()->attach([$manageUsers->id, $manageRoles->id]);
-        $admin->permissions()->attach([$manageUsers->id]);
+        // Create or find the super admin user
+        $user = User::firstOrCreate(
+            ['email' => 'root@root.com'],
+            ['name' => 'Super Admin', 'password' => Hash::make('password')]
+        );
 
-        // Create super admin user
-        $user = User::create([
-            'name' => 'Super Admin',
-            'email' => 'superadmin@example.com',
-            'password' => Hash::make('password123'),
-        ]);
-
-        $user->roles()->attach($superAdmin);
+        // Assign super-admin role to the user
+        $user->assignRole($superAdminRole);
     }
 }

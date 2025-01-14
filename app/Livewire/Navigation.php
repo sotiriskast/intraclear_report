@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Livewire;
+namespace App\Livewire;
 
 use Livewire\Component;
 
@@ -12,7 +12,10 @@ class Navigation extends Component
     {
         $this->isOpen = !$this->isOpen;
     }
-
+    public function closeSidebar()
+    {
+        $this->dispatch('sidebar-close');
+    }
     public function render()
     {
         return view('navigation-menu');

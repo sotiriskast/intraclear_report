@@ -17,7 +17,7 @@ Route::middleware([
         return view('dashboard');
     })->name('dashboard');
 });
-Route::middleware(['auth', 'role:super-admin'])->group(function () {
+Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/admin/users', UserManagement::class)->name('admin.users');
     Route::get('/admin/roles', RoleManagement::class)->name('admin.roles');
 });

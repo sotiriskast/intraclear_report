@@ -1,96 +1,111 @@
 <?php
-
 namespace App\Livewire;
 
-use Livewire\Attributes\Layout;
 use Livewire\Component;
-use App\Models\Role;
-use App\Models\Permission;
 use Livewire\WithPagination;
-use Livewire\Attributes\Rule;
+use Livewire\Attributes\Layout;
+use App\Repositories\RoleRepository;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 
+#[Layout('layouts.app')]
 class RoleManagement extends Component
 {
     use WithPagination;
 
-    #[Rule('required|min:3')]
     public string $name = '';
-
-    #[Rule('required|unique:roles,slug')]
-    public string $slug = '';
-
     public array $selectedPermissions = [];
     public bool $showCreateModal = false;
     public ?int $editRoleId = null;
 
-    public function create(): void
+    public function mount()
     {
-        $this->validate();
-
-        $role = Role::create([
-            'name' => $this->name,
-            'slug' => $this->slug,
-        ]);
-
-        $role->permissions()->sync($this->selectedPermissions);
-
-        $this->resetForm();
-        session()->flash('message', 'Role created successfully.');
+        $this->roleRepository = new RoleRepository();
     }
 
-    public function delete(Role $role): void
+    protected function rules()
     {
-        if ($role->slug === 'super-admin') {
-            session()->flash('error', 'Cannot delete super-admin role.');
-            return;
-        }
+        $uniqueRule = $this->editRoleId
+            ? "unique:roles,name,{$this->editRoleId}"
+            : 'unique:roles,name';
 
-        $role->delete();
-        session()->flash('message', 'Role deleted successfully.');
+        return [
+            'name' => ['required', 'string', 'max:255', $uniqueRule],
+            'selectedPermissions' => ['array'],
+            'selectedPermissions.*' => ['exists:permissions,id']
+        ];
     }
 
-    public function editRole(int $roleId): void
+    public function editRole(int $roleId)
     {
-        $role = Role::findOrFail($roleId);
-        $this->editRoleId = $roleId;
+        $role = Role::with('permissions')->findOrFail($roleId);
+        $this->editRoleId = $role->id;
         $this->name = $role->name;
-        $this->slug = $role->slug;
         $this->selectedPermissions = $role->permissions->pluck('id')->toArray();
         $this->showCreateModal = true;
     }
 
-    public function update(): void
+    public function create()
     {
-        $this->validate([
-            'name' => 'required|min:3',
-            'slug' => 'required|unique:roles,slug,' . $this->editRoleId,
-        ]);
+        $validatedData = $this->validate();
 
-        if (!$this->editRoleId) {
-            session()->flash('error', 'No role selected for editing.');
-            return;
+        try {
+            $roleRepository = new RoleRepository();
+            $roleRepository->createRole(
+                $this->name,
+                $this->selectedPermissions
+            );
+
+            session()->flash('message', __('Role created successfully.'));
+            $this->showCreateModal = false;
+        } catch (\Exception $e) {
+            session()->flash('error', 'Error creating role: ' . $e->getMessage());
         }
-
-        $role = Role::findOrFail($this->editRoleId);
-
-        $role->update([
-            'name' => $this->name,
-            'slug' => $this->slug,
-        ]);
-
-        $role->permissions()->sync($this->selectedPermissions);
-
         $this->resetForm();
-        session()->flash('message', 'Role updated successfully.');
     }
 
-    public function resetForm(): void
+    public function update()
     {
-        $this->reset(['name', 'slug', 'selectedPermissions', 'editRoleId', 'showCreateModal']);
+        $validatedData = $this->validate();
+
+        try {
+            $role = Role::findOrFail($this->editRoleId);
+            $roleRepository = new RoleRepository();
+            $roleRepository->updateRole(
+                $role,
+                $this->name,
+                $this->selectedPermissions
+            );
+
+            session()->flash('message', __('Role updated successfully.'));
+            $this->showCreateModal = false;
+        } catch (\Exception $e) {
+            session()->flash('error', 'Error updating role: ' . $e->getMessage());
+        }
+        $this->resetForm();
+    }
+
+    public function delete(int $roleId)
+    {
+        try {
+            $role = Role::findOrFail($roleId);
+            $roleRepository = new RoleRepository();
+            $roleRepository->deleteRole($role);
+            session()->flash('message', __('Role deleted successfully.'));
+        } catch (\Exception $e) {
+            session()->flash('error', $e->getMessage());
+        }
+    }
+
+    public function resetForm()
+    {
+        $this->name = '';
+        $this->selectedPermissions = [];
+        $this->editRoleId = null;
+        $this->showCreateModal = false;
         $this->resetValidation();
     }
 
-    #[Layout('layouts.app')]
     public function render()
     {
         return view('livewire.role-management', [

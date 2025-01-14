@@ -1,16 +1,16 @@
 <?php
-
 namespace App\Livewire;
 
 use App\Models\User;
-use App\Models\Role;
-use Livewire\Attributes\Layout;
-use Livewire\Attributes\On;
+use App\Repositories\RoleRepository;
 use Livewire\Component;
 use Livewire\WithPagination;
-use Livewire\Attributes\Rule;
-use Illuminate\Support\Facades\Hash;
+use Livewire\Attributes\Layout;
+use Livewire\Attributes\On; // Add this import
+use App\Repositories\UserRepository;
+use Spatie\Permission\Models\Role;
 
+#[Layout('layouts.app')]
 class UserManagement extends Component
 {
     use WithPagination;
@@ -18,7 +18,7 @@ class UserManagement extends Component
     public string $name = '';
     public string $email = '';
     public string $password = '';
-    public $selectedRole = ''; // Changed from array to single value
+    public $selectedRole = '';
     public bool $showCreateModal = false;
     public ?User $editUser = null;
     public bool $isEditing = false;
@@ -31,126 +31,92 @@ class UserManagement extends Component
                 ? 'required|email|unique:users,email,' . $this->editUser->id
                 : 'required|email|unique:users,email',
             'password' => $this->isEditing ? 'nullable|min:8' : 'required|min:8',
-            'selectedRole' => 'required' // Changed validation rule
+            'selectedRole' => 'required'
         ];
     }
 
-    #[Layout('layouts.app')]
-    public function render()
+    #[On('edit-user')] // Add this attribute
+    public function editUser($userId)
     {
-        return view('livewire.user-management', [
-            'users' => User::with('roles')->paginate(10),
-            'roles' => Role::all(),
-        ]);
+        $this->editUser = User::with('roles')->find($userId);
+        if ($this->editUser) {
+            $this->name = $this->editUser->name;
+            $this->email = $this->editUser->email;
+            $this->selectedRole = $this->editUser->roles->first()?->id ?? '';
+            $this->showCreateModal = true;
+            $this->isEditing = true;
+        }
     }
 
-    #[On('createUser')]
-    public function create()
+    #[On('create-user')] // Add this attribute
+    public function createUser()
     {
         $this->validate();
 
-        $user = User::create([
-            'name' => $this->name,
-            'email' => $this->email,
-            'password' => Hash::make($this->password),
-        ]);
+        try {
+            $userRepository = new UserRepository(new RoleRepository());
+            $userRepository->createUser(
+                $this->name,
+                $this->email,
+                $this->password,
+                $this->selectedRole
+            );
 
-        $user->roles()->sync([$this->selectedRole]); // Changed to sync single role
-
-        $this->resetForm();
-        session()->flash('message', 'User created successfully.');
+            session()->flash('message', 'User created successfully.');
+            $this->showCreateModal = false;
+            $this->resetForm();
+        } catch (\Exception $e) {
+            session()->flash('error', 'Error creating user: ' . $e->getMessage());
+        }
     }
 
-    #[On('editUser')]
-    public function editUser($userId)
+    #[On('update-user')] // Add this attribute
+    public function updateUser()
     {
-        $user = User::find($userId);
-        if (!$user) {
-            return;
-        }
+        $this->validate();
 
-        $this->isEditing = true;
-        $this->editUser = $user;
-        $this->name = $user->name;
-        $this->email = $user->email;
-        $this->selectedRole = $user->roles->first()?->id ?? ''; // Get first role ID
-        $this->showCreateModal = true;
+        try {
+            $userRepository = new UserRepository(new RoleRepository());
+            $userRepository->updateUser(
+                $this->editUser,
+                $this->name,
+                $this->email,
+                $this->password,
+                $this->selectedRole
+            );
+
+            session()->flash('message', 'User updated successfully.');
+            $this->showCreateModal = false;
+            $this->resetForm();
+        } catch (\Exception $e) {
+            session()->flash('error', 'Error updating user: ' . $e->getMessage());
+        }
     }
 
-    #[On('updateUser')]
-    public function update()
+    #[On('delete-user')] // Add this attribute
+    public function deleteUser($userId)
     {
-        $this->validate([
-            'name' => 'required|min:3',
-            'email' => 'required|email|unique:users,email,' . $this->editUser->id,
-            'selectedRole' => 'required'
-        ]);
-
-        // Check if updating would remove the last super admin
-        $superAdminRole = Role::where('slug', 'super-admin')->first();
-        if ($superAdminRole
-            && $this->editUser->roles->contains($superAdminRole)
-            && $this->selectedRole != $superAdminRole->id
-            && $this->isLastSuperAdmin($this->editUser)) {
-            session()->flash('error', 'Cannot remove super admin role from the last super admin user.');
-            return;
+        try {
+            $user = User::findOrFail($userId);
+            $userRepository = new UserRepository(new RoleRepository());
+            $userRepository->deleteUser($user);
+            session()->flash('message', 'User deleted successfully.');
+        } catch (\Exception $e) {
+            session()->flash('error', $e->getMessage());
         }
-
-        $this->editUser->update([
-            'name' => $this->name,
-            'email' => $this->email,
-        ]);
-
-        $this->editUser->roles()->sync([$this->selectedRole]); // Sync single role
-
-        $this->resetForm();
-        session()->flash('message', 'User updated successfully.');
-    }
-
-    #[On('deleteUser')]
-    public function delete($userId)
-    {
-        $user = User::find($userId);
-        if (!$user) {
-            return;
-        }
-
-        if ($user->id === auth()->id()) {
-            session()->flash('error', 'You cannot delete your own account.');
-            return;
-        }
-
-        if ($this->isLastSuperAdmin($user)) {
-            session()->flash('error', 'Cannot delete the last super admin account.');
-            return;
-        }
-
-        $user->delete();
-        session()->flash('message', 'User deleted successfully.');
-    }
-
-    protected function isLastSuperAdmin(User $user): bool
-    {
-        $superAdminRole = Role::where('slug', 'super-admin')->first();
-
-        if (!$superAdminRole) {
-            return false;
-        }
-
-        if ($user->roles->contains($superAdminRole)) {
-            $superAdminCount = User::whereHas('roles', function($query) use ($superAdminRole) {
-                $query->where('roles.id', $superAdminRole->id);
-            })->count();
-
-            return $superAdminCount <= 1;
-        }
-
-        return false;
     }
 
     public function resetForm()
     {
         $this->reset(['name', 'email', 'password', 'selectedRole', 'showCreateModal', 'editUser', 'isEditing']);
         $this->resetValidation();
+    }
+
+    public function render()
+    {
+        return view('livewire.user-management', [
+            'users' => User::with('roles')->paginate(10),
+            'roles' => Role::all(),
+        ]);
     }
 }
