@@ -8,6 +8,7 @@ use App\Models\Role;
 use App\Models\Permission;
 use Livewire\WithPagination;
 use Livewire\Attributes\Rule;
+
 class RoleManagement extends Component
 {
     use WithPagination;
@@ -20,7 +21,7 @@ class RoleManagement extends Component
 
     public array $selectedPermissions = [];
     public bool $showCreateModal = false;
-    public ?Role $editRole = null;
+    public ?int $editRoleId = null;
 
     public function create(): void
     {
@@ -33,8 +34,7 @@ class RoleManagement extends Component
 
         $role->permissions()->sync($this->selectedPermissions);
 
-        $this->reset();
-        $this->showCreateModal = false;
+        $this->resetForm();
         session()->flash('message', 'Role created successfully.');
     }
 
@@ -49,15 +49,48 @@ class RoleManagement extends Component
         session()->flash('message', 'Role deleted successfully.');
     }
 
-    public function editRole(Role $role): void
+    public function editRole(int $roleId): void
     {
-        $this->editRole = $role;
+        $role = Role::findOrFail($roleId);
+        $this->editRoleId = $roleId;
         $this->name = $role->name;
         $this->slug = $role->slug;
         $this->selectedPermissions = $role->permissions->pluck('id')->toArray();
         $this->showCreateModal = true;
     }
-    #[Layout('layouts.app')] // Add this line
+
+    public function update(): void
+    {
+        $this->validate([
+            'name' => 'required|min:3',
+            'slug' => 'required|unique:roles,slug,' . $this->editRoleId,
+        ]);
+
+        if (!$this->editRoleId) {
+            session()->flash('error', 'No role selected for editing.');
+            return;
+        }
+
+        $role = Role::findOrFail($this->editRoleId);
+
+        $role->update([
+            'name' => $this->name,
+            'slug' => $this->slug,
+        ]);
+
+        $role->permissions()->sync($this->selectedPermissions);
+
+        $this->resetForm();
+        session()->flash('message', 'Role updated successfully.');
+    }
+
+    public function resetForm(): void
+    {
+        $this->reset(['name', 'slug', 'selectedPermissions', 'editRoleId', 'showCreateModal']);
+        $this->resetValidation();
+    }
+
+    #[Layout('layouts.app')]
     public function render()
     {
         return view('livewire.role-management', [
