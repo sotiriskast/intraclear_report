@@ -2,6 +2,7 @@
 namespace App\Livewire;
 
 use AllowDynamicProperties;
+use Illuminate\Support\Facades\Log;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Livewire\Attributes\Layout;
@@ -56,10 +57,11 @@ class RoleManagement extends Component
                 $this->name,
                 $this->selectedPermissions
             );
-
+            Log::info("Role created successfully.", ['role_id' => $roleRepository->id, 'name' => $this->name]);
             session()->flash('message', __('Role created successfully.'));
             $this->showCreateModal = false;
         } catch (\Exception $e) {
+            Log::error("Error creating role: " . $e->getMessage(), ['name' => $this->name]);
             session()->flash('error', 'Error creating role: ' . $e->getMessage());
         }
         $this->resetForm();
@@ -92,8 +94,10 @@ class RoleManagement extends Component
             $role = Role::findOrFail($roleId);
             $roleRepository = new RoleRepository();
             $roleRepository->deleteRole($role);
+            Log::info("Role deleted successfully.", ['role_id' => $role->id]);
             session()->flash('message', __('Role deleted successfully.'));
         } catch (\Exception $e) {
+            Log::error("Error deleting role: " . $e->getMessage(), ['role_id' => $roleId]);
             session()->flash('error', $e->getMessage());
         }
     }

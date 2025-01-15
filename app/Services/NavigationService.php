@@ -45,7 +45,7 @@ class NavigationService
             'settings' => [
                 'route' => 'profile.show',
                 'label' => 'Settings',
-                'icon' => 'dashboard',
+                'icon' => 'settings',
                 'permission' => null,
             ],
 

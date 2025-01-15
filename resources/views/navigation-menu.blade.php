@@ -2,10 +2,7 @@
     <!-- Logo Section -->
     <div class="flex items-center justify-between h-16 px-4 border-b border-gray-200">
         <a href="{{ route('dashboard') }}" class="flex items-center">
-            <x-application-mark class="block h-9 w-auto" />
-            <span class="ml-2 text-xl font-semibold text-gray-900">
-                {{ config('app.name') }}
-            </span>
+            <x-authentication-card-logo class="w-72 h-16" />
         </a>
     </div>
     @inject('navigationService', 'App\Services\NavigationService')
@@ -36,9 +33,9 @@
                 }"
                     class="relative"
                 >
-                    <button
+                    <x-nav-link
                         @click="open = !open;$dispatch('closeSidebar')"
-                        class="w-full flex items-center justify-between px-3 py-2 rounded-md text-sm font-medium transition-colors
+                        class="w-full flex items-center justify-between px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer
                            {{ collect($item['children'])->contains(fn($child) => request()->routeIs($child['route'] ?? ''))
                                 ? 'bg-gray-100 text-gray-900'
                                 : 'text-gray-600 hover:bg-gray-50' }}"
@@ -58,7 +55,7 @@
                             x-show="open"
                             class="h-4 w-4"
                         />
-                    </button>
+                    </x-nav-link>
 
                     <div
                         x-show="open"
@@ -85,8 +82,11 @@
         @endforeach
         <form method="POST" action="{{ route('logout') }}">
             @csrf
-            <button type="submit" class="btn btn-link">
-                Logout
+            <button type="submit" class="w-full flex items-center justify-between px-3 py-2 rounded-md text-sm font-medium transition-colors">
+                <div class="flex items-center">
+                    <x-icon name="logout" class="mr-3 h-5 w-5" />
+                    <span>{{ __('Logout') }}</span>
+                </div>
             </button>
         </form>
     </nav>

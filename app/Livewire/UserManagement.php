@@ -1,14 +1,21 @@
 <?php
+
 namespace App\Livewire;
 
 use App\Models\User;
 use App\Repositories\RoleRepository;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\On; // Add this import
+use Livewire\Attributes\On;
+
+// Add this import
 use App\Repositories\UserRepository;
 use Spatie\Permission\Models\Role;
+use Illuminate\Support\Facades\Log;
+
 /**
  * Component for managing users in the application.
  *
@@ -95,11 +102,12 @@ class UserManagement extends Component
                 $this->password,
                 $this->selectedRole
             );
-
+            Log::info("User created successfully.", ['user_id' => $userRepository->id, 'email' => $this->email]);
             session()->flash('message', 'User created successfully.');
             $this->showCreateModal = false;
             $this->resetForm();
         } catch (\Exception $e) {
+            Log::error("Error creating user: " . $e->getMessage(), ['email' => $this->email]);
             session()->flash('error', 'Error creating user: ' . $e->getMessage());
         }
     }
@@ -123,11 +131,12 @@ class UserManagement extends Component
                 $this->password,
                 $this->selectedRole
             );
-
+            Log::info("User updated successfully.", ['user_id' => $this->editUser->id, 'email' => $this->email]);
             session()->flash('message', 'User updated successfully.');
             $this->showCreateModal = false;
             $this->resetForm();
         } catch (\Exception $e) {
+            Log::error("Error updating user: " . $e->getMessage(), ['user_id' => $this->editUser?->id]);
             session()->flash('error', 'Error updating user: ' . $e->getMessage());
         }
     }
@@ -141,12 +150,16 @@ class UserManagement extends Component
     #[On('delete-user')]
     public function deleteUser(int $userId): void
     {
+        $authUser = Auth::user();
+        $date = Carbon::now();
         try {
             $user = User::findOrFail($userId);
             $userRepository = new UserRepository(new RoleRepository());
             $userRepository->deleteUser($user);
+            Log::info("User deleted successfully by {$authUser->name} at {$date}.", ['role_id' => $userRepository->id]);
             session()->flash('message', 'User deleted successfully.');
         } catch (\Exception $e) {
+            Log::error("Error deleting user: " . $e->getMessage(), ['userId' => $userId]);
             session()->flash('error', $e->getMessage());
         }
     }
