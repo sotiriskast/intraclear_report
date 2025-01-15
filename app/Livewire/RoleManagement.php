@@ -60,6 +60,7 @@ class RoleManagement extends Component
             Log::info("Role created successfully.", ['role_id' => $roleRepository->id, 'name' => $this->name]);
             session()->flash('message', __('Role created successfully.'));
             $this->showCreateModal = false;
+
         } catch (\Exception $e) {
             Log::error("Error creating role: " . $e->getMessage(), ['name' => $this->name]);
             session()->flash('error', 'Error creating role: ' . $e->getMessage());
