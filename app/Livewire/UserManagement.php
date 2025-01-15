@@ -9,21 +9,43 @@ use Livewire\Attributes\Layout;
 use Livewire\Attributes\On; // Add this import
 use App\Repositories\UserRepository;
 use Spatie\Permission\Models\Role;
-
+/**
+ * Component for managing users in the application.
+ *
+ * Handles creation, editing, updating, and deletion of users.
+ */
 #[Layout('layouts.app')]
 class UserManagement extends Component
 {
     use WithPagination;
 
+    /** @var string User's name */
     public string $name = '';
+
+    /** @var string User's email */
     public string $email = '';
+
+    /** @var string User's password */
     public string $password = '';
+
+    /** @var string Selected role ID */
     public $selectedRole = '';
+
+    /** @var bool Whether to show the create/edit modal */
     public bool $showCreateModal = false;
+
+    /** @var User|null The user being edited */
     public ?User $editUser = null;
+
+    /** @var bool Whether the form is in editing mode */
     public bool $isEditing = false;
 
-    protected function rules()
+    /**
+     * Validation rules for user creation and updates.
+     *
+     * @return array
+     */
+    protected function rules(): array
     {
         return [
             'name' => 'required|min:3',
@@ -31,14 +53,21 @@ class UserManagement extends Component
                 ? 'required|email|unique:users,email,' . $this->editUser->id
                 : 'required|email|unique:users,email',
             'password' => $this->isEditing ? 'nullable|min:8' : 'required|min:8',
-            'selectedRole' => 'required'
+            'selectedRole' => 'required',
         ];
     }
 
-    #[On('edit-user')] // Add this attribute
-    public function editUser($userId)
+    /**
+     * Opens the modal for editing a user.
+     *
+     * @param int $userId
+     * @return void
+     */
+    #[On('edit-user')]
+    public function editUser(int $userId): void
     {
         $this->editUser = User::with('roles')->find($userId);
+
         if ($this->editUser) {
             $this->name = $this->editUser->name;
             $this->email = $this->editUser->email;
@@ -48,8 +77,13 @@ class UserManagement extends Component
         }
     }
 
-    #[On('create-user')] // Add this attribute
-    public function createUser()
+    /**
+     * Creates a new user with the specified details and role.
+     *
+     * @return void
+     */
+    #[On('create-user')]
+    public function createUser(): void
     {
         $this->validate();
 
@@ -70,8 +104,13 @@ class UserManagement extends Component
         }
     }
 
-    #[On('update-user')] // Add this attribute
-    public function updateUser()
+    /**
+     * Updates an existing user's details.
+     *
+     * @return void
+     */
+    #[On('update-user')]
+    public function updateUser(): void
     {
         $this->validate();
 
@@ -93,8 +132,14 @@ class UserManagement extends Component
         }
     }
 
-    #[On('delete-user')] // Add this attribute
-    public function deleteUser($userId)
+    /**
+     * Deletes a user by their ID.
+     *
+     * @param int $userId
+     * @return void
+     */
+    #[On('delete-user')]
+    public function deleteUser(int $userId): void
     {
         try {
             $user = User::findOrFail($userId);
@@ -106,12 +151,22 @@ class UserManagement extends Component
         }
     }
 
-    public function resetForm()
+    /**
+     * Resets the form fields and validation errors.
+     *
+     * @return void
+     */
+    public function resetForm(): void
     {
         $this->reset(['name', 'email', 'password', 'selectedRole', 'showCreateModal', 'editUser', 'isEditing']);
         $this->resetValidation();
     }
 
+    /**
+     * Renders the Livewire component.
+     *
+     * @return \Illuminate\View\View
+     */
     public function render()
     {
         return view('livewire.user-management', [

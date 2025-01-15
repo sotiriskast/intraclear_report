@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Services;
 
 use App\Models\User;
@@ -41,6 +42,13 @@ class NavigationService
                     ],
                 ],
             ],
+            'settings' => [
+                'route' => 'profile.show',
+                'label' => 'Settings',
+                'icon' => 'dashboard',
+                'permission' => null,
+            ],
+
             // Additional dynamic items can be added here
         ];
     }

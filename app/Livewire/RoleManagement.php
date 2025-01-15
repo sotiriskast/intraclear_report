@@ -1,6 +1,7 @@
 <?php
 namespace App\Livewire;
 
+use AllowDynamicProperties;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Livewire\Attributes\Layout;
@@ -8,7 +9,7 @@ use App\Repositories\RoleRepository;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
-#[Layout('layouts.app')]
+#[AllowDynamicProperties] #[Layout('layouts.app')]
 class RoleManagement extends Component
 {
     use WithPagination;
