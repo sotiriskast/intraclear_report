@@ -4,7 +4,9 @@ use App\Livewire\RoleManagement;
 use App\Livewire\UserManagement;
 use Illuminate\Support\Facades\Route;
 
-
+Route::get('/register', function () {
+    abort(404); // Or redirect to a specific page
+});
 Route::middleware([
     'auth:sanctum',
     config('jetstream.auth_session'),
