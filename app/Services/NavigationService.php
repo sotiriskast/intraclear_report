@@ -3,19 +3,9 @@
 namespace App\Services;
 
 use App\Models\User;
-use App\Repositories\UserRepository;
-use Spatie\Permission\Models\Role;
-use Spatie\Permission\Models\Permission;
 
 class NavigationService
 {
-    private $userRepository;
-
-    public function __construct(UserRepository $userRepository)
-    {
-        $this->userRepository = $userRepository;
-    }
-
     // This will generate dynamic navigation based on roles and permissions
     public function getNavigation(User $user)
     {
