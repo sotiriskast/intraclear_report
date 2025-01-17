@@ -8,14 +8,7 @@ use Illuminate\Validation\ValidationException;
 
 class UserRepository
 {
-    private $roleRepository;
-
-    public function __construct(RoleRepository $roleRepository)
-    {
-        $this->roleRepository = $roleRepository;
-    }
-
-    public function createUser(string $name, string $email, string $password, string $role): User
+    public function createUser(string $name, string $email, string $password, int $role): User
     {
         $user = User::create([
             'name' => $name,
@@ -32,7 +25,7 @@ class UserRepository
         return $user;
     }
 
-    public function updateUser(User $user, string $name, string $email, ?string $password, string $role): User
+    public function updateUser(User $user, string $name, string $email, ?string $password, int $role): User
     {
         $userData = [
             'name' => $name,

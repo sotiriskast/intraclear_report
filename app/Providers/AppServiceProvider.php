@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Repositories\RoleRepository;
+use App\Services\DynamicLogger;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -14,6 +15,9 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(RoleRepository::class, function ($app) {
             return new RoleRepository();
+        });
+        $this->app->singleton(DynamicLogger::class, function ($app) {
+            return new DynamicLogger();
         });
     }
 

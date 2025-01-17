@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\User;
 use App\Repositories\RoleRepository;
+use App\Services\DynamicLogger;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
@@ -47,6 +48,12 @@ class UserManagement extends Component
     /** @var bool Whether the form is in editing mode */
     public bool $isEditing = false;
 
+    protected $logger;
+
+    public  function boot(DynamicLogger $logger)
+    {
+        $this->logger = $logger;
+    }
     /**
      * Validation rules for user creation and updates.
      *
@@ -93,21 +100,20 @@ class UserManagement extends Component
     public function createUser(): void
     {
         $this->validate();
-
         try {
             $userRepository = new UserRepository(new RoleRepository());
-            $userRepository->createUser(
+           $user= $userRepository->createUser(
                 $this->name,
                 $this->email,
                 $this->password,
                 $this->selectedRole
             );
-            Log::info("User created successfully.", ['user_id' => $userRepository->id, 'email' => $this->email]);
             session()->flash('message', 'User created successfully.');
+            $this->logger->log('info', 'User created successfully',   ['user_id' => $user->id, 'email' => $user->email]);
             $this->showCreateModal = false;
             $this->resetForm();
         } catch (\Exception $e) {
-            Log::error("Error creating user: " . $e->getMessage(), ['email' => $this->email]);
+            $this->logger->log('error', 'Error updating user: ' . $e->getMessage(),['email' => $this->email]);
             session()->flash('error', 'Error creating user: ' . $e->getMessage());
         }
     }
@@ -121,7 +127,6 @@ class UserManagement extends Component
     public function updateUser(): void
     {
         $this->validate();
-
         try {
             $userRepository = new UserRepository(new RoleRepository());
             $userRepository->updateUser(
@@ -131,12 +136,12 @@ class UserManagement extends Component
                 $this->password,
                 $this->selectedRole
             );
-            Log::info("User updated successfully.", ['user_id' => $this->editUser->id, 'email' => $this->email]);
             session()->flash('message', 'User updated successfully.');
+            $this->logger->log('info', 'User updated successfully', ['user_id' => $this->editUser->id, 'email' => $this->email]);
             $this->showCreateModal = false;
             $this->resetForm();
         } catch (\Exception $e) {
-            Log::error("Error updating user: " . $e->getMessage(), ['user_id' => $this->editUser?->id]);
+            $this->logger->log('error', 'Error updating user: ' . $e->getMessage(),['user_id' => $this->editUser?->id]);
             session()->flash('error', 'Error updating user: ' . $e->getMessage());
         }
     }
@@ -150,16 +155,14 @@ class UserManagement extends Component
     #[On('delete-user')]
     public function deleteUser(int $userId): void
     {
-        $authUser = Auth::user();
-        $date = Carbon::now();
         try {
             $user = User::findOrFail($userId);
             $userRepository = new UserRepository(new RoleRepository());
             $userRepository->deleteUser($user);
-            Log::info("User deleted successfully by {$authUser->name} at {$date}.", ['role_id' => $userRepository->id]);
+            $this->logger->log('info', 'User deleted successfully', ['user_id' => $userId, 'email' => $user->email]);
             session()->flash('message', 'User deleted successfully.');
         } catch (\Exception $e) {
-            Log::error("Error deleting user: " . $e->getMessage(), ['userId' => $userId]);
+            $this->logger->log('error', 'Error deleting user: ' . $e->getMessage(),['user_id' => $userId]);
             session()->flash('error', $e->getMessage());
         }
     }

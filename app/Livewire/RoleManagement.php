@@ -2,6 +2,10 @@
 namespace App\Livewire;
 
 use AllowDynamicProperties;
+use App\Services\DynamicLogger;
+use App\Services\HelperService;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -19,6 +23,13 @@ class RoleManagement extends Component
     public array $selectedPermissions = [];
     public bool $showCreateModal = false;
     public ?int $editRoleId = null;
+
+    protected $logger;
+
+    public  function boot(DynamicLogger $logger)
+    {
+        $this->logger = $logger;
+    }
 
     public function mount()
     {
@@ -50,19 +61,17 @@ class RoleManagement extends Component
     public function create()
     {
         $validatedData = $this->validate();
-
         try {
             $roleRepository = new RoleRepository();
-            $roleRepository->createRole(
+            $role=$roleRepository->createRole(
                 $this->name,
                 $this->selectedPermissions
             );
-            Log::info("Role created successfully.", ['role_id' => $roleRepository->id, 'name' => $this->name]);
+            $this->logger->log('info', 'Role created successfully',  ['role_id' => $role->id, 'name' => $this->name]);
             session()->flash('message', __('Role created successfully.'));
             $this->showCreateModal = false;
-
         } catch (\Exception $e) {
-            Log::error("Error creating role: " . $e->getMessage(), ['name' => $this->name]);
+            $this->logger->log('error', 'Error creating role: ' . $e->getMessage());
             session()->flash('error', 'Error creating role: ' . $e->getMessage());
         }
         $this->resetForm();
@@ -82,8 +91,10 @@ class RoleManagement extends Component
             );
 
             session()->flash('message', __('Role updated successfully.'));
+            $this->logger->log('info', 'Role updated successfully',  ['role_id' => $role->id, 'name' => $this->name]);
             $this->showCreateModal = false;
         } catch (\Exception $e) {
+            $this->logger->log('error', 'Error updating role: ' . $e->getMessage());
             session()->flash('error', 'Error updating role: ' . $e->getMessage());
         }
         $this->resetForm();
@@ -96,9 +107,11 @@ class RoleManagement extends Component
             $roleRepository = new RoleRepository();
             $roleRepository->deleteRole($role);
             Log::info("Role deleted successfully.", ['role_id' => $role->id]);
+            $this->logger->log('info', 'Role deleted successfully',  ['role_id' => $role->id]);
+
             session()->flash('message', __('Role deleted successfully.'));
         } catch (\Exception $e) {
-            Log::error("Error deleting role: " . $e->getMessage(), ['role_id' => $roleId]);
+            $this->logger->log('error', 'Error deleting role: ' . $e->getMessage(),['role_id' => $roleId]);
             session()->flash('error', $e->getMessage());
         }
     }
@@ -111,7 +124,6 @@ class RoleManagement extends Component
         $this->showCreateModal = false;
         $this->resetValidation();
     }
-
     public function render()
     {
         return view('livewire.role-management', [

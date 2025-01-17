@@ -17,10 +17,6 @@ class RolesAndPermissionsSeeder extends Seeder
         $permissions = [
             'manage-users',
             'manage-roles',
-            'view-users',
-            'create-users',
-            'edit-users',
-            'delete-users',
             // Add more granular permissions
         ];
 
@@ -31,11 +27,18 @@ class RolesAndPermissionsSeeder extends Seeder
         // Create Admin Role
         $adminRole = Role::firstOrCreate(['name' => 'admin']);
         $adminRole->givePermissionTo([
-            'view-users',
+            'manage-users',
         ]);
 
         // Create Super Admin Role
         $superAdminRole = Role::firstOrCreate(['name' => 'super-admin']);
         $superAdminRole->givePermissionTo(Permission::all());
+
+        $user = User::firstOrCreate(
+            ['email' => 'root@root.com'],
+            ['name' => 'Super Admin', 'password' => Hash::make('password')]
+        );
+
+        $user->assignRole($superAdminRole);
     }
 }
