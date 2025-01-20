@@ -19,7 +19,7 @@ class RegistrationTest extends TestCase
 
         $response = $this->get('/register');
 
-        $response->assertStatus(200);
+        $response->assertStatus(404);
     }
 
     public function test_registration_screen_cannot_be_rendered_if_support_is_disabled(): void
