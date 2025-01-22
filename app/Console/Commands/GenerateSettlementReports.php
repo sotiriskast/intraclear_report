@@ -2,8 +2,11 @@
 
 namespace App\Console\Commands;
 
+use App\Services\ExcelExportService;
 use App\Services\SettlementService;
 use Carbon\Carbon;
+use Carbon\CarbonInterface;
+use DB;
 use Illuminate\Console\Command;
 
 class GenerateSettlementReports extends Command
@@ -46,16 +49,16 @@ class GenerateSettlementReports extends Command
         try {
             // Get date range
             $startDate = $this->option('start-date')
-                ?? Carbon::now()->previous(Carbon::MONDAY)->format('Y-m-d');
+                ?? Carbon::now()->previous(CarbonInterface::MONDAY)->format('Y-m-d');
             $endDate = $this->option('end-date')
-                ?? Carbon::now()->previous(Carbon::SUNDAY)->format('Y-m-d');
+                ?? Carbon::now()->previous(CarbonInterface::SUNDAY)->format('Y-m-d');
 
             // Get merchants to process
             $merchantIds = [];
             if ($this->option('merchant-id')) {
                 $merchantIds[] = $this->option('merchant-id');
             } else {
-                $merchantIds = DB::connection('processing_db')
+                $merchantIds = DB::connection('payment_gateway_mysql')
                     ->table('account')
                     ->where('active', 1)
                     ->pluck('id')

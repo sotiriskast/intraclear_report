@@ -55,7 +55,7 @@ class ExcelExportService
 
     protected function getMerchantInfo($merchantId)
     {
-        return DB::connection('processing_db')
+        return DB::connection('payment_gateway_mysql')
             ->table('account')
             ->where('id', $merchantId)
             ->first();

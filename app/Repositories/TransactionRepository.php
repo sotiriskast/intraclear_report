@@ -10,7 +10,7 @@ class TransactionRepository implements TransactionRepositoryInterface
 {
     public function getMerchantTransactions(int $merchantId, array $dateRange, string $currency = null)
     {
-        $query = DB::connection('processing_db')
+        $query = DB::connection('payment_gateway_mysql')
             ->table('transactions')
             ->select([
                 'transactions.*',
@@ -32,7 +32,7 @@ class TransactionRepository implements TransactionRepositoryInterface
 
     public function getExchangeRates(array $dateRange, array $currencies)
     {
-        $rates = DB::connection('processing_db')
+        $rates = DB::connection('payment_gateway_mysql')
             ->table('scheme_rates')
             ->select([
                 'from_currency',
@@ -57,7 +57,7 @@ class TransactionRepository implements TransactionRepositoryInterface
 
     public function getDailyTotals(int $merchantId, array $dateRange, string $currency = null)
     {
-        $query = DB::connection('processing_db')
+        $query = DB::connection('payment_gateway_mysql')
             ->table('transactions')
             ->select([
                 DB::raw('DATE(added) as date'),
