@@ -49,10 +49,16 @@ class GenerateSettlementReports extends Command
         try {
             // Get date range
             $startDate = $this->option('start-date')
-                ?? Carbon::now()->previous(CarbonInterface::MONDAY)->format('Y-m-d');
-            $endDate = $this->option('end-date')
-                ?? Carbon::now()->previous(CarbonInterface::SUNDAY)->format('Y-m-d');
+                ?? Carbon::now()
+                    ->subWeek() // Go to last week
+                    ->startOfWeek(CarbonInterface::MONDAY) // Get the Monday of last week
+                    ->format('Y-m-d');
 
+            $endDate = $this->option('end-date')
+                ?? Carbon::now()
+                    ->subWeek() // Go to last week
+                    ->endOfWeek(CarbonInterface::SUNDAY) // Get the Sunday of last week
+                    ->format('Y-m-d');
             // Get merchants to process
             $merchantIds = [];
             if ($this->option('merchant-id')) {

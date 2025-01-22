@@ -83,6 +83,17 @@ return new class extends Migration
 
             $table->foreign('fee_type_id')->references('id')->on('fee_types');
         });
+        Schema::create('generated_reports', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('merchant_id');
+            $table->string('report_path');
+            $table->date('start_date');
+            $table->date('end_date');
+            $table->timestamps();
+            $table->softDeletes();
+
+            $table->foreign('merchant_id')->references('id')->on('account');
+        });
     }
 
     /**
@@ -95,5 +106,6 @@ return new class extends Migration
         Schema::dropIfExists('merchant_rolling_reserves');
         Schema::dropIfExists('merchant_fees');
         Schema::dropIfExists('fee_types');
+        Schema::dropIfExists('generated_reports');
     }
 };

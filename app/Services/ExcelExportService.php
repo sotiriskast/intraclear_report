@@ -11,12 +11,31 @@ use PhpOffice\PhpSpreadsheet\Style\{
     NumberFormat
 };
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 
 class ExcelExportService
 {
     protected $spreadsheet;
     protected $sheet;
     protected $currentRow = 1;
+
+    protected function getColumnLetter($number) {
+        $column = '';
+        while ($number > 0) {
+            $modulo = ($number - 1) % 26;
+            $column = chr(65 + $modulo) . $column;
+            $number = (int)(($number - $modulo) / 26);
+        }
+        return $column;
+    }
+
+    protected function initializeSpreadsheet()
+    {
+        $this->spreadsheet = new Spreadsheet();
+        $this->sheet = $this->spreadsheet->getActiveSheet();
+        $this->currentRow = 1;
+    }
 
     public function generateReport(int $merchantId, array $settlementData, array $dateRange)
     {
@@ -44,13 +63,6 @@ class ExcelExportService
         $this->addTotalCalculations($settlementData);
 
         return $this->saveReport($merchantId, $dateRange);
-    }
-
-    protected function initializeSpreadsheet()
-    {
-        $this->spreadsheet = new Spreadsheet();
-        $this->sheet = $this->spreadsheet->getActiveSheet();
-        $this->currentRow = 1;
     }
 
     protected function getMerchantInfo($merchantId)
@@ -99,7 +111,8 @@ class ExcelExportService
         // Add headers
         $headers = ['Currency', 'Total Sales', 'Total Sales (EUR)', 'Declines', 'Refunds', 'Net Amount', 'Transaction Count'];
         foreach ($headers as $col => $header) {
-            $this->sheet->setCellValueByColumnAndRow($col + 1, $this->currentRow, $header);
+            $column = $this->getColumnLetter($col + 1);
+            $this->sheet->setCellValue($column . $this->currentRow, $header);
         }
         $this->styleTableHeader($this->currentRow);
 
@@ -118,7 +131,8 @@ class ExcelExportService
             ];
 
             foreach ($row as $col => $value) {
-                $cell = $this->sheet->getCellByColumnAndRow($col + 1, $this->currentRow);
+                $column = $this->getColumnLetter($col + 1);
+                $cell = $this->sheet->getCell($column . $this->currentRow);
                 $cell->setValue($value);
 
                 if ($col > 0) { // Skip currency column
@@ -144,7 +158,8 @@ class ExcelExportService
         // Add headers
         $headers = ['Fee Type', 'Amount (EUR)', 'Frequency'];
         foreach ($headers as $col => $header) {
-            $this->sheet->setCellValueByColumnAndRow($col + 1, $this->currentRow, $header);
+            $column = $this->getColumnLetter($col + 1);
+            $this->sheet->setCellValue($column . $this->currentRow, $header);
         }
         $this->styleTableHeader($this->currentRow);
 
@@ -159,7 +174,8 @@ class ExcelExportService
             ];
 
             foreach ($row as $col => $value) {
-                $cell = $this->sheet->getCellByColumnAndRow($col + 1, $this->currentRow);
+                $column = $this->getColumnLetter($col + 1);
+                $cell = $this->sheet->getCell($column . $this->currentRow);
                 $cell->setValue($value);
 
                 if ($col === 1) { // Amount column
@@ -185,7 +201,8 @@ class ExcelExportService
         // Current Period Reserve
         $headers = ['Currency', 'Original Amount', 'Reserve Amount (EUR)', 'Percentage', 'Release Date'];
         foreach ($headers as $col => $header) {
-            $this->sheet->setCellValueByColumnAndRow($col + 1, $this->currentRow, $header);
+            $column = $this->getColumnLetter($col + 1);
+            $this->sheet->setCellValue($column . $this->currentRow, $header);
         }
         $this->styleTableHeader($this->currentRow);
 
@@ -201,7 +218,8 @@ class ExcelExportService
             ];
 
             foreach ($row as $col => $value) {
-                $cell = $this->sheet->getCellByColumnAndRow($col + 1, $this->currentRow);
+                $column = $this->getColumnLetter($col + 1);
+                $cell = $this->sheet->getCell($column . $this->currentRow);
                 $cell->setValue($value);
 
                 if ($col === 1 || $col === 2) { // Amount columns
@@ -213,8 +231,7 @@ class ExcelExportService
             $this->currentRow++;
         }
 
-        // Releaseable Reserve
-        if (count($releaseableReserves) > 0) {
+        if (!empty($releaseableReserves)) {
             $this->currentRow += 2;
             $this->sheet->setCellValue("A{$this->currentRow}", 'RELEASEABLE RESERVE');
             $this->sheet->mergeCells("A{$this->currentRow}:H{$this->currentRow}");
@@ -224,7 +241,8 @@ class ExcelExportService
 
             $headers = ['Currency', 'Original Amount', 'Reserve Amount (EUR)', 'Reserve Date', 'Release Date'];
             foreach ($headers as $col => $header) {
-                $this->sheet->setCellValueByColumnAndRow($col + 1, $this->currentRow, $header);
+                $column = $this->getColumnLetter($col + 1);
+                $this->sheet->setCellValue($column . $this->currentRow, $header);
             }
             $this->styleTableHeader($this->currentRow);
 
@@ -240,7 +258,8 @@ class ExcelExportService
                 ];
 
                 foreach ($row as $col => $value) {
-                    $cell = $this->sheet->getCellByColumnAndRow($col + 1, $this->currentRow);
+                    $column = $this->getColumnLetter($col + 1);
+                    $cell = $this->sheet->getCell($column . $this->currentRow);
                     $cell->setValue($value);
 
                     if ($col === 1 || $col === 2) { // Amount columns
@@ -262,7 +281,7 @@ class ExcelExportService
         $totalSalesEur = array_sum(array_column($settlementData['transactions'], 'total_sales_eur'));
         $totalFeesEur = array_sum(array_column($settlementData['fees'], 'amount'));
         $totalNewReserveEur = array_sum(array_column($settlementData['rolling_reserve'], 'reserve_amount_eur'));
-        $totalReleaseableEur = array_sum(array_column($settlementData['releaseable_reserve'], 'reserve_amount_eur'));
+        $totalReleaseableEur = $settlementData['releaseable_reserve']->sum('reserve_amount_eur');
 
         $rows = [
             ['Total Sales (EUR)', $totalSalesEur],
@@ -319,14 +338,12 @@ class ExcelExportService
         $this->sheet->getStyle("A{$row}:H{$row}")->applyFromArray([
             'font' => [
                 'bold' => true,
-                'size' => 12
+                'size' => 12,
+                'color' => ['rgb' => 'FFFFFF']
             ],
             'fill' => [
                 'fillType' => Fill::FILL_SOLID,
                 'color' => ['rgb' => '4472C4']
-            ],
-            'font' => [
-                'color' => ['rgb' => 'FFFFFF']
             ],
             'alignment' => [
                 'horizontal' => Alignment::HORIZONTAL_CENTER

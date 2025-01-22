@@ -1,6 +1,7 @@
 <?php
 namespace App\Services;
 
+use App\Services\Logging\DebugLogHandler;
 use App\Services\Logging\LogHandlerInterface;
 use App\Services\Logging\InfoLogHandler;
 use App\Services\Logging\ErrorLogHandler;
@@ -17,6 +18,7 @@ class DynamicLogger
         $this->handlers = [
             'info' => new InfoLogHandler(),
             'error' => new ErrorLogHandler(),
+            'debug' => new DebugLogHandler(),
         ];
     }
 
