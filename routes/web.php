@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\TestController;
 use App\Livewire\RoleManagement;
 use App\Livewire\UserManagement;
 use Illuminate\Support\Facades\Route;
@@ -26,3 +27,4 @@ Route::middleware(['auth:web'])->group(function () {
 });
 
 
+Route::get('/admin/test', [TestController::class,'getFromDb']);
