@@ -2,18 +2,33 @@
 
 namespace App\Repositories;
 
+use App\Services\DynamicLogger;
 use Illuminate\Support\Facades\DB;
 use App\Repositories\Interfaces\TransactionRepositoryInterface;
 use Carbon\Carbon;
 
 class TransactionRepository implements TransactionRepositoryInterface
 {
+    public function __construct(private DynamicLogger $logger)
+    {
+    }
+
     public function getMerchantTransactions(int $merchantId, array $dateRange, string $currency = null)
     {
         $query = DB::connection('payment_gateway_mysql')
             ->table('transactions')
             ->select([
-                'transactions.*',
+                'transactions.account_id',
+                'transactions.tid',
+                'transactions.card_id',
+                'transactions.shop_id',
+                'transactions.customer_id',
+                'transactions.added',
+                'transactions.amount',
+                'transactions.currency',
+                'transactions.transaction_type',
+                'transactions.transaction_status',
+
                 'shop.owner_name as shop_owner_name',
                 'customer_card.card_type',
                 DB::raw('DATE(transactions.added) as transaction_date')
@@ -26,8 +41,10 @@ class TransactionRepository implements TransactionRepositoryInterface
         if ($currency) {
             $query->where('transactions.currency', $currency);
         }
+        $results = $query->get();
+        $this->logger->log('info',"Found transactions", ['count' => $results->count()]);
 
-        return $query->get();
+        return $results;
     }
 
     public function getExchangeRates(array $dateRange, array $currencies)

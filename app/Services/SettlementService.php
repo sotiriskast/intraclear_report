@@ -28,24 +28,35 @@ class SettlementService
 
     public function generateSettlement(int $merchantId, array $dateRange, string $currency = null)
     {
+        \Log::info('Starting settlement generation', [
+            'merchant_id' => $merchantId,
+            'date_range' => $dateRange,
+            'currency' => $currency
+        ]);
         // Get all transactions for the period
         $transactions = $this->transactionRepository->getMerchantTransactions($merchantId, $dateRange, $currency);
+        \Log::info('Fetched transactions', ['count' => $transactions->count()]);
 
         // Get exchange rates
         $currencies = $transactions->pluck('currency')->unique()->toArray();
         $exchangeRates = $this->transactionRepository->getExchangeRates($dateRange, $currencies);
+        \Log::info('Fetched exchange rates', ['count' => count($exchangeRates)]);
 
         // Calculate totals and convert to EUR
         $totals = $this->calculateTotals($transactions, $exchangeRates);
+        \Log::info('Calculated totals', ['totals' => $totals]);
 
         // Calculate fees
         $fees = $this->calculateFees($merchantId, $totals, $dateRange);
+        \Log::info('Calculated fees', ['totals' => $totals]);
 
         // Calculate rolling reserve
         $rollingReserve = $this->calculateRollingReserve($merchantId, $totals, $dateRange);
+        \Log::info('Calculated rolling reserved', ['totals' => $totals]);
 
         // Get releaseable reserve
         $releaseableReserve = $this->getReleaseableReserve($merchantId, $dateRange['end']);
+        \Log::info('Calculated releaseableReserve', ['totals' => $totals]);
 
         return [
             'transactions' => $totals,
@@ -58,13 +69,18 @@ class SettlementService
     protected function calculateTotals(Collection $transactions, array $exchangeRates)
     {
         $totals = [];
+        $rateAccumulator = [];
 
         foreach ($transactions as $transaction) {
             $date = Carbon::parse($transaction->added)->format('Y-m-d');
             $currency = $transaction->currency;
-            $cardType = strtoupper($transaction->card_type);
+            $cardType = strtoupper($transaction->card_type ?? '');
 
-            // Get exchange rate
+            if (empty($cardType)) {
+                \Log::error("Missing card type for transaction {$transaction->id}");
+                continue;
+            }
+
             $rateKey = "{$currency}_{$cardType}_{$date}";
             $rate = $exchangeRates[$rateKey] ?? null;
 
@@ -73,9 +89,10 @@ class SettlementService
                 continue;
             }
 
-            $amountEur = $currency === 'EUR' ? $transaction->amount : ($transaction->amount * $rate);
+            // Convert to decimal from cents
+            $amount = $transaction->amount / 100;
+            $amountEur = $currency === 'EUR' ? $amount : ($amount * $rate);
 
-            // Initialize period totals if needed
             if (!isset($totals[$currency])) {
                 $totals[$currency] = [
                     'currency' => $currency,
@@ -90,30 +107,38 @@ class SettlementService
                 ];
             }
 
-            // Update totals based on transaction type and status
+            // Track rates for average
+            if ($currency !== 'EUR' && $rate) {
+                if (!isset($rateAccumulator[$currency])) {
+                    $rateAccumulator[$currency] = [];
+                }
+                $rateAccumulator[$currency][] = $rate;
+            }
+
             switch (true) {
                 case $transaction->transaction_type === 'sale' && $transaction->transaction_status === 'APPROVED':
-                    $totals[$currency]['total_sales'] += $transaction->amount;
+                    $totals[$currency]['total_sales'] += $amount;
                     $totals[$currency]['total_sales_eur'] += $amountEur;
                     break;
 
                 case $transaction->transaction_type === 'sale' && $transaction->transaction_status === 'DECLINED':
-                    $totals[$currency]['total_declines'] += $transaction->amount;
+                    $totals[$currency]['total_declines'] += $amount;
                     $totals[$currency]['total_declines_eur'] += $amountEur;
                     break;
 
                 case in_array($transaction->transaction_type, ['Refund', 'Partial Refund']):
-                    $totals[$currency]['total_refunds'] += $transaction->amount;
+                    $totals[$currency]['total_refunds'] += $amount;
                     $totals[$currency]['total_refunds_eur'] += $amountEur;
                     break;
             }
 
             $totals[$currency]['transaction_count']++;
+        }
 
-            // Update average rate
-            if ($currency !== 'EUR' && $rate) {
-                $totals[$currency]['average_rate'] =
-                    $totals[$currency]['total_sales_eur'] / $totals[$currency]['total_sales'];
+        // Calculate average rates
+        foreach ($rateAccumulator as $currency => $rates) {
+            if (!empty($rates)) {
+                $totals[$currency]['average_rate'] = array_sum($rates) / count($rates);
             }
         }
 

@@ -16,7 +16,7 @@ class GenerateSettlementReports extends Command
      *
      * @var string
      */
-    protected $signature = 'settlement:generate
+    protected $signature = 'intraclear:settlement-generate
                           {--merchant-id= : Specific merchant ID}
                           {--start-date= : Start date (Y-m-d)}
                           {--end-date= : End date (Y-m-d)}
@@ -61,18 +61,24 @@ class GenerateSettlementReports extends Command
                     ->format('Y-m-d');
             // Get merchants to process
             $merchantIds = [];
-            if ($this->option('merchant-id')) {
-                $merchantIds[] = $this->option('merchant-id');
-            } else {
-                $merchantIds = DB::connection('payment_gateway_mysql')
-                    ->table('account')
+            if ($merchantId = $this->option('merchant-id')) {
+                $merchantIds = DB::connection('mariadb')
+                    ->table('merchants')
+                    ->where('merchant_id', $merchantId) // Use merchant_id column
                     ->where('active', 1)
-                    ->pluck('id')
+                    ->pluck('merchant_id')
+                    ->toArray();
+            } else {
+                $merchantIds = DB::connection('mariadb')
+                    ->table('merchants')
+                    ->where('active', 1)
+                    ->pluck('merchant_id')
                     ->toArray();
             }
 
             $currency = $this->option('currency');
             $dateRange = ['start' => $startDate, 'end' => $endDate];
+
 
             foreach ($merchantIds as $merchantId) {
                 $this->info("Processing merchant ID: {$merchantId}");
@@ -94,7 +100,7 @@ class GenerateSettlementReports extends Command
                 $this->info("Report generated: {$filePath}");
 
                 // Store reference in database
-                DB::table('generated_reports')->insert([
+                DB::table('settlement_reports')->insert([
                     'merchant_id' => $merchantId,
                     'report_path' => $filePath,
                     'start_date' => $startDate,
