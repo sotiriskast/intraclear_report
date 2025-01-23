@@ -17,6 +17,10 @@ class RolesAndPermissionsSeeder extends Seeder
         $permissions = [
             'manage-users',
             'manage-roles',
+            'manage-merchants',
+            'manage-merchants-fees',
+            'manage-fees',
+
             // Add more granular permissions
         ];
 
@@ -27,7 +31,8 @@ class RolesAndPermissionsSeeder extends Seeder
         // Create Admin Role
         $adminRole = Role::firstOrCreate(['name' => 'admin']);
         $adminRole->givePermissionTo([
-            'manage-users',
+            'manage-fees',
+            'manage-merchants',
         ]);
 
         // Create Super Admin Role
