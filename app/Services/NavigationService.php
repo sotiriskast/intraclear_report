@@ -16,6 +16,27 @@ class NavigationService
                 'icon' => 'dashboard',
                 'permission' => null, // Always visible
             ],
+            'merchant' => [
+                'label' => 'Merchants',
+                'icon' => 'merchant',
+                'children' => [
+                    'merchant_list' => [
+                        'route' => 'admin.merchants',
+                        'label' => 'Merchant',
+                        'permission' => 'manage-merchants', // Permission check will be dynamic
+                    ],
+                    'merchant_fees' => [
+                        'route' => 'admin.merchant-fees',
+                        'label' => 'Merchant Fees',
+                        'permission' => 'manage-merchants-fees', // Permission check will be dynamic
+                    ],
+                    'fee_type' => [
+                        'route' => 'admin.fee-types',
+                        'label' => 'Fee Management',
+                        'permission' => 'manage-fees', // Permission check will be dynamic
+                    ],
+                ],
+            ],
             'users' => [
                 'label' => 'Users',
                 'icon' => 'users',

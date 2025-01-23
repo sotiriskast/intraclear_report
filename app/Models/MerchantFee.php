@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class MerchantFee extends Model
@@ -24,8 +25,19 @@ class MerchantFee extends Model
         'active' => 'boolean',
     ];
 
-    public function feeType()
+
+    public function merchant(): BelongsTo
+    {
+        return $this->belongsTo(Merchant::class);
+    }
+
+    public function feeType(): BelongsTo
     {
         return $this->belongsTo(FeeType::class);
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->where('active', true);
     }
 }

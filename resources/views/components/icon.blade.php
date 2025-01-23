@@ -30,5 +30,13 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16l-4-4m0 0l4-4m-4 4h16m-7-4v4m0 4v-4m3 0H5m14-3a3 3 0 01-3-3m3 0a3 3 0 013-3" />
             </svg>
             @break
+        @case('merchant')
+            <svg class="{{ $class }}" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6h4l1 2h8l1-2h4v6H3V6z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12v6h4v-6H5zm10 0v6h4v-6h-4z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3h6v3H9V3z" />
+            </svg>
+
+            @break
     @endswitch
 </div>

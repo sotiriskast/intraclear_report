@@ -117,7 +117,7 @@
                 </div>
 
                 {{-- Desktop View Table --}}
-                <div class="hidden lg:block overflow-x-auto">
+                <div class="hidden lg:block overflow-x-auto max-h-[600px]">
                     <table class="min-w-full divide-y divide-gray-200">
                         {{-- Table Header --}}
                         <thead class="bg-gray-50">

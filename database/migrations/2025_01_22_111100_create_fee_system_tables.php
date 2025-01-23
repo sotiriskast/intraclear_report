@@ -11,11 +11,21 @@ return new class extends Migration
      */
     public function up(): void
     {
+        Schema::create('merchants', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('merchant_id');
+            $table->string('name')->nullable();
+            $table->string('email')->nullable();
+            $table->string('phone')->nullable();
+            $table->boolean('active')->default(true);
+            $table->timestamps();
+        });
+
         Schema::create('fee_types', function (Blueprint $table) {
             $table->id();
             $table->string('name');
             $table->string('key')->unique();
-            $table->string('frequency_type'); // transaction, daily, monthly, yearly, one_time
+            $table->string('frequency_type'); // transaction, daily, weekly, monthly, yearly, one_time
             $table->boolean('is_percentage')->default(false);
             $table->timestamps();
             $table->softDeletes();
@@ -83,7 +93,7 @@ return new class extends Migration
 
             $table->foreign('fee_type_id')->references('id')->on('fee_types');
         });
-        Schema::create('generated_reports', function (Blueprint $table) {
+        Schema::create('settlement_reports', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('merchant_id');
             $table->string('report_path');
@@ -91,8 +101,7 @@ return new class extends Migration
             $table->date('end_date');
             $table->timestamps();
             $table->softDeletes();
-
-            $table->foreign('merchant_id')->references('id')->on('account');
+            $table->foreign('merchant_id')->references('id')->on('merchants');
         });
     }
 
@@ -101,11 +110,12 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::dropIfExists('merchant');
         Schema::dropIfExists('fee_history');
         Schema::dropIfExists('rolling_reserve_entries');
         Schema::dropIfExists('merchant_rolling_reserves');
         Schema::dropIfExists('merchant_fees');
         Schema::dropIfExists('fee_types');
-        Schema::dropIfExists('generated_reports');
+        Schema::dropIfExists('settlement_reports');
     }
 };

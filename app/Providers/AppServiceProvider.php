@@ -2,9 +2,11 @@
 
 namespace App\Providers;
 
+use App\Console\Commands\ImportMerchants;
 use App\Repositories\RoleRepository;
 use App\Services\DynamicLogger;
 use App\Services\ExcelExportService;
+use App\Services\MerchantSyncService;
 use App\Services\SettlementService;
 use Illuminate\Support\ServiceProvider;
 
@@ -39,6 +41,12 @@ class AppServiceProvider extends ServiceProvider
         // Register services as singletons
         $this->app->singleton(SettlementService::class);
         $this->app->singleton(ExcelExportService::class);
+        $this->app->singleton(ImportMerchants::class, function ($app) {
+            return new ImportMerchants(
+                $app->make(DynamicLogger::class),
+                $app->make(MerchantSyncService::class)
+            );
+        });
     }
 
     /**
