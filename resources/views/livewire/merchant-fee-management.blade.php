@@ -67,21 +67,27 @@
                                             wire:confirm="Are you sure you want to delete this merchant fee?"
                                             class="text-red-600 hover:text-red-800">
                                         <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-lienjoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            <path stroke-linecap="round" stroke-lienjoin="round" stroke-width="2"
+                                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                                         </svg>
                                     </button>
                                 </div>
                             </div>
-
                             <div class="mt-2 space-y-1">
                                 <p class="text-xs text-gray-700">
                                     Amount: {{ $fee->amount }}
                                     ({{ $fee->feeType->is_percentage ? 'Percentage' : 'Fixed' }})
                                 </p>
                                 <p class="text-xs text-gray-700">
-                                    Effective: {{ $fee->effective_from->format('Y-m-d') }}
+                                     <span
+                                         class="{{ $fee->active ? 'text-green-800 bg-green-100' : 'text-red-800 bg-red-100' }} inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium">
+                                        {{ $fee->active ? 'Active' : 'Inactive' }}
+                                    </span>
+                                </p>
+                                <p class="text-xs text-gray-700">
+                                    Effective: {{ $fee->effective_from->format('d-m-Y') }}
                                     @if($fee->effective_to)
-                                        to {{ $fee->effective_to->format('Y-m-d') }}
+                                        to {{ $fee->effective_to->format('d-m-Y') }}
                                     @else
                                         (Ongoing)
                                     @endif
@@ -107,6 +113,9 @@
                             </th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Effective Period
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Status
                             </th>
                             <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Actions
@@ -134,13 +143,19 @@
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="text-sm text-gray-500">
-                                        {{ $fee->effective_from->format('Y-m-d') }}
+                                        {{ $fee->effective_from->format('d-m-Y') }}
                                         @if($fee->effective_to)
-                                            to {{ $fee->effective_to->format('Y-m-d') }}
+                                            to {{ $fee->effective_to->format('d-m-Y') }}
                                         @else
                                             (Ongoing)
                                         @endif
                                     </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span
+                                        class="{{ $fee->active ? 'text-green-800 bg-green-100' : 'text-red-800 bg-red-100' }} inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium">
+                                        {{ $fee->active ? 'Active' : 'Inactive' }}
+                                    </span>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                     <div class="flex justify-end gap-2">
@@ -155,7 +170,8 @@
                                                 wire:confirm="Are you sure you want to delete this merchant fee?"
                                                 class="text-red-600 hover:text-red-800">
                                             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-lienjoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                <path stroke-linecap="round" stroke-lienjoin="round" stroke-width="2"
+                                                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                                             </svg>
                                         </button>
                                     </div>
@@ -228,6 +244,14 @@
                                      wire:model="amount"
                                      placeholder="Enter fee amount"/>
                             <x-input-error for="amount" class="mt-2"/>
+                        </div>
+                        <div>
+                            <x-label for="active" value="{{ __('Active') }}"/>
+                            <x-checkbox id="active"
+                                        class="mt-1 block"
+                                        wire:model="active"
+                            />
+                            <x-input-error for="active" class="mt-2"/>
                         </div>
 
                         <div class="grid grid-cols-2 gap-4">

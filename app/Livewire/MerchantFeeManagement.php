@@ -21,6 +21,7 @@ class MerchantFeeManagement extends Component
     public $amount;
     public $effectiveFrom;
     public $effectiveTo;
+    public $active = true;
     public $showCreateModal = false;
     public $editMerchantFeeId = null;
 
@@ -28,6 +29,7 @@ class MerchantFeeManagement extends Component
         'selectedMerchantId' => 'required|exists:merchants,id',
         'selectedFeeTypeId' => 'required|exists:fee_types,id',
         'amount' => 'required|numeric|min:0',
+        'active' => 'boolean',
         'effectiveFrom' => 'required|date',
         'effectiveTo' => 'nullable|date|after:effectiveFrom',
     ];
@@ -55,7 +57,7 @@ class MerchantFeeManagement extends Component
             'amount' => $this->amount,
             'effective_from' => $this->effectiveFrom,
             'effective_to' => $this->effectiveTo,
-            'active' => true
+            'active' => $this->active
         ]);
 
         session()->flash('message', 'Merchant fee created successfully.');
@@ -70,6 +72,7 @@ class MerchantFeeManagement extends Component
         $this->selectedMerchantId = $merchantFee->merchant_id;
         $this->selectedFeeTypeId = $merchantFee->fee_type_id;
         $this->amount = $merchantFee->amount;
+        $this->active = (bool) $merchantFee->active;
         $this->effectiveFrom = $merchantFee->effective_from->format('Y-m-d');
         $this->effectiveTo = $merchantFee->effective_to ? $merchantFee->effective_to->format('Y-m-d') : null;
 
@@ -85,6 +88,7 @@ class MerchantFeeManagement extends Component
             'merchant_id' => $this->selectedMerchantId,
             'fee_type_id' => $this->selectedFeeTypeId,
             'amount' => $this->amount,
+            'active' => $this->active,
             'effective_from' => $this->effectiveFrom,
             'effective_to' => $this->effectiveTo,
         ]);
@@ -107,6 +111,7 @@ class MerchantFeeManagement extends Component
             'selectedMerchantId',
             'selectedFeeTypeId',
             'amount',
+            'active',
             'effectiveFrom',
             'effectiveTo',
             'showCreateModal',

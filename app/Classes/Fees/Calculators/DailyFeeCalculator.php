@@ -2,10 +2,9 @@
 
 namespace App\Classes\Fees\Calculators;
 
-use App\Services\Settlement\Fee\FeeService;
 use Carbon\Carbon;
 
-class DailyFeeCalculator extends FeeService
+class DailyFeeCalculator extends AbstractFeeCalculator
 {
     public function calculate($transactionData): float
     {

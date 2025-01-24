@@ -36,7 +36,7 @@
                             <div class="flex justify-between items-center mb-2">
                                 <div>
                                     <p class="text-sm font-medium text-gray-900">{{ $merchant->name }}</p>
-                                    <p class="text-xs text-gray-500">ID: {{ $merchant->merchant_id }}</p>
+                                    <p class="text-xs text-gray-500">ID: {{ $merchant->account_id }}</p>
                                 </div>
                                 <div class="flex space-x-2">
                                     <a href="{{ route('merchant.view', $merchant->id) }}"
@@ -103,7 +103,7 @@
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="text-sm text-gray-500">
-                                        {{ $merchant->merchant_id }}
+                                        {{ $merchant->account_id }}
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">

@@ -9,7 +9,6 @@ class FeeHistory extends Model
     protected $fillable = [
         'merchant_id',
         'fee_type_id',
-        'transaction_reference',
         'base_amount',
         'base_currency',
         'fee_amount_eur',

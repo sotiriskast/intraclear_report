@@ -2,16 +2,28 @@
 
 namespace App\Classes\Fees;
 
-abstract class FeeCalculatorFactory
+use App\Classes\Fees\Calculators\{
+    AbstractFeeCalculator,
+};
+
+class FeeCalculatorFactory
 {
-    protected $feeConfiguration;
-    protected $dateRange;
+    private const CALCULATOR_MAP = [
+        'transaction' => Calculators\TransactionFeeCalculator::class,
+        'daily' => Calculators\DailyFeeCalculator::class,
+        'weekly' => Calculators\WeeklyFeeCalculator::class,
+        'monthly' => Calculators\MonthlyFeeCalculator::class,
+        'yearly' => Calculators\YearlyFeeCalculator::class,
+        'one_time' => Calculators\OneTimeFeeCalculator::class
+    ];
 
-    public function __construct(array $feeConfiguration, array $dateRange)
+    public function create(string $frequencyType, array $config, array $dateRange): AbstractFeeCalculator
     {
-        $this->feeConfiguration = $feeConfiguration;
-        $this->dateRange = $dateRange;
-    }
+        if (!isset(self::CALCULATOR_MAP[$frequencyType])) {
+            throw new \InvalidArgumentException("Unknown fee type: {$frequencyType}");
+        }
 
-    abstract public function calculate($transactionData): float;
+        $calculatorClass = self::CALCULATOR_MAP[$frequencyType];
+        return new $calculatorClass($config, $dateRange);
+    }
 }

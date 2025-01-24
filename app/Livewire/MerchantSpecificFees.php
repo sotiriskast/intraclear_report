@@ -18,12 +18,14 @@ class MerchantSpecificFees extends Component
     public $amount;
     public $effectiveFrom;
     public $effectiveTo;
+    public $active = true;
     public $showCreateModal = false;
     public $editMerchantFeeId = null;
 
     protected $rules = [
         'selectedFeeTypeId' => 'required|exists:fee_types,id',
         'amount' => 'required|numeric|min:0',
+        'active' => 'boolean',
         'effectiveFrom' => 'required|date',
         'effectiveTo' => 'nullable|date|after:effectiveFrom',
     ];
@@ -51,7 +53,7 @@ class MerchantSpecificFees extends Component
             'amount' => $this->amount,
             'effective_from' => $this->effectiveFrom,
             'effective_to' => $this->effectiveTo,
-            'active' => true
+            'active' => $this->active
         ]);
 
         session()->flash('message', 'Merchant fee created successfully.');
@@ -65,6 +67,7 @@ class MerchantSpecificFees extends Component
         $this->editMerchantFeeId = $id;
         $this->selectedFeeTypeId = $merchantFee->fee_type_id;
         $this->amount = $merchantFee->amount;
+        $this->active = (bool) $merchantFee->active;
         $this->effectiveFrom = $merchantFee->effective_from->format('Y-m-d');
         $this->effectiveTo = $merchantFee->effective_to ? $merchantFee->effective_to->format('Y-m-d') : null;
 
@@ -79,6 +82,7 @@ class MerchantSpecificFees extends Component
         $merchantFee->update([
             'fee_type_id' => $this->selectedFeeTypeId,
             'amount' => $this->amount,
+            'active' => $this->active,
             'effective_from' => $this->effectiveFrom,
             'effective_to' => $this->effectiveTo,
         ]);
@@ -100,6 +104,7 @@ class MerchantSpecificFees extends Component
         $this->reset([
             'selectedFeeTypeId',
             'amount',
+            'active',
             'effectiveFrom',
             'effectiveTo',
             'showCreateModal',

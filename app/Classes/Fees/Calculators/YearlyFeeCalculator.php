@@ -1,10 +1,7 @@
 <?php
 
 namespace App\Classes\Fees\Calculators;
-
-use App\Services\Settlement\Fee\FeeService;
-
-class YearlyFeeCalculator extends FeeService
+class YearlyFeeCalculator extends AbstractFeeCalculator
 {
     public function calculate($transactionData): float
     {

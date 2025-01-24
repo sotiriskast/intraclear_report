@@ -2,6 +2,7 @@
 
 namespace App\Services\Settlement\Fee;
 
+use App\Classes\Fees\FeeCalculatorFactory;
 use App\Repositories\Interfaces\FeeRepositoryInterface;
 use App\Classes\Fees\Calculators\{
     TransactionFeeCalculator,
@@ -14,23 +15,11 @@ use App\Classes\Fees\Calculators\{
 
 class FeeService
 {
-    private $feeCalculators;
+    private $calculatorFactory;
 
     public function __construct(private readonly FeeRepositoryInterface $feeRepository)
     {
-        $this->initializeFeeCalculators();
-    }
-
-    private function initializeFeeCalculators()
-    {
-        $this->feeCalculators = [
-            'transaction' => TransactionFeeCalculator::class,
-            'daily' => DailyFeeCalculator::class,
-            'weekly' => WeeklyFeeCalculator::class,
-            'monthly' => MonthlyFeeCalculator::class,
-            'yearly' => YearlyFeeCalculator::class,
-            'one_time' => OneTimeFeeCalculator::class,
-        ];
+        $this->calculatorFactory = new FeeCalculatorFactory();
     }
 
     public function calculateFees(int $merchantId, array $transactionData, array $dateRange): array
@@ -39,9 +28,8 @@ class FeeService
         $calculatedFees = [];
 
         foreach ($merchantFees as $fee) {
-            $calculatorClass = $this->feeCalculators[$fee->feeType->frequency_type];
-
-            $calculator = new $calculatorClass(
+            $calculator = $this->calculatorFactory->createCalculator(
+                $fee->feeType->frequency_type,
                 [
                     'amount' => $fee->amount,
                     'is_percentage' => $fee->is_percentage
@@ -89,7 +77,6 @@ class FeeService
         $this->feeRepository->logFeeApplication([
             'merchant_id' => $merchantId,
             'fee_type_id' => $fee->fee_type_id,
-            'transaction_reference' => null,
             'base_amount' => $transactionData['total_sales_amount'],
             'base_currency' => $transactionData['currency'],
             'fee_amount_eur' => $feeAmount,

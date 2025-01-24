@@ -64,17 +64,22 @@ return new class extends Migration
         Schema::create('rolling_reserve_entries', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('merchant_id');
-            $table->string('transaction_reference');
             $table->integer('original_amount');
             $table->string('original_currency', 3);
             $table->integer('reserve_amount_eur');
             $table->integer('exchange_rate');
-            $table->timestamp('transaction_date');
-            $table->timestamp('release_date');
-            $table->timestamp('released_at')->nullable();
-            $table->string('status'); // pending, released, cancelled
-            $table->timestamps();
+            $table->date('period_start');        // Settlement period start
+            $table->date('period_end');          // Settlement period end
+            $table->timestamp('created_at');     // When the reserve was created
+            $table->date('release_due_date');    // When the reserve becomes eligible for release
+            $table->timestamp('released_at')->nullable();  // When the reserve was actually released
+            $table->string('status', 20);        // pending, released, cancelled
+            $table->timestamp('updated_at')->nullable();
             $table->softDeletes();
+
+            $table->foreign('merchant_id')->references('id')->on('merchants');
+            $table->index(['merchant_id', 'status', 'release_due_date'], 'idx_reserve_status');
+            $table->index(['period_start', 'period_end'], 'idx_period');
         });
 
         // Fee History (for tracking applied fees)
@@ -82,7 +87,6 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('merchant_id');
             $table->unsignedBigInteger('fee_type_id');
-            $table->string('transaction_reference')->nullable();
             $table->integer('base_amount');
             $table->string('base_currency', 3);
             $table->integer('fee_amount_eur');

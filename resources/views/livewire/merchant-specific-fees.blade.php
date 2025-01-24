@@ -48,6 +48,9 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                             Effective Period
                         </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Status
+                        </th>
                         <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
                             Actions
                         </th>
@@ -64,12 +67,18 @@
                                 ({{ $fee->feeType->is_percentage ? 'Percentage' : 'Fixed' }})
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                {{ $fee->effective_from->format('Y-m-d') }}
+                                {{ $fee->effective_from->format('d-m-Y') }}
                                 @if($fee->effective_to)
-                                    to {{ $fee->effective_to->format('Y-m-d') }}
+                                    to {{ $fee->effective_to->format('d-m-Y') }}
                                 @else
                                     (Ongoing)
                                 @endif
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                    <span
+                                        class="{{ $fee->active ? 'text-green-800 bg-green-100' : 'text-red-800 bg-red-100' }} inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium">
+                                        {{ $fee->active ? 'Active' : 'Inactive' }}
+                                    </span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-right">
                                 <div class="flex justify-end space-x-2">
@@ -135,7 +144,14 @@
                                      placeholder="Enter fee amount" />
                             <x-input-error for="amount" />
                         </div>
-
+                        <div>
+                            <x-label for="active" value="{{ __('Active') }}"/>
+                            <x-checkbox id="active"
+                                        class="mt-1 block"
+                                        wire:model="active"
+                            />
+                            <x-input-error for="active" class="mt-2"/>
+                        </div>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
                                 <x-label for="effectiveFrom">Effective From</x-label>

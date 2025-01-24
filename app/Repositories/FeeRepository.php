@@ -10,15 +10,20 @@ use Illuminate\Support\Facades\DB;
 
 class FeeRepository implements FeeRepositoryInterface
 {
+    public function __construct(private MerchantRepository $merchantRepository)
+    {
+    }
+
     public function getMerchantFees(int $merchantId, string $date = null)
     {
-        $query = MerchantFee::with('feeType')
-            ->where('merchant_id', $merchantId)
+
+        $query = MerchantFee::with(['feeType'])
+            ->where('merchant_id', $this->merchantRepository->getMerchantIdByAccountId($merchantId))
             ->where('active', true);
 
         if ($date) {
             $query->where('effective_from', '<=', $date)
-                ->where(function($q) use ($date) {
+                ->where(function ($q) use ($date) {
                     $q->where('effective_to', '>=', $date)
                         ->orWhereNull('effective_to');
                 });

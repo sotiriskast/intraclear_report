@@ -2,9 +2,7 @@
 
 namespace App\Classes\Fees\Calculators;
 
-use App\Services\Settlement\Fee\FeeService;
-
-class OneTimeFeeCalculator extends FeeService
+class OneTimeFeeCalculator extends AbstractFeeCalculator
 {
     public function calculate($transactionData): float
     {
