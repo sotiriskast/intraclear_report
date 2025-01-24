@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('merchants', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('merchant_id');
+            $table->unsignedBigInteger('account_id');
             $table->string('name')->nullable();
             $table->string('email')->nullable();
             $table->string('phone')->nullable();

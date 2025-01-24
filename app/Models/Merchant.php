@@ -8,7 +8,7 @@ class Merchant extends Model
 {
 
     protected $fillable = [
-        'merchant_id',
+        'account_id',
         'email',
         'phone',
         'active',

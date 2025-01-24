@@ -4,311 +4,205 @@ namespace App\Services;
 
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
-use PhpOffice\PhpSpreadsheet\Style\{
-    Fill,
-    Border,
-    Alignment,
-    NumberFormat
-};
+use PhpOffice\PhpSpreadsheet\Style\{Fill, Border, Alignment, NumberFormat};
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\DB;
 
 class ExcelExportService
 {
     protected $spreadsheet;
-    protected $sheet;
+    protected $currentSheet;
     protected $currentRow = 1;
-
-    protected function getColumnLetter($number) {
-        $column = '';
-        while ($number > 0) {
-            $modulo = ($number - 1) % 26;
-            $column = chr(65 + $modulo) . $column;
-            $number = (int)(($number - $modulo) / 26);
-        }
-        return $column;
-    }
-
-    protected function initializeSpreadsheet()
-    {
-        $this->spreadsheet = new Spreadsheet();
-        $this->sheet = $this->spreadsheet->getActiveSheet();
-        $this->currentRow = 1;
-    }
 
     public function generateReport(int $merchantId, array $settlementData, array $dateRange)
     {
-        $this->initializeSpreadsheet();
+        try {
+            $this->spreadsheet = new Spreadsheet();
+            $this->spreadsheet->removeSheetByIndex(0);
 
-        // Get merchant info
-        $merchant = $this->getMerchantInfo($merchantId);
+            foreach ($settlementData['data'] as $shopData) {
+                foreach ($shopData['transactions_by_currency'] as $currencyData) {
+                    $this->createShopCurrencySheet($shopData, $currencyData, $dateRange);
+                }
+            }
 
-        // Add report header
-        $this->addReportHeader($merchant, $dateRange);
+            return $this->saveReport($merchantId, $dateRange);
 
-        // Add transaction summary
-        $this->addTransactionSummary($settlementData['transactions']);
-
-        // Add fees section
-        $this->addFeesSection($settlementData['fees']);
-
-        // Add rolling reserve section
-        $this->addRollingReserveSection(
-            $settlementData['rolling_reserve'],
-            $settlementData['releaseable_reserve']
-        );
-
-        // Add totals and final calculations
-        $this->addTotalCalculations($settlementData);
-
-        return $this->saveReport($merchantId, $dateRange);
+        } catch (\Exception $e) {
+            \Log::error('Error generating Excel report: ' . $e->getMessage(), [
+                'merchant_id' => $merchantId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e;
+        }
     }
 
-    protected function getMerchantInfo($merchantId)
+    protected function createShopCurrencySheet($shopData, $currencyData, $dateRange)
     {
-        return DB::connection('payment_gateway_mysql')
-            ->table('account')
-            ->where('id', $merchantId)
-            ->first();
+        $sheetName = $this->createSheetName($shopData, $currencyData['currency']);
+        $this->currentSheet = $this->spreadsheet->createSheet();
+        $this->currentSheet->setTitle($sheetName);
+        $this->currentRow = 1;
+
+        $this->addCompanyHeader();
+        $this->addMerchantDetails($shopData, $currencyData, $dateRange);
+        $this->addChargeDetails($currencyData);
+        $this->addGeneratedReserveDetails($currencyData);
+        $this->addRefundedReserveDetails($currencyData);
+        $this->addSummarySection($currencyData);
+        $this->formatSheet();
     }
 
-    protected function addReportHeader($merchant, $dateRange)
+    protected function createSheetName($shopData, $currency)
     {
-        $this->sheet->setCellValue('A1', 'SETTLEMENT REPORT');
-        $this->sheet->mergeCells('A1:H1');
+        $shopName = preg_replace('/[^\w\d]/', '_', $shopData['corp_name']);
+        return substr($shopName, 0, 15) . '_' . $shopData['shop_id'] . '_' . $currency;
+    }
 
-        $this->sheet->setCellValue('A2', 'Merchant:');
-        $this->sheet->setCellValue('B2', $merchant->corp_name);
+    protected function addCompanyHeader()
+    {
+        $this->currentSheet->setCellValue('A1', 'INTRACLEAR LIMITED');
+        $this->currentSheet->setCellValue('F1', 'Issue date: ' . Carbon::now()->format('d.m.Y'));
 
-        $this->sheet->setCellValue('A3', 'Period:');
-        $this->sheet->setCellValue('B3', Carbon::parse($dateRange['start'])->format('d/m/Y') .
-            ' - ' . Carbon::parse($dateRange['end'])->format('d/m/Y'));
-
-        // Style header
-        $this->sheet->getStyle('A1')->applyFromArray([
-            'font' => [
-                'bold' => true,
-                'size' => 14
-            ],
-            'alignment' => [
-                'horizontal' => Alignment::HORIZONTAL_CENTER
+        $this->currentSheet->getStyle('A1:G1')->applyFromArray([
+            'font' => ['bold' => true],
+            'fill' => [
+                'fillType' => Fill::FILL_SOLID,
+                'color' => ['rgb' => 'FFD700']
             ]
         ]);
-
-        $this->currentRow = 5;
     }
 
-    protected function addTransactionSummary($transactions)
+    protected function addMerchantDetails($shopData, $currencyData, $dateRange)
     {
-        // Add section header
-        $this->sheet->setCellValue("A{$this->currentRow}", 'TRANSACTION SUMMARY');
-        $this->sheet->mergeCells("A{$this->currentRow}:H{$this->currentRow}");
-        $this->styleSectionHeader($this->currentRow);
-
-        $this->currentRow += 2;
-
-        // Add headers
-        $headers = ['Currency', 'Total Sales', 'Total Sales (EUR)', 'Declines', 'Refunds', 'Net Amount', 'Transaction Count'];
-        foreach ($headers as $col => $header) {
-            $column = $this->getColumnLetter($col + 1);
-            $this->sheet->setCellValue($column . $this->currentRow, $header);
-        }
-        $this->styleTableHeader($this->currentRow);
-
-        $this->currentRow++;
-
-        // Add data
-        foreach ($transactions as $currency => $data) {
-            $row = [
-                $currency,
-                $data['total_sales'],
-                $data['total_sales_eur'],
-                $data['total_declines'],
-                $data['total_refunds'],
-                ($data['total_sales'] - $data['total_refunds']),
-                $data['transaction_count']
-            ];
-
-            foreach ($row as $col => $value) {
-                $column = $this->getColumnLetter($col + 1);
-                $cell = $this->sheet->getCell($column . $this->currentRow);
-                $cell->setValue($value);
-
-                if ($col > 0) { // Skip currency column
-                    $cell->getStyle()->getNumberFormat()
-                        ->setFormatCode(NumberFormat::FORMAT_NUMBER_COMMA_SEPARATED1);
-                }
-            }
-
-            $this->currentRow++;
-        }
-    }
-
-    protected function addFeesSection($fees)
-    {
-        $this->currentRow += 2;
-
-        $this->sheet->setCellValue("A{$this->currentRow}", 'FEES');
-        $this->sheet->mergeCells("A{$this->currentRow}:H{$this->currentRow}");
-        $this->styleSectionHeader($this->currentRow);
-
-        $this->currentRow += 2;
-
-        // Add headers
-        $headers = ['Fee Type', 'Amount (EUR)', 'Frequency'];
-        foreach ($headers as $col => $header) {
-            $column = $this->getColumnLetter($col + 1);
-            $this->sheet->setCellValue($column . $this->currentRow, $header);
-        }
-        $this->styleTableHeader($this->currentRow);
-
-        $this->currentRow++;
-
-        // Add fees
-        foreach ($fees as $fee) {
-            $row = [
-                $fee['type'],
-                $fee['amount'],
-                $fee['frequency']
-            ];
-
-            foreach ($row as $col => $value) {
-                $column = $this->getColumnLetter($col + 1);
-                $cell = $this->sheet->getCell($column . $this->currentRow);
-                $cell->setValue($value);
-
-                if ($col === 1) { // Amount column
-                    $cell->getStyle()->getNumberFormat()
-                        ->setFormatCode(NumberFormat::FORMAT_NUMBER_COMMA_SEPARATED1);
-                }
-            }
-
-            $this->currentRow++;
-        }
-    }
-
-    protected function addRollingReserveSection($reserves, $releaseableReserves)
-    {
-        $this->currentRow += 2;
-
-        $this->sheet->setCellValue("A{$this->currentRow}", 'ROLLING RESERVE');
-        $this->sheet->mergeCells("A{$this->currentRow}:H{$this->currentRow}");
-        $this->styleSectionHeader($this->currentRow);
-
-        $this->currentRow += 2;
-
-        // Current Period Reserve
-        $headers = ['Currency', 'Original Amount', 'Reserve Amount (EUR)', 'Percentage', 'Release Date'];
-        foreach ($headers as $col => $header) {
-            $column = $this->getColumnLetter($col + 1);
-            $this->sheet->setCellValue($column . $this->currentRow, $header);
-        }
-        $this->styleTableHeader($this->currentRow);
-
-        $this->currentRow++;
-
-        foreach ($reserves as $reserve) {
-            $row = [
-                $reserve['currency'],
-                $reserve['original_amount'],
-                $reserve['reserve_amount_eur'],
-                $reserve['percentage'] . '%',
-                $reserve['release_date']
-            ];
-
-            foreach ($row as $col => $value) {
-                $column = $this->getColumnLetter($col + 1);
-                $cell = $this->sheet->getCell($column . $this->currentRow);
-                $cell->setValue($value);
-
-                if ($col === 1 || $col === 2) { // Amount columns
-                    $cell->getStyle()->getNumberFormat()
-                        ->setFormatCode(NumberFormat::FORMAT_NUMBER_COMMA_SEPARATED1);
-                }
-            }
-
-            $this->currentRow++;
-        }
-
-        if (!empty($releaseableReserves)) {
-            $this->currentRow += 2;
-            $this->sheet->setCellValue("A{$this->currentRow}", 'RELEASEABLE RESERVE');
-            $this->sheet->mergeCells("A{$this->currentRow}:H{$this->currentRow}");
-            $this->styleSectionHeader($this->currentRow);
-
-            $this->currentRow += 2;
-
-            $headers = ['Currency', 'Original Amount', 'Reserve Amount (EUR)', 'Reserve Date', 'Release Date'];
-            foreach ($headers as $col => $header) {
-                $column = $this->getColumnLetter($col + 1);
-                $this->sheet->setCellValue($column . $this->currentRow, $header);
-            }
-            $this->styleTableHeader($this->currentRow);
-
-            $this->currentRow++;
-
-            foreach ($releaseableReserves as $reserve) {
-                $row = [
-                    $reserve->original_currency,
-                    $reserve->original_amount,
-                    $reserve->reserve_amount_eur,
-                    $reserve->transaction_date,
-                    $reserve->release_date
-                ];
-
-                foreach ($row as $col => $value) {
-                    $column = $this->getColumnLetter($col + 1);
-                    $cell = $this->sheet->getCell($column . $this->currentRow);
-                    $cell->setValue($value);
-
-                    if ($col === 1 || $col === 2) { // Amount columns
-                        $cell->getStyle()->getNumberFormat()
-                            ->setFormatCode(NumberFormat::FORMAT_NUMBER_COMMA_SEPARATED1);
-                    }
-                }
-
-                $this->currentRow++;
-            }
-        }
-    }
-
-    protected function addTotalCalculations($settlementData)
-    {
-        $this->currentRow += 2;
-
-        // Calculate totals
-        $totalSalesEur = array_sum(array_column($settlementData['transactions'], 'total_sales_eur'));
-        $totalFeesEur = array_sum(array_column($settlementData['fees'], 'amount'));
-        $totalNewReserveEur = array_sum(array_column($settlementData['rolling_reserve'], 'reserve_amount_eur'));
-        $totalReleaseableEur = $settlementData['releaseable_reserve']->sum('reserve_amount_eur');
-
-        $rows = [
-            ['Total Sales (EUR)', $totalSalesEur],
-            ['Total Fees (EUR)', $totalFeesEur],
-            ['New Rolling Reserve (EUR)', $totalNewReserveEur],
-            ['Releaseable Reserve (EUR)', $totalReleaseableEur],
-            ['Net Settlement Amount (EUR)', ($totalSalesEur - $totalFeesEur - $totalNewReserveEur + $totalReleaseableEur)]
+        $this->currentRow = 3;
+        $details = [
+            ['Member ID', $shopData['account_id']],
+            ['Company Name', $shopData['corp_name']],
+            ['Terminal Id', $shopData['shop_id']],
+            ['Processing Currency', $currencyData['currency']],
+            ['Settlement Currency', 'EUR'],
+            ['Settle Transaction Period',
+                Carbon::parse($dateRange['start'])->format('d.m.Y') . '-' .
+                Carbon::parse($dateRange['end'])->format('d.m.Y')
+            ]
         ];
 
-        foreach ($rows as $row) {
-            $this->sheet->setCellValue("A{$this->currentRow}", $row[0]);
-            $this->sheet->setCellValue("B{$this->currentRow}", $row[1]);
-            $this->sheet->getStyle("B{$this->currentRow}")->getNumberFormat()
-                ->setFormatCode(NumberFormat::FORMAT_NUMBER_COMMA_SEPARATED1);
-
-            if (array_key_last($rows) === array_search($row, $rows)) {
-                $this->sheet->getStyle("A{$this->currentRow}:B{$this->currentRow}")->applyFromArray([
-                    'font' => ['bold' => true],
-                    'fill' => [
-                        'fillType' => Fill::FILL_SOLID,
-                        'color' => ['rgb' => 'E0E0E0']
-                    ]
-                ]);
-            }
-
+        foreach ($details as $detail) {
+            $this->currentSheet->setCellValue('A' . $this->currentRow, $detail[0]);
+            $this->currentSheet->setCellValue('E' . $this->currentRow, $detail[1]);
             $this->currentRow++;
         }
+    }
+
+    protected function addChargeDetails($currencyData)
+    {
+        $this->currentRow += 2;
+        $this->addSectionHeader('Charge Details');
+
+        $headers = ['Charge Name', 'Rate/Fee', 'Terminal', 'Count', 'Amount',
+            'Total ' . $currencyData['currency'], 'Total EUR'];
+        $this->addTableHeaders($headers);
+
+        foreach ($currencyData['fees'] as $fee) {
+            $this->currentRow++;
+            $this->currentSheet->setCellValue('A' . $this->currentRow, $fee['type']);
+            $this->currentSheet->setCellValue('B' . $this->currentRow, $fee['is_percentage'] ? $fee['rate'] . '%' : $fee['rate']);
+            $this->currentSheet->setCellValue('C' . $this->currentRow, ''); // Terminal
+            $this->currentSheet->setCellValue('D' . $this->currentRow, $fee['count']);
+            $this->currentSheet->setCellValue('E' . $this->currentRow, $fee['base_amount']);
+            $this->currentSheet->setCellValue('F' . $this->currentRow, $fee['amount']);
+            $this->currentSheet->setCellValue('G' . $this->currentRow, $fee['amount']); // EUR amount
+        }
+    }
+
+    protected function addGeneratedReserveDetails($currencyData)
+    {
+        $this->currentRow += 2;
+        $this->addSectionHeader('Generated Reserve Details');
+
+        foreach ($currencyData['rolling_reserve'] as $reserve) {
+            $this->currentRow++;
+            $this->currentSheet->setCellValue('A' . $this->currentRow, 'Rolling Reserve');
+            $this->currentSheet->setCellValue('B' . $this->currentRow, $reserve['percentage'] . '%');
+            $this->currentSheet->setCellValue('E' . $this->currentRow, $reserve['original_amount']);
+            $this->currentSheet->setCellValue('G' . $this->currentRow, $reserve['reserve_amount_eur']);
+        }
+    }
+
+    protected function addRefundedReserveDetails($currencyData)
+    {
+        $this->currentRow += 2;
+        $this->addSectionHeader('Refunded Reserve Details');
+
+        if (!empty($currencyData['releaseable_reserve'])) {
+            foreach ($currencyData['releaseable_reserve'] as $reserve) {
+                $this->currentRow++;
+                $this->currentSheet->setCellValue('A' . $this->currentRow, 'Released Reserve');
+                $this->currentSheet->setCellValue('E' . $this->currentRow, $reserve['original_amount']);
+                $this->currentSheet->setCellValue('G' . $this->currentRow, $reserve['reserve_amount_eur']);
+            }
+        }
+    }
+
+    protected function addSummarySection($currencyData)
+    {
+        $this->currentRow += 2;
+        $this->addSectionHeader('Summary');
+
+        $summaryItems = [
+            ['Total Processing Amount', $currencyData['total_sales_amount'], $currencyData['total_sales_amount_eur']],
+            ['Total Fees', '', array_sum(array_column($currencyData['fees'], 'amount'))],
+            ['Total Rolling Reserve', '', array_sum(array_column($currencyData['rolling_reserve'], 'reserve_amount_eur'))],
+            ['Released Reserve', '', array_sum(array_column($currencyData['releaseable_reserve'], 'reserve_amount_eur'))]
+        ];
+
+        foreach ($summaryItems as $item) {
+            $this->currentRow++;
+            $this->currentSheet->setCellValue('A' . $this->currentRow, $item[0]);
+            if ($item[1] !== '') {
+                $this->currentSheet->setCellValue('E' . $this->currentRow, $item[1]);
+            }
+            $this->currentSheet->setCellValue('G' . $this->currentRow, $item[2]);
+        }
+    }
+
+    protected function addSectionHeader($title)
+    {
+        $this->currentSheet->setCellValue('A' . $this->currentRow, $title);
+        $this->currentSheet->getStyle('A' . $this->currentRow)->applyFromArray([
+            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill' => [
+                'fillType' => Fill::FILL_SOLID,
+                'color' => ['rgb' => '4472C4']
+            ]
+        ]);
+    }
+
+    protected function addTableHeaders($headers)
+    {
+        $this->currentRow++;
+        foreach ($headers as $index => $header) {
+            $column = chr(65 + $index);
+            $this->currentSheet->setCellValue($column . $this->currentRow, $header);
+            $this->currentSheet->getStyle($column . $this->currentRow)->getFont()->setBold(true);
+        }
+    }
+
+    protected function formatSheet()
+    {
+        foreach (range('A', 'G') as $column) {
+            $this->currentSheet->getColumnDimension($column)->setAutoSize(true);
+        }
+
+        $this->currentSheet->getStyle('E:G')->getNumberFormat()
+            ->setFormatCode(NumberFormat::FORMAT_NUMBER_COMMA_SEPARATED2);
+
+        $this->currentSheet->getStyle('A1:G' . $this->currentRow)
+            ->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+
+        $this->currentSheet->getStyle('A1:G' . $this->currentRow)
+            ->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
     }
 
     protected function saveReport($merchantId, $dateRange)
@@ -322,7 +216,6 @@ class ExcelExportService
 
         $path = storage_path('app/reports/' . $fileName);
 
-        // Ensure directory exists
         if (!file_exists(dirname($path))) {
             mkdir(dirname($path), 0755, true);
         }
@@ -332,40 +225,5 @@ class ExcelExportService
 
         return $path;
     }
-
-    protected function styleSectionHeader($row)
-    {
-        $this->sheet->getStyle("A{$row}:H{$row}")->applyFromArray([
-            'font' => [
-                'bold' => true,
-                'size' => 12,
-                'color' => ['rgb' => 'FFFFFF']
-            ],
-            'fill' => [
-                'fillType' => Fill::FILL_SOLID,
-                'color' => ['rgb' => '4472C4']
-            ],
-            'alignment' => [
-                'horizontal' => Alignment::HORIZONTAL_CENTER
-            ]
-        ]);
-    }
-
-    protected function styleTableHeader($row)
-    {
-        $this->sheet->getStyle("A{$row}:H{$row}")->applyFromArray([
-            'font' => [
-                'bold' => true
-            ],
-            'fill' => [
-                'fillType' => Fill::FILL_SOLID,
-                'color' => ['rgb' => 'E0E0E0']
-            ],
-            'borders' => [
-                'bottom' => [
-                    'borderStyle' => Border::BORDER_THIN
-                ]
-            ]
-        ]);
-    }
 }
+

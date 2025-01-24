@@ -24,7 +24,7 @@ class MerchantManagement extends Component
         $merchants = Merchant::when($this->search, function ($query) {
             return $query->where(function ($q) {
                 $q->where('name', 'like', '%' . $this->search . '%')
-                    ->orWhere('merchant_id', 'like', '%' . $this->search . '%')
+                    ->orWhere('account_id', 'like', '%' . $this->search . '%')
                     ->orWhere('email', 'like', '%' . $this->search . '%')
                     ->orWhere('phone', 'like', '%' . $this->search . '%');
             });

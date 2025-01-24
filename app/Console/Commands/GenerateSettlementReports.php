@@ -2,8 +2,9 @@
 
 namespace App\Console\Commands;
 
+use App\Services\DynamicLogger;
 use App\Services\ExcelExportService;
-use App\Services\SettlementService;
+use App\Services\Settlement\SettlementService;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use DB;
@@ -29,16 +30,15 @@ class GenerateSettlementReports extends Command
      */
     protected $description = 'Generate settlement reports for merchants';
 
-    protected $settlementService;
-    protected $excelService;
 
     public function __construct(
-        SettlementService $settlementService,
-        ExcelExportService $excelService
-    ) {
+        private SettlementService  $settlementService,
+        private ExcelExportService $excelService,
+        private DynamicLogger      $logger
+    )
+    {
         parent::__construct();
-        $this->settlementService = $settlementService;
-        $this->excelService = $excelService;
+
     }
 
     /**
@@ -47,79 +47,145 @@ class GenerateSettlementReports extends Command
     public function handle()
     {
         try {
-            // Get date range
             $startDate = $this->option('start-date')
                 ?? Carbon::now()
-                    ->subWeek() // Go to last week
-                    ->startOfWeek(CarbonInterface::MONDAY) // Get the Monday of last week
+                    ->subWeek()
+                    ->startOfWeek(CarbonInterface::MONDAY)
                     ->format('Y-m-d');
 
             $endDate = $this->option('end-date')
                 ?? Carbon::now()
-                    ->subWeek() // Go to last week
-                    ->endOfWeek(CarbonInterface::SUNDAY) // Get the Sunday of last week
+                    ->subWeek()
+                    ->endOfWeek(CarbonInterface::SUNDAY)
                     ->format('Y-m-d');
-            // Get merchants to process
-            $merchantIds = [];
-            if ($merchantId = $this->option('merchant-id')) {
-                $merchantIds = DB::connection('mariadb')
-                    ->table('merchants')
-                    ->where('merchant_id', $merchantId) // Use merchant_id column
-                    ->where('active', 1)
-                    ->pluck('merchant_id')
-                    ->toArray();
-            } else {
-                $merchantIds = DB::connection('mariadb')
-                    ->table('merchants')
-                    ->where('active', 1)
-                    ->pluck('merchant_id')
-                    ->toArray();
-            }
 
-            $currency = $this->option('currency');
             $dateRange = ['start' => $startDate, 'end' => $endDate];
 
+            // Get merchants to process with both internal ID and account_id
+            $merchants = $this->getMerchants();
 
-            foreach ($merchantIds as $merchantId) {
-                $this->info("Processing merchant ID: {$merchantId}");
+            foreach ($merchants as $merchant) {
+                $this->info("Processing merchant ID: {$merchant->account_id}");
 
-                // Generate settlement data
-                $settlementData = $this->settlementService->generateSettlement(
-                    $merchantId,
-                    $dateRange,
-                    $currency
-                );
+                // Get merchant's shops and their transactions
+                $shopData = $this->getMerchantShopData($merchant->account_id, $dateRange);
 
-                // Generate Excel report
-                $filePath = $this->excelService->generateReport(
-                    $merchantId,
-                    $settlementData,
-                    $dateRange
-                );
+                if (empty($shopData)) {
+                    $this->warn("No data found for merchant ID: {$merchant->account_id}");
+                    continue;
+                }
 
-                $this->info("Report generated: {$filePath}");
+                $settlementData = ['data' => []];
 
-                // Store reference in database
-                DB::table('settlement_reports')->insert([
-                    'merchant_id' => $merchantId,
-                    'report_path' => $filePath,
-                    'start_date' => $startDate,
-                    'end_date' => $endDate,
-                    'created_at' => now()
-                ]);
+                foreach ($shopData as $shop) {
+                    $currencies = $this->getShopCurrencies($merchant->account_id, $shop['shop_id'], $dateRange);
+                    foreach ($currencies as $currency) {
+                        $settlementInfo = $this->settlementService->generateSettlement(
+                            $merchant->account_id,
+                            $dateRange,
+                            $currency
+                        );
+                        $settlementData['data'][] = [
+                            'account_id' => $merchant->account_id,
+                            'corp_name' => $shop['corp_name'],
+                            'shop_id' => $shop['shop_id'],
+                            'transactions_by_currency' => [
+                                array_merge(['currency' => $currency], $settlementInfo)
+                            ]
+                        ];
+                    }
+                }
+
+                if (!empty($settlementData['data'])) {
+                    $filePath = $this->excelService->generateReport(
+                        $merchant->account_id,
+                        $settlementData,
+                        $dateRange
+                    );
+
+                    $this->info("Report generated: {$filePath}");
+
+                    // Store reference using internal merchant ID
+                    $this->storeReportReference($merchant->id, $filePath, $dateRange);
+                }
             }
 
             $this->info('All reports generated successfully');
+            return 0;
 
         } catch (\Exception $e) {
             $this->error("Error generating reports: {$e->getMessage()}");
-            \Log::error("Settlement report generation failed", [
+            $this->logger->log('error', "Settlement report generation failed", [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
             return 1;
         }
+    }
 
-        return 0;
+    protected function getMerchants(): array
+    {
+        $query = DB::connection('mariadb')
+            ->table('merchants')
+            ->select(['id', 'account_id', 'name'])
+            ->where('active', 1);
+
+        if ($merchantId = $this->option('merchant-id')) {
+            $query->where('account_id', $merchantId);
+        }
+
+        return $query->get()->toArray();
+    }
+
+    protected function getMerchantShopData(int $merchantId, array $dateRange): array
+    {
+        return DB::connection('payment_gateway_mysql')
+            ->table('shop')
+            ->select([
+                'shop.id as shop_id',
+                'shop.owner_name as corp_name',
+            ])
+            ->where('shop.account_id', $merchantId)
+            ->whereExists(function ($query) use ($merchantId, $dateRange) {
+                $query->select(DB::raw(1))
+                    ->from('transactions')
+                    ->whereColumn('transactions.shop_id', 'shop.id')
+                    ->whereBetween('transactions.added', [$dateRange['start'], $dateRange['end']]);
+            })
+            ->distinct()
+            ->get()
+            ->map(function ($shop) {
+                return [
+                    'shop_id' => $shop->shop_id,
+                    'corp_name' => $shop->corp_name,
+                ];
+            })
+            ->toArray();
+    }
+
+    protected function getShopCurrencies(int $merchantId, int $shopId, array $dateRange): array
+    {
+        return DB::connection('payment_gateway_mysql')
+            ->table('transactions')
+            ->where('account_id', $merchantId)
+            ->where('shop_id', $shopId)
+            ->whereBetween('added', [$dateRange['start'], $dateRange['end']])
+            ->distinct()
+            ->pluck('currency')
+            ->toArray();
+    }
+
+    protected function storeReportReference(int $merchantId, string $filePath, array $dateRange): void
+    {
+        DB::connection('mariadb')
+            ->table('settlement_reports')
+            ->insert([
+                'merchant_id' => $merchantId, // Using internal merchant ID
+                'report_path' => $filePath,
+                'start_date' => $dateRange['start'],
+                'end_date' => $dateRange['end'],
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
     }
 }
