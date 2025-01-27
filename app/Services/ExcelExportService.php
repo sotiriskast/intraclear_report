@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Style\{Fill, Border, Alignment, NumberFormat};
@@ -12,6 +13,10 @@ class ExcelExportService
     protected $spreadsheet;
     protected $currentSheet;
     protected $currentRow = 1;
+
+    public function __construct(private DynamicLogger $logger)
+    {
+    }
 
     public function generateReport(int $merchantId, array $settlementData, array $dateRange)
     {
@@ -28,11 +33,12 @@ class ExcelExportService
             return $this->saveReport($merchantId, $dateRange);
 
         } catch (\Exception $e) {
-            \Log::error('Error generating Excel report: ' . $e->getMessage(), [
+            $this->logger->log('error', 'Error generating Excel report: ' . $e->getMessage(), [
                 'merchant_id' => $merchantId,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
+
             throw $e;
         }
     }
@@ -62,8 +68,14 @@ class ExcelExportService
     protected function addCompanyHeader()
     {
         $this->currentSheet->setCellValue('A1', 'INTRACLEAR LIMITED');
-        $this->currentSheet->setCellValue('F1', 'Issue date: ' . Carbon::now()->format('d.m.Y'));
-
+        $this->currentSheet->setCellValue('F1', 'Issue date: ' . Carbon::now()->format('d/m/Y'));
+        $this->currentSheet->getStyle('A1:F1')
+            ->getAlignment()->setWrapText(true);
+        $this->currentSheet->getRowDimension(1)->setRowHeight(
+            40 * (substr_count($this->currentSheet->getCell('A1')->getValue(), "\n") + 1)
+        );
+        $this->currentRow+=1;
+        $this->addSectionHeader('Member Details');
         $this->currentSheet->getStyle('A1:G1')->applyFromArray([
             'font' => ['bold' => true],
             'fill' => [
@@ -83,36 +95,50 @@ class ExcelExportService
             ['Processing Currency', $currencyData['currency']],
             ['Settlement Currency', 'EUR'],
             ['Settle Transaction Period',
-                Carbon::parse($dateRange['start'])->format('d.m.Y') . '-' .
-                Carbon::parse($dateRange['end'])->format('d.m.Y')
+                Carbon::parse($dateRange['start'])->format('d/m/Y') . '-' .
+                Carbon::parse($dateRange['end'])->format('d/m/Y')
             ]
         ];
 
         foreach ($details as $detail) {
             $this->currentSheet->setCellValue('A' . $this->currentRow, $detail[0]);
-            $this->currentSheet->setCellValue('E' . $this->currentRow, $detail[1]);
+
+            $this->currentSheet->setCellValueExplicit(
+                'E' . $this->currentRow,
+                $detail[1],
+                DataType::TYPE_STRING
+            );
+            $this->currentSheet->getStyle('E' . $this->currentRow)->getAlignment()
+                ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_LEFT);
+            $this->currentSheet->mergeCells('A' . $this->currentRow . ':D' . $this->currentRow);
+            $this->currentSheet->mergeCells('E' . $this->currentRow . ':G' . $this->currentRow);
             $this->currentRow++;
         }
     }
 
     protected function addChargeDetails($currencyData)
     {
-        $this->currentRow += 2;
         $this->addSectionHeader('Charge Details');
 
         $headers = ['Charge Name', 'Rate/Fee', 'Terminal', 'Count', 'Amount',
             'Total ' . $currencyData['currency'], 'Total EUR'];
         $this->addTableHeaders($headers);
 
+        if (!isset($currencyData['fees']) || !is_array($currencyData['fees'])) {
+            $this->logger->log('warning', 'No fees data found or invalid format', [
+                'currency_data' => $currencyData
+            ]);
+            return;
+        }
         foreach ($currencyData['fees'] as $fee) {
-            $this->currentRow++;
             $this->currentSheet->setCellValue('A' . $this->currentRow, $fee['type']);
             $this->currentSheet->setCellValue('B' . $this->currentRow, $fee['is_percentage'] ? $fee['rate'] . '%' : $fee['rate']);
             $this->currentSheet->setCellValue('C' . $this->currentRow, ''); // Terminal
             $this->currentSheet->setCellValue('D' . $this->currentRow, $fee['count']);
-            $this->currentSheet->setCellValue('E' . $this->currentRow, $fee['base_amount']);
+            $this->currentSheet->setCellValue('E' . $this->currentRow, $fee['base_amount_eur']);
             $this->currentSheet->setCellValue('F' . $this->currentRow, $fee['amount']);
             $this->currentSheet->setCellValue('G' . $this->currentRow, $fee['amount']); // EUR amount
+            $this->currentRow++;
         }
     }
 
@@ -121,12 +147,34 @@ class ExcelExportService
         $this->currentRow += 2;
         $this->addSectionHeader('Generated Reserve Details');
 
+        // Add safety check
+        if (!isset($currencyData['rolling_reserve']) || !is_array($currencyData['rolling_reserve'])) {
+            $this->logger->log('warning', 'No rolling reserve data found or invalid format', [
+                'currency_data' => $currencyData
+            ]);
+            return;
+        }
+
         foreach ($currencyData['rolling_reserve'] as $reserve) {
+            // Validate reserve data
+            if (!is_array($reserve)) {
+                $this->logger->log('warning', 'Invalid reserve entry format', [
+                    'reserve' => $reserve
+                ]);
+                continue;
+            }
+
             $this->currentRow++;
             $this->currentSheet->setCellValue('A' . $this->currentRow, 'Rolling Reserve');
-            $this->currentSheet->setCellValue('B' . $this->currentRow, $reserve['percentage'] . '%');
-            $this->currentSheet->setCellValue('E' . $this->currentRow, $reserve['original_amount']);
-            $this->currentSheet->setCellValue('G' . $this->currentRow, $reserve['reserve_amount_eur']);
+
+            // Safely access array values with defaults
+            $percentage = $reserve['percentage'] ?? 10; // Default to 10%
+            $originalAmount = $reserve['original_amount'] ?? 0;
+            $reserveAmountEur = $reserve['reserve_amount_eur'] ?? 0;
+
+            $this->currentSheet->setCellValue('B' . $this->currentRow, $percentage . '%');
+            $this->currentSheet->setCellValue('E' . $this->currentRow, $originalAmount);
+            $this->currentSheet->setCellValue('G' . $this->currentRow, $reserveAmountEur);
         }
     }
 
@@ -150,11 +198,51 @@ class ExcelExportService
         $this->currentRow += 2;
         $this->addSectionHeader('Summary');
 
+        // Helper function to safely get total from either array or model
+        $getTotal = function($data, $key) {
+            if (empty($data)) {
+                return 0;
+            }
+
+            // If it's a single model
+            if ($data instanceof \Illuminate\Database\Eloquent\Model) {
+                return $data->{$key} ?? 0;
+            }
+
+            // If it's a collection
+            if ($data instanceof \Illuminate\Database\Eloquent\Collection) {
+                return $data->sum($key);
+            }
+
+            // If it's an array
+            if (is_array($data)) {
+                return array_sum(array_column($data, $key));
+            }
+
+            return 0;
+        };
+
         $summaryItems = [
-            ['Total Processing Amount', $currencyData['total_sales_amount'], $currencyData['total_sales_amount_eur']],
-            ['Total Fees', '', array_sum(array_column($currencyData['fees'], 'amount'))],
-            ['Total Rolling Reserve', '', array_sum(array_column($currencyData['rolling_reserve'], 'reserve_amount_eur'))],
-            ['Released Reserve', '', array_sum(array_column($currencyData['releaseable_reserve'], 'reserve_amount_eur'))]
+            [
+                'Total Processing Amount',
+                $currencyData['total_sales_amount'] ?? 0,
+                $currencyData['total_sales_amount_eur'] ?? 0
+            ],
+            [
+                'Total Fees',
+                '',
+                $getTotal($currencyData['fees'] ?? [], 'amount')
+            ],
+            [
+                'Total Rolling Reserve',
+                '',
+                $getTotal($currencyData['rolling_reserve'] ?? [], 'reserve_amount_eur')
+            ],
+            [
+                'Released Reserve',
+                '',
+                $getTotal($currencyData['releaseable_reserve'] ?? [], 'reserve_amount_eur')
+            ]
         ];
 
         foreach ($summaryItems as $item) {
@@ -170,6 +258,7 @@ class ExcelExportService
     protected function addSectionHeader($title)
     {
         $this->currentSheet->setCellValue('A' . $this->currentRow, $title);
+        $this->currentSheet->mergeCells('A' . $this->currentRow . ':G' . $this->currentRow);
         $this->currentSheet->getStyle('A' . $this->currentRow)->applyFromArray([
             'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
             'fill' => [
@@ -187,6 +276,7 @@ class ExcelExportService
             $this->currentSheet->setCellValue($column . $this->currentRow, $header);
             $this->currentSheet->getStyle($column . $this->currentRow)->getFont()->setBold(true);
         }
+        $this->currentRow++;
     }
 
     protected function formatSheet()
@@ -194,6 +284,8 @@ class ExcelExportService
         foreach (range('A', 'G') as $column) {
             $this->currentSheet->getColumnDimension($column)->setAutoSize(true);
         }
+        $this->currentSheet->mergeCells('A1:E1');
+        $this->currentSheet->mergeCells('F1:G1');
 
         $this->currentSheet->getStyle('E:G')->getNumberFormat()
             ->setFormatCode(NumberFormat::FORMAT_NUMBER_COMMA_SEPARATED2);
@@ -210,8 +302,8 @@ class ExcelExportService
         $fileName = sprintf(
             'settlement_report_%s_%s_%s.xlsx',
             $merchantId,
-            Carbon::parse($dateRange['start'])->format('Ymd'),
-            Carbon::parse($dateRange['end'])->format('Ymd')
+            Carbon::parse($dateRange['start'])->format('YmdHis'),
+            Carbon::parse($dateRange['end'])->format('YmdHis')
         );
 
         $path = storage_path('app/reports/' . $fileName);

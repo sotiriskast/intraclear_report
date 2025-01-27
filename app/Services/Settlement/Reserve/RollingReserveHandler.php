@@ -2,7 +2,11 @@
 
 namespace App\Services\Settlement\Reserve;
 
+use App\DTO\ReserveEntryData;
+use App\Models\RollingReserveEntry;
 use App\Repositories\Interfaces\RollingReserveRepositoryInterface;
+use App\Repositories\MerchantRepository;
+use App\Services\DynamicLogger;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -12,15 +16,22 @@ class RollingReserveHandler
     private const RESERVE_PERCENTAGE = 10;
 
     public function __construct(
-        private readonly RollingReserveRepositoryInterface $reserveRepository
-    ) {}
+        private readonly RollingReserveRepositoryInterface $reserveRepository,
+        private DynamicLogger                              $logger,
+        private readonly MerchantRepository                $merchantRepository
+
+
+    )
+    {
+    }
 
     public function processSettlementReserve(
-        int $merchantId,
-        array $transactionData,
+        int    $merchantId,
+        array  $transactionData,
         string $currency,
-        array $dateRange
-    ): array {
+        array  $dateRange
+    ): array
+    {
         $result = [
             'new_reserve' => [],
             'released_reserves' => []
@@ -39,49 +50,56 @@ class RollingReserveHandler
                     $dateRange
                 );
             } else {
-                Log::info('Rolling reserve already exists for this period', [
+                $this->logger->log('info', 'Rolling reserve already exists for this period', [
                     'merchant_id' => $merchantId,
                     'currency' => $currency,
                     'period' => $dateRange
                 ]);
             }
         } catch (\Exception $e) {
-            Log::error('Error processing rolling reserve', [
+            $this->logger->log('error', 'Error processing rolling reserve', [
                 'merchant_id' => $merchantId,
                 'currency' => $currency,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-        }
+            throw $e;
 
+        }
         return $result;
     }
 
-    private function createNewReserve(
-        int $merchantId,
-        array $transactionData,
+    public function createNewReserve(
+        int    $merchantId,
+        array  $transactionData,
         string $currency,
-        array $dateRange
-    ): array {
+        array  $dateRange,
+    ): RollingReserveEntry
+    {
+        $internalMerchantId = $this->merchantRepository->getMerchantIdByAccountId($merchantId);
+
         $reserveAmount = $transactionData['total_sales'] * (self::RESERVE_PERCENTAGE / 100);
         $reserveAmountEur = $transactionData['total_sales_eur'] * (self::RESERVE_PERCENTAGE / 100);
-        $releaseDueDate = Carbon::parse($dateRange['end'])->addMonths(self::RESERVE_PERIOD_MONTHS);
 
-        $reserve = [
-            'merchant_id' => $merchantId,
-            'period_start' => $dateRange['start'],
-            'period_end' => $dateRange['end'],
-            'original_amount' => $reserveAmount,
-            'original_currency' => $currency,
-            'reserve_amount_eur' => $reserveAmountEur,
-            'exchange_rate' => $transactionData['exchange_rate'] ?? 1.0,
-            'release_due_date' => $releaseDueDate,
-            'status' => 'pending',
-            'created_at' => now()
-        ];
+        $reserveData = new ReserveEntryData(
+            merchantId: $internalMerchantId,
+            originalAmount: (int)round($reserveAmount * 100),
+            originalCurrency: $currency,
+            reserveAmountEur: (int)round($reserveAmountEur * 100),
+            exchangeRate: (int)round($transactionData['exchange_rate']),
+            periodStart: Carbon::parse($dateRange['start']),
+            periodEnd: Carbon::parse($dateRange['end']),
+            releaseDueDate: Carbon::parse($dateRange['end'])->addMonths(self::RESERVE_PERIOD_MONTHS),
+        );
 
-        return $this->reserveRepository->createReserveEntry($reserve);
+        $this->logger->log('info', 'Creating new reserve entry', [
+            'merchant_id' => $internalMerchantId,
+            'account_id' => $merchantId,
+            'amount' => $reserveAmount,
+            'amount_eur' => $reserveAmountEur,
+        ]);
 
+        return $this->reserveRepository->createReserveEntry($reserveData->toArray());
     }
 
     private function getReleaseableReserves(int $merchantId, string $currentDate): array
@@ -93,13 +111,15 @@ class RollingReserveHandler
             );
 
             if (!empty($releasableReserves)) {
-                $entryIds = array_column($releasableReserves, 'id');
+                // Convert collection to array and get IDs
+                $entryIds = $releasableReserves->pluck('id')->toArray();
                 $this->reserveRepository->markReserveAsReleased($entryIds);
             }
 
-            return $releasableReserves;
+            // Convert collection to array before returning
+            return $releasableReserves->toArray();
         } catch (\Exception $e) {
-            Log::error('Error processing releasable reserves', [
+            $this->logger->log('error', 'Error processing releasable reserves', [
                 'merchant_id' => $merchantId,
                 'error' => $e->getMessage()
             ]);
@@ -113,11 +133,11 @@ class RollingReserveHandler
             return DB::table('rolling_reserve_entries')
                 ->where('merchant_id', $merchantId)
                 ->where('original_currency', $currency)
-                ->where('settlement_period_start', $dateRange['start'])
-                ->where('settlement_period_end', $dateRange['end'])
+                ->where('period_start', $dateRange['start'])
+                ->where('period_end', $dateRange['end'])
                 ->exists();
         } catch (\Exception $e) {
-            Log::error('Error checking reserve existence', [
+            $this->logger->log('error', 'Error checking reserve existence', [
                 'merchant_id' => $merchantId,
                 'error' => $e->getMessage()
             ]);

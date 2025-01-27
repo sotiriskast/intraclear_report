@@ -119,7 +119,7 @@ class GenerateSettlementReports extends Command
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            return 1;
+            throw $e;
         }
     }
 

@@ -12,11 +12,11 @@ use App\Classes\Fees\Calculators\YearlyFeeCalculator;
 use App\Repositories\Interfaces\{FeeRepositoryInterface, TransactionRepositoryInterface};
 use App\Services\Settlement\Reserve\RollingReserveHandler;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Log;
 
 class SettlementService
 {
     private $feeCalculatorFactory;
+
     public function __construct(
         private FeeRepositoryInterface         $feeRepository,
         private TransactionRepositoryInterface $transactionRepository,
@@ -85,6 +85,7 @@ class SettlementService
             throw $e;
         }
     }
+
     private function calculateTransactionTotals($transactions, $exchangeRates): array
     {
         $totals = [];
@@ -142,7 +143,7 @@ class SettlementService
                     $fee->feeType->frequency_type,
                     [
                         'amount' => $fee->amount,
-                        'is_percentage' => $fee->is_percentage
+                        'is_percentage' => $fee->feeType->is_percentage
                     ],
                     $dateRange
                 );
@@ -165,31 +166,6 @@ class SettlementService
         return $fees;
     }
 
-    private function calculateRollingReserve($merchantId, $currencyTotals, $currency): array
-    {
-        $reservePercentage = 10; // This could come from configuration or database
-
-        $reserve = $this->rollingReserveHandler->calculateNewReserve(
-            [
-                'total_sales' => $currencyTotals['total_sales'] ?? 0,
-                'total_sales_eur' => $currencyTotals['total_sales_eur'] ?? 0
-            ],
-            $reservePercentage
-        );
-
-        if ($reserve['reserve_amount_eur'] > 0) {
-            $this->rollingReserveHandler->createReserveEntry(
-                $merchantId,
-                $reserve['original_amount'],
-                $reserve['reserve_amount_eur'],
-                $currency,
-                $currencyTotals['exchange_rate'] ?? 1.0
-            );
-        }
-
-        return [$reserve];
-    }
-
     private function getExchangeRate($transaction, $exchangeRates): float
     {
         if ($transaction->currency === 'EUR') {
@@ -203,15 +179,29 @@ class SettlementService
         return $exchangeRates[$key] ?? 1.0;
     }
 
-    private function initializeFeeCalculators()
+    private function createFeeEntry($fee, $currencyTotals, $feeAmount): array
     {
-        $this->feeCalculators = [
-            'transaction' => TransactionFeeCalculator::class,
-            'daily' => DailyFeeCalculator::class,
-            'weekly' => WeeklyFeeCalculator::class,
-            'monthly' => MonthlyFeeCalculator::class,
-            'yearly' => YearlyFeeCalculator::class,
-            'one_time' => OneTimeFeeCalculator::class,
+        return [
+            'type' => $fee->feeType->name,
+            'amount' => $feeAmount/100,
+            'frequency' => $fee->feeType->frequency_type,
+            'is_percentage' => $fee->feeType->is_percentage,
+            'rate' => $fee->amount/100,
+            'count' => $currencyTotals['transaction_count'] ?? 0,
+            'base_amount_eur' => $currencyTotals['total_sales_eur'] ?? 0
         ];
+    }
+
+    private function logFeeApplication($merchantId, $fee, $currencyTotals, $feeAmount, $dateRange): void
+    {
+        $this->feeRepository->logFeeApplication([
+            'merchant_id' => $merchantId,
+            'fee_type_id' => $fee->fee_type_id,
+            'base_amount' => $currencyTotals['total_sales_eur'] ?? 0,
+            'base_currency' => $currencyTotals['currency'] ?? 'EUR',
+            'fee_amount_eur' => $feeAmount,
+            'exchange_rate' => $currencyTotals['exchange_rate'] ?? 1.0,
+            'applied_date' => $dateRange['start']
+        ]);
     }
 }

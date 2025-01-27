@@ -5,10 +5,19 @@ namespace App\Repositories;
 use App\Models\MerchantRollingReserve;
 use App\Models\RollingReserveEntry;
 use App\Repositories\Interfaces\RollingReserveRepositoryInterface;
+use App\Services\DynamicLogger;
+use Carbon\CarbonInterface;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class RollingReserveRepository implements RollingReserveRepositoryInterface
 {
+    public function __construct(
+        private  DynamicLogger $logger
+    )
+    {
+    }
+
     public function getMerchantReserveSettings(int $merchantId, string $currency, string $date = null)
     {
         $query = MerchantRollingReserve::where('merchant_id', $merchantId)
@@ -17,7 +26,7 @@ class RollingReserveRepository implements RollingReserveRepositoryInterface
 
         if ($date) {
             $query->where('effective_from', '<=', $date)
-                ->where(function($q) use ($date) {
+                ->where(function ($q) use ($date) {
                     $q->where('effective_to', '>=', $date)
                         ->orWhereNull('effective_to');
                 });
@@ -26,42 +35,52 @@ class RollingReserveRepository implements RollingReserveRepositoryInterface
         return $query->first();
     }
 
-    public function createReserveEntry(array $data)
+    public function createReserveEntry(array $data) : RollingReserveEntry
     {
-        // Check for existing entry first
-        $existing = RollingReserveEntry::where('merchant_id', $data['merchant_id'])
-            ->where('settlement_period_start', $data['settlement_period_start'])
-            ->where('settlement_period_end', $data['settlement_period_end'])
-            ->where('original_currency', $data['original_currency'])
-            ->first();
+        try {
+            $existing = RollingReserveEntry::where('merchant_id', $data['merchant_id'])
+                ->where('period_start', $data['period_start'])
+                ->where('period_end', $data['period_end'])
+                ->where('original_currency', $data['original_currency'])
+                ->first();
 
-        if ($existing) {
-            \Log::info('Reserve entry already exists for this period', [
-                'merchant_id' => $data['merchant_id'],
-                'period' => $data['settlement_period_start'] . ' to ' . $data['settlement_period_end']
+            if ($existing) {
+                $this->logger->log('info', 'Reserve entry already exists for this period', [
+                    'merchant_id' => $data['merchant_id'],
+                    'period' => $data['period_start'] . ' to ' . $data['period_end']
+                ]);
+                return $existing;
+            }
+            return RollingReserveEntry::create($data);
+        } catch (\Exception $e) {
+            $this->logger->log('error', 'Failed to create reserve entry', [
+                'data' => $data,
+                'error' => $e->getMessage()
             ]);
-            return $existing;
+            throw $e;
         }
 
-        return RollingReserveEntry::create($data);
     }
 
-    public function getReleaseableFunds(int $merchantId, string $date)
-    {
-        return RollingReserveEntry::where('merchant_id', $merchantId)
+    public function getReleaseableFunds(
+        int $merchantId,
+        CarbonInterface|string $date,
+    ): Collection {
+        return RollingReserveEntry::query()
+            ->where('merchant_id', $merchantId)
             ->where('status', 'pending')
-            ->where('release_date', '<=', $date)
+            ->where('release_due_date', '<=', $date)
             ->whereNull('released_at')
             ->get();
     }
 
-    public function markReserveAsReleased(array $entryIds)
+    public function markReserveAsReleased(array $entryIds): int
     {
         return RollingReserveEntry::whereIn('id', $entryIds)
             ->update([
                 'status' => 'released',
                 'released_at' => now(),
-                'updated_at' => now()
+                'updated_at' => now(),
             ]);
     }
 }

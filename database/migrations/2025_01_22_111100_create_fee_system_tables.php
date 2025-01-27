@@ -4,8 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration
-{
+return new class extends Migration {
     /**
      * Run the migrations.
      */
@@ -67,7 +66,7 @@ return new class extends Migration
             $table->integer('original_amount');
             $table->string('original_currency', 3);
             $table->integer('reserve_amount_eur');
-            $table->integer('exchange_rate');
+            $table->float('exchange_rate');
             $table->date('period_start');        // Settlement period start
             $table->date('period_end');          // Settlement period end
             $table->timestamp('created_at');     // When the reserve was created
@@ -83,7 +82,7 @@ return new class extends Migration
         });
 
         // Fee History (for tracking applied fees)
-        Schema::create('fee_history', function (Blueprint $table) {
+        Schema::create('fee_histories', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('merchant_id');
             $table->unsignedBigInteger('fee_type_id');
@@ -114,8 +113,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('merchant');
-        Schema::dropIfExists('fee_history');
+        Schema::dropIfExists('merchants');
+        Schema::dropIfExists('fee_histories');
         Schema::dropIfExists('rolling_reserve_entries');
         Schema::dropIfExists('merchant_rolling_reserves');
         Schema::dropIfExists('merchant_fees');

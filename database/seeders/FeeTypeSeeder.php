@@ -15,9 +15,28 @@ class FeeTypeSeeder extends Seeder
     {
         $feeTypes = [
             [
+                'name' => 'MDR%',
+                'key' => 'mdr_percentage',
+                'frequency_type' => 'weekly',
+                'is_percentage' => true
+            ],
+            [
+                'name' => 'Payout Fee',
+                'key' => 'payout_fee',
+                'frequency_type' => 'weekly',
+                'is_percentage' => false
+            ],
+            [
+
                 'name' => 'Transaction Fee',
                 'key' => 'transaction_fee',
                 'frequency_type' => 'transaction',
+                'is_percentage' => false
+            ],
+            [
+                'name' => 'Weekly Service Fee',
+                'key' => 'weekly_service_fee',
+                'frequency_type' => 'weekly',
                 'is_percentage' => true
             ],
             [
