@@ -53,4 +53,25 @@ class FeeRepository implements FeeRepositoryInterface
     {
         return FeeHistory::create($feeData);
     }
+    public function getLastFeeApplication(int $merchantId, int $feeTypeId): ?FeeHistory
+    {
+        return FeeHistory::where('merchant_id', $merchantId)
+            ->where('fee_type_id', $feeTypeId)
+            ->orderBy('applied_date', 'desc')
+            ->first();
+    }
+    public function getFeeApplicationsInDateRange(
+        int $merchantId,
+        int $feeTypeId,
+        string $startDate,
+        string $endDate
+    ): array {
+        return FeeHistory::where('merchant_id', $merchantId)
+            ->where('fee_type_id', $feeTypeId)
+            ->whereBetween('applied_date', [$startDate, $endDate])
+            ->orderBy('applied_date', 'asc')
+            ->get()
+            ->toArray();
+    }
+
 }

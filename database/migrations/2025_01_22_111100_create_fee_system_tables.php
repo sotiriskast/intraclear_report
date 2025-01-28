@@ -44,20 +44,43 @@ return new class extends Migration {
 
             $table->foreign('fee_type_id')->references('id')->on('fee_types');
         });
-
-        // Rolling Reserve Settings
-        Schema::create('merchant_rolling_reserves', function (Blueprint $table) {
+        // First, create a comprehensive merchant settings table
+        Schema::create('merchant_settings', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('merchant_id');
-            $table->integer('percentage'); // e.g., 1000 for 10%
-            $table->integer('holding_period_days'); // e.g., 180 for 6 months
-            $table->string('currency', 3); // EUR, USD, etc.
-            $table->timestamp('effective_from')->useCurrent();
-            $table->timestamp('effective_to')->nullable();
+
+            // Rolling Reserve Settings
+            $table->integer('rolling_reserve_percentage')->default(1000)->comment('e.g., 1000 for 10%');
+            $table->integer('holding_period_days')->default(180)->comment('e.g., 180 for 6 months');
+
+            // Fee Settings
+            $table->integer('mdr_percentage')->default(500)->comment('e.g., 500 for 5%');
+            $table->integer('transaction_fee')->default(20)->comment('e.g., 20 cents per transaction');
+            $table->integer('payout_fee')->default(100)->comment('e.g., 1.00 EUR');
+            $table->integer('refund_fee')->default(100)->comment('e.g., 1.00 EUR');
+            $table->integer('chargeback_fee')->default(2500)->comment('e.g., 25.00 EUR');
+            $table->integer('monthly_fee')->default(15000)->comment('e.g., 150.00 EUR');
+            $table->integer('mastercard_high_risk_fee_applied')->default(15000)->comment('e.g., 150.00 EUR');
+            $table->integer('visa_high_risk_fee_applied')->default(15000)->comment('e.g., 150.00 EUR');
+
+            // One-time Fees
+            $table->integer('setup_fee')->default(50000)->comment('e.g., 500.00 EUR');
+            $table->boolean('setup_fee_charged')->default(false);
+
+            // Status
             $table->boolean('active')->default(true);
+
+            // Standard Timestamps and Soft Delete
             $table->timestamps();
             $table->softDeletes();
+
+            // Foreign Key
+            $table->foreign('merchant_id')->references('id')->on('merchants');
+
+            // Indexes for common queries
+            $table->index(['merchant_id', 'active']);
         });
+
 
         // Rolling Reserve Transactions
         Schema::create('rolling_reserve_entries', function (Blueprint $table) {

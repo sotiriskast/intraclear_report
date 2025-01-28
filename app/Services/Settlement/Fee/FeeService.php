@@ -4,6 +4,7 @@ namespace App\Services\Settlement\Fee;
 
 use App\Classes\Fees\FeeCalculatorFactory;
 use App\Repositories\Interfaces\FeeRepositoryInterface;
+use App\Services\DynamicLogger;
 use App\Classes\Fees\Calculators\{
     TransactionFeeCalculator,
     DailyFeeCalculator,
@@ -16,10 +17,15 @@ use App\Classes\Fees\Calculators\{
 class FeeService
 {
     private $calculatorFactory;
+    private $frequencyHandler;
 
-    public function __construct(private readonly FeeRepositoryInterface $feeRepository)
+    public function __construct(
+        private readonly FeeRepositoryInterface $feeRepository,
+        private readonly DynamicLogger          $logger
+    )
     {
         $this->calculatorFactory = new FeeCalculatorFactory();
+        $this->frequencyHandler = new FeeFrequencyHandler($feeRepository);
     }
 
     public function calculateFees(int $merchantId, array $transactionData, array $dateRange): array
@@ -28,29 +34,51 @@ class FeeService
         $calculatedFees = [];
 
         foreach ($merchantFees as $fee) {
-            $calculator = $this->calculatorFactory->createCalculator(
-                $fee->feeType->frequency_type,
-                [
-                    'amount' => $fee->amount,
-                    'is_percentage' => $fee->is_percentage
-                ],
-                $dateRange
-            );
+            try {
+                // Check if the fee should be applied based on its frequency
+                if (!$this->frequencyHandler->shouldApplyFee(
+                    $fee->feeType->frequency_type,
+                    $merchantId,
+                    $fee->fee_type_id,
+                    $dateRange
+                )) {
+                    $this->logger->log('info', 'Fee skipped due to frequency rules', [
+                        'merchant_id' => $merchantId,
+                        'fee_type' => $fee->feeType->frequency_type,
+                        'fee_id' => $fee->id
+                    ]);
+                    continue;
+                }
 
-            $feeAmount = $calculator->calculate($transactionData);
+                $calculator = $this->calculatorFactory->create(
+                    $fee->feeType->frequency_type,
+                    [
+                        'amount' => $fee->amount,
+                        'is_percentage' => $fee->feeType->is_percentage
+                    ],
+                    $dateRange
+                );
 
-            if ($feeAmount > 0) {
-                $calculatedFees[] = [
-                    'name' => $fee->feeType->name,
-                    'rate' => $this->formatRate($fee),
-                    'terminal' => null,
-                    'count' => $this->getTransactionCount($fee, $transactionData),
-                    'base_amount' => $transactionData['total_sales_amount'],
-                    'amount' => $feeAmount,
-                    'amount_eur' => $feeAmount
-                ];
+                $feeAmount = $calculator->calculate($transactionData);
 
-                $this->logFeeApplication($merchantId, $fee, $transactionData, $feeAmount, $dateRange);
+                if ($feeAmount > 0) {
+                    $calculatedFees[] = [
+                        'fee_type' => $fee->feeType->name,
+                        'fee_rate' => $this->formatRate($fee),
+                        'fee_amount' => $feeAmount,
+                        'frequency' => $fee->feeType->frequency_type,
+                        'is_percentage' => $fee->feeType->is_percentage,
+                    ];
+
+                    $this->logFeeApplication($merchantId, $fee, $transactionData, $feeAmount, $dateRange);
+                }
+            } catch (\Exception $e) {
+                $this->logger->log('error', 'Error calculating fee', [
+                    'merchant_id' => $merchantId,
+                    'fee_type' => $fee->feeType->frequency_type,
+                    'error' => $e->getMessage()
+                ]);
+                continue;
             }
         }
 
@@ -59,17 +87,10 @@ class FeeService
 
     private function formatRate($fee): string
     {
-        if ($fee->is_percentage) {
+        if ($fee->feeType->is_percentage) {
             return number_format($fee->amount / 100, 2) . '%';
         }
-        return number_format($fee->amount, 2);
-    }
-
-    private function getTransactionCount($fee, $transactionData): ?int
-    {
-        return $fee->feeType->frequency_type === 'transaction'
-            ? ($transactionData['total_sales_transaction'] ?? 0)
-            : null;
+        return number_format($fee->amount / 100, 2);
     }
 
     private function logFeeApplication($merchantId, $fee, $transactionData, $feeAmount, $dateRange): void
@@ -77,10 +98,10 @@ class FeeService
         $this->feeRepository->logFeeApplication([
             'merchant_id' => $merchantId,
             'fee_type_id' => $fee->fee_type_id,
-            'base_amount' => $transactionData['total_sales_amount'],
-            'base_currency' => $transactionData['currency'],
+            'base_amount' => $transactionData['total_sales_amount'] ?? 0,
+            'base_currency' => $transactionData['currency'] ?? 'EUR',
             'fee_amount_eur' => $feeAmount,
-            'exchange_rate' => $transactionData['exchange_rate'],
+            'exchange_rate' => $transactionData['exchange_rate'] ?? 1.0,
             'applied_date' => $dateRange['start']
         ]);
     }

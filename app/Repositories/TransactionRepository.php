@@ -3,17 +3,20 @@
 namespace App\Repositories;
 
 use App\Services\DynamicLogger;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use App\Repositories\Interfaces\TransactionRepositoryInterface;
 use Carbon\Carbon;
 
 class TransactionRepository implements TransactionRepositoryInterface
 {
-    public function __construct(private DynamicLogger $logger)
+    public function __construct(
+        private readonly DynamicLogger $logger
+    )
     {
     }
 
-    public function getMerchantTransactions(int $merchantId, array $dateRange, string $currency = null)
+    public function getMerchantTransactions(int $merchantId, array $dateRange, string $currency = null): Collection
     {
         $query = DB::connection('payment_gateway_mysql')
             ->table('transactions')
@@ -42,9 +45,54 @@ class TransactionRepository implements TransactionRepositoryInterface
             $query->where('transactions.currency', $currency);
         }
         $results = $query->get();
-        $this->logger->log('info',"Found transactions", ['count' => $results->count()]);
-
+        $this->logger->log('info', "Found transactions", ['count' => $results->count()]);
         return $results;
+    }
+
+    public function calculateTransactionTotals($transactions, $exchangeRates): array
+    {
+        $totals = [];
+        $rateCount = 0;
+        foreach ($transactions as $transaction) {
+            $currency = $transaction->currency;
+            if (!isset($totals[$currency])) {
+                $totals[$currency] = [
+                    'total_sales' => 0,
+                    'total_sales_eur' => 0,
+                    'total_declined_sales' => 0,
+                    'total_decline_sales_eur' => 0,
+                    'transaction_declined_count' => 0,
+                    'total_refunds' => 0,
+                    'total_refunds_eur' => 0,
+                    'transaction_sales_count' => 0,
+                    'refund_count' => 0,
+                    'exchange_rate' => 0
+                ];
+            }
+
+            $rate = $this->getDailyExchangeRate($transaction, $exchangeRates);
+            $rateCount++;
+            $amount = $transaction->amount / 100; // Convert from cents
+
+            if (mb_strtoupper($transaction->transaction_type) === 'SALE' &&
+                mb_strtoupper($transaction->transaction_status) === 'APPROVED') {
+                $totals[$currency]['total_sales'] += $amount;
+                $totals[$currency]['total_sales_eur'] += $amount * $rate;
+                $totals[$currency]['transaction_sales_count']++;
+            } elseif (mb_strtoupper($transaction->transaction_type) === 'SALE' &&
+                mb_strtoupper($transaction->transaction_status) === 'DECLINED') {
+                $totals[$currency]['total_declined_sales'] += $amount;
+                $totals[$currency]['total_decline_sales_eur'] += $amount * $rate;
+                $totals[$currency]['transaction_declined_count']++;
+            } elseif (in_array(mb_strtoupper($transaction->transaction_type), ['REFUND', 'PARTIAL REFUND'])) {
+                $totals[$currency]['total_refunds'] += $amount;
+                $totals[$currency]['total_refunds_eur'] += $amount * $rate;
+                $totals[$currency]['refund_count']++;
+            }
+        }
+        //Get the average exchange rate
+        $totals[$currency]['exchange_rate'] = $totals[$currency]['total_sales_eur']/$totals[$currency]['total_sales'];
+        return $totals;
     }
 
     public function getExchangeRates(array $dateRange, array $currencies)
@@ -72,12 +120,31 @@ class TransactionRepository implements TransactionRepositoryInterface
         return $rateMap;
     }
 
+    private function getDailyExchangeRate($transaction, $exchangeRates): float
+    {
+        if ($transaction->currency === 'EUR') {
+            return 1.0;
+        }
+
+        $date = Carbon::parse($transaction->added)->format('Y-m-d');
+        $cardType = strtoupper($transaction->card_type ?? 'UNKNOWN');
+        $key = "{$transaction->currency}_{$cardType}_{$date}";
+
+        return $exchangeRates[$key] ?? 1.0;
+    }
+
+    /**
+     * This function is deprecated and should not be used.
+     * Use the calculateTransactionTotals() instead.
+     *
+     * @return Collection
+     * @deprecated This function is deprecated since version 2.0.0.
+     */
     public function getDailyTotals(int $merchantId, array $dateRange, string $currency = null)
     {
         $query = DB::connection('payment_gateway_mysql')
             ->table('transactions')
             ->select([
-                DB::raw('DATE(added) as date'),
                 'currency',
                 DB::raw('SUM(CASE WHEN transaction_type = "sale" AND transaction_status = "APPROVED" THEN amount ELSE 0 END) as sales_amount'),
                 DB::raw('SUM(CASE WHEN transaction_type = "sale" AND transaction_status = "DECLINED" THEN amount ELSE 0 END) as declined_amount'),
@@ -92,7 +159,7 @@ class TransactionRepository implements TransactionRepositoryInterface
         if ($currency) {
             $query->where('currency', $currency);
         }
-
-        return $query->groupBy('date', 'currency')->get();
+        trigger_error('Function getDailyTotals() is deprecated. Use calculateTransactionTotals() instead.', E_USER_DEPRECATED);
+        return $query->groupBy('currency')->get();
     }
 }

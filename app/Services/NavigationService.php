@@ -35,6 +35,11 @@ class NavigationService
                         'label' => 'Fee Management',
                         'permission' => 'manage-fees', // Permission check will be dynamic
                     ],
+                    'settings' => [
+                        'route' => 'admin.merchant-settings',
+                        'label' => 'Merchant Settings',
+                        'permission' => 'manage-fees', // Permission check will be dynamic
+                    ],
                 ],
             ],
             'users' => [

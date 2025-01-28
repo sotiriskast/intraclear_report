@@ -9,4 +9,5 @@ interface FeeRepositoryInterface
     public function createMerchantFee(array $data);
     public function updateMerchantFee(int $feeId, array $data);
     public function logFeeApplication(array $feeData);
+
 }
