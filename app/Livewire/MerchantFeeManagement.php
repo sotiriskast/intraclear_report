@@ -54,7 +54,7 @@ class MerchantFeeManagement extends Component
         MerchantFee::create([
             'merchant_id' => $this->selectedMerchantId,
             'fee_type_id' => $this->selectedFeeTypeId,
-            'amount' => $this->amount,
+            'amount' => $this->amount * 100,
             'effective_from' => $this->effectiveFrom,
             'effective_to' => $this->effectiveTo,
             'active' => $this->active
@@ -71,7 +71,7 @@ class MerchantFeeManagement extends Component
         $this->editMerchantFeeId = $id;
         $this->selectedMerchantId = $merchantFee->merchant_id;
         $this->selectedFeeTypeId = $merchantFee->fee_type_id;
-        $this->amount = $merchantFee->amount;
+        $this->amount = $merchantFee->amount/100;
         $this->active = (bool) $merchantFee->active;
         $this->effectiveFrom = $merchantFee->effective_from->format('Y-m-d');
         $this->effectiveTo = $merchantFee->effective_to ? $merchantFee->effective_to->format('Y-m-d') : null;
@@ -87,7 +87,7 @@ class MerchantFeeManagement extends Component
         $merchantFee->update([
             'merchant_id' => $this->selectedMerchantId,
             'fee_type_id' => $this->selectedFeeTypeId,
-            'amount' => $this->amount,
+            'amount' => $this->amount * 100,
             'active' => $this->active,
             'effective_from' => $this->effectiveFrom,
             'effective_to' => $this->effectiveTo,
@@ -119,12 +119,12 @@ class MerchantFeeManagement extends Component
         ]);
         $this->effectiveFrom = now()->format('Y-m-d');
     }
-
     public function render()
     {
         $merchantFees = MerchantFee::with(['merchant', 'feeType'])
             ->latest()
-            ->paginate(10);
+            ->paginate(10)
+        ;
 
         return view('livewire.merchant-fee-management', [
             'merchantFees' => $merchantFees

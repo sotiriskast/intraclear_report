@@ -75,7 +75,7 @@
                             </div>
                             <div class="mt-2 space-y-1">
                                 <p class="text-xs text-gray-700">
-                                    Amount: {{ $fee->amount }}
+                                    Amount: {{ number_format($fee->amount / 100, 2) }}
                                     ({{ $fee->feeType->is_percentage ? 'Percentage' : 'Fixed' }})
                                 </p>
                                 <p class="text-xs text-gray-700">
@@ -137,7 +137,7 @@
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="text-sm text-gray-900">
-                                        {{ $fee->amount }}
+                                        {{ number_format($fee->amount / 100, 2) }}
                                         ({{ $fee->feeType->is_percentage ? 'Percentage' : 'Fixed' }})
                                     </div>
                                 </td>
