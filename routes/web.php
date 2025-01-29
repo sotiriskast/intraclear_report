@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['auth:web', 'verified',
 ])->group(function () {
     Route::get('/', function () {
-        return view('dashboard');
+        return redirect('/admin/dashboard');
     });
 
     Route::prefix('admin')->group(function () {
