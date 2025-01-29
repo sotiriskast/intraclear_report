@@ -24,7 +24,7 @@ class MerchantSetting extends Model
         'visa_high_risk_fee_applied',
         'setup_fee',
         'setup_fee_charged',
-        'active'
+        'declined_fee'
     ];
 
     protected $casts = [

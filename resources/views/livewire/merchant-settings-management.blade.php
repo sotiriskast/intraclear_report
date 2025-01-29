@@ -79,13 +79,8 @@
                                 <p>Holding Period: {{ $setting->holding_period_days }} days</p>
                                 <p>MDR: {{ number_format($setting->mdr_percentage / 100, 2) }}%</p>
                                 <p>Transaction Fee: {{ number_format($setting->transaction_fee / 100, 2) }} EUR</p>
+                                <p>Declined Fee: {{ number_format($setting->transaction_fee / 100, 2) }} EUR</p>
                                 <p>Setup Fee: {{ number_format($setting->setup_fee / 100, 2) }} EUR</p>
-                                <p>
-                                    <span
-                                        class="{{ $setting->active ? 'text-green-800 bg-green-100' : 'text-red-800 bg-red-100' }} inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium">
-                                        {{ $setting->active ? 'Active' : 'Inactive' }}
-                                    </span>
-                                </p>
                             </div>
                         </div>
                     @endforeach
@@ -105,10 +100,7 @@
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 MDR
                             </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Status
-                            </th>
-                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Actions
                             </th>
                         </tr>
@@ -131,12 +123,6 @@
                                     <div class="text-sm text-gray-900">
                                         {{ number_format($setting->mdr_percentage / 100, 2) }}%
                                     </div>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <span
-                                        class="{{ $setting->active ? 'text-green-800 bg-green-100' : 'text-red-800 bg-red-100' }} inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium">
-                                        {{ $setting->active ? 'Active' : 'Inactive' }}
-                                    </span>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                     <div class="flex justify-end gap-2">
@@ -236,16 +222,14 @@
                             <x-input-error for="transactionFee" class="mt-2"/>
                         </div>
 
-                        <!-- Continue with other fee inputs... -->
-
-                        <!-- Status -->
-                        <div class="col-span-2">
-                            <label class="flex items-center">
-                                <x-checkbox wire:model="active"/>
-                                <span class="ml-2 text-sm text-gray-600">{{ __('Active') }}</span>
-                            </label>
-                            <x-input-error for="active" class="mt-2"/>
+                        <div>
+                            <x-label for="declined_fee" value="{{ __('Declined Fee (EUR)') }}"/>
+                            <x-input id="declinedFee" type="number" step="0.01" class="mt-1 block w-full"
+                                     wire:model="declinedFee"/>
+                            <x-input-error for="declinedFee" class="mt-2"/>
                         </div>
+
+
                         <!-- Other Fees -->
                         <div>
                             <x-label for="payoutFee" value="{{ __('Payout Fee (EUR)') }}"/>

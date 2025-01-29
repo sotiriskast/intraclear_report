@@ -19,6 +19,8 @@ use Carbon\Carbon;
  */
 readonly class TransactionRepository implements TransactionRepositoryInterface
 {
+    private const RATE = 1.005;
+
     /**
      * Create a new TransactionRepository instance.
      *
@@ -88,7 +90,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
      *
      * @return array Associative array of transaction totals per currency
      */
-    public function calculateTransactionTotals($transactions, $exchangeRates): array
+    public function calculateTransactionTotals(mixed $transactions, array $exchangeRates): array
     {
         $totals = [];
         foreach ($transactions as $transaction) {
@@ -114,16 +116,16 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
             if (mb_strtoupper($transaction->transaction_type) === 'SALE' &&
                 mb_strtoupper($transaction->transaction_status) === 'APPROVED') {
                 $totals[$currency]['total_sales'] += $amount;
-                $totals[$currency]['total_sales_eur'] += ($amount * $rate);
+                $totals[$currency]['total_sales_eur'] += ($amount * ($rate * self::RATE));
                 $totals[$currency]['transaction_sales_count']++;
             } elseif (mb_strtoupper($transaction->transaction_type) === 'SALE' &&
                 mb_strtoupper($transaction->transaction_status) === 'DECLINED') {
                 $totals[$currency]['total_declined_sales'] += $amount;
-                $totals[$currency]['total_decline_sales_eur'] += ($amount * $rate);
+                $totals[$currency]['total_decline_sales_eur'] += ($amount * ($rate * self::RATE));
                 $totals[$currency]['transaction_declined_count']++;
             } elseif (in_array(mb_strtoupper($transaction->transaction_type), ['REFUND', 'PARTIAL REFUND'])) {
                 $totals[$currency]['total_refunds'] += $amount;
-                $totals[$currency]['total_refunds_eur'] += $amount * $rate;
+                $totals[$currency]['total_refunds_eur'] += $amount * ($rate * self::RATE);
                 $totals[$currency]['refund_count']++;
             }
         }
@@ -167,6 +169,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
 
         return $rateMap;
     }
+
     /**
      * Determines the daily exchange rate for a specific transaction.
      *

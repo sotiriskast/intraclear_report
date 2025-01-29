@@ -15,48 +15,65 @@ class FeeTypeSeeder extends Seeder
     {
         $feeTypes = [
             [
-                'name' => 'MDR%',
-                'key' => 'mdr_percentage',
-                'frequency_type' => 'weekly',
-                'is_percentage' => true
+                'name' => 'MDR Fee',
+                'key' => 'mdr_fee',
+                'frequency_type' => 'transaction',
+                'is_percentage' => true,
+            ],
+            [
+                'name' => 'Transaction Fee',
+                'key' => 'transaction_fee',
+                'frequency_type' => 'transaction',
+                'is_percentage' => false,
+            ],
+            [
+                'name' => 'Monthly Fee',
+                'key' => 'monthly_fee',
+                'frequency_type' => 'monthly',
+                'is_percentage' => false,
+            ],
+            [
+                'name' => 'Setup Fee',
+                'key' => 'setup_fee',
+                'frequency_type' => 'one_time',
+                'is_percentage' => false,
             ],
             [
                 'name' => 'Payout Fee',
                 'key' => 'payout_fee',
-                'frequency_type' => 'weekly',
-                'is_percentage' => false
-            ],
-            [
-
-                'name' => 'Transaction Fee',
-                'key' => 'transaction_fee',
                 'frequency_type' => 'transaction',
-                'is_percentage' => false
+                'is_percentage' => false,
             ],
             [
-                'name' => 'Weekly Service Fee',
-                'key' => 'weekly_service_fee',
-                'frequency_type' => 'weekly',
-                'is_percentage' => true
+                'name' => 'Refund Fee',
+                'key' => 'refund_fee',
+                'frequency_type' => 'transaction',
+                'is_percentage' => false,
             ],
             [
-                'name' => 'Monthly Service Fee',
-                'key' => 'monthly_service_fee',
-                'frequency_type' => 'monthly',
-                'is_percentage' => false
-            ],
-            [
-                'name' => 'Annual Membership Fee',
-                'key' => 'annual_membership_fee',
-                'frequency_type' => 'yearly',
-                'is_percentage' => false
+                'name' => 'Declined Fee',
+                'key' => 'declined_fee',
+                'frequency_type' => 'transaction',
+                'is_percentage' => false,
             ],
             [
                 'name' => 'Chargeback Fee',
                 'key' => 'chargeback_fee',
                 'frequency_type' => 'transaction',
-                'is_percentage' => false
-            ]
+                'is_percentage' => false,
+            ],
+            [
+                'name' => 'Mastercard High Risk Fee',
+                'key' => 'mastercard_high_risk_fee',
+                'frequency_type' => 'monthly',
+                'is_percentage' => false,
+            ],
+            [
+                'name' => 'Visa High Risk Fee',
+                'key' => 'visa_high_risk_fee',
+                'frequency_type' => 'monthly',
+                'is_percentage' => false,
+            ],
         ];
 
         foreach ($feeTypes as $feeType) {

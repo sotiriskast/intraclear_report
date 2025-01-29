@@ -46,14 +46,12 @@ class MerchantSettingRepository
     public function findByMerchant(int $merchantId)
     {
         return MerchantSetting::where('merchant_id', $merchantId)
-            ->where('active', true)
             ->first();
     }
 
     public function isExistingForMerchant(int $merchantId): bool
     {
         return MerchantSetting::where('merchant_id', $merchantId)
-            ->where('active', true)
             ->exists();
     }
 }

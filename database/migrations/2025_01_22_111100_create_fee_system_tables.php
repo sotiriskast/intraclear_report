@@ -24,7 +24,7 @@ return new class extends Migration {
             $table->id();
             $table->string('name');
             $table->string('key')->unique();
-            $table->string('frequency_type'); // transaction, daily, weekly, monthly, yearly, one_time
+            $table->string('frequency_type'); // transaction, weekly, monthly, yearly, one_time
             $table->boolean('is_percentage')->default(false);
             $table->timestamps();
             $table->softDeletes();
@@ -55,10 +55,11 @@ return new class extends Migration {
 
             // Fee Settings
             $table->integer('mdr_percentage')->default(500)->comment('e.g., 500 for 5%');
-            $table->integer('transaction_fee')->default(20)->comment('e.g., 20 cents per transaction');
+            $table->integer('transaction_fee')->default(35)->comment('e.g., 35 cents per transaction');
+            $table->integer('declined_fee')->default(25)->comment('e.g., 25 cents per transaction');
             $table->integer('payout_fee')->default(100)->comment('e.g., 1.00 EUR');
             $table->integer('refund_fee')->default(100)->comment('e.g., 1.00 EUR');
-            $table->integer('chargeback_fee')->default(2500)->comment('e.g., 25.00 EUR');
+            $table->integer('chargeback_fee')->default(4000)->comment('e.g., 25.00 EUR');
             $table->integer('monthly_fee')->default(15000)->comment('e.g., 150.00 EUR');
             $table->integer('mastercard_high_risk_fee_applied')->default(15000)->comment('e.g., 150.00 EUR');
             $table->integer('visa_high_risk_fee_applied')->default(15000)->comment('e.g., 150.00 EUR');
@@ -66,22 +67,14 @@ return new class extends Migration {
             // One-time Fees
             $table->integer('setup_fee')->default(50000)->comment('e.g., 500.00 EUR');
             $table->boolean('setup_fee_charged')->default(false);
-
-            // Status
-            $table->boolean('active')->default(true);
-
             // Standard Timestamps and Soft Delete
             $table->timestamps();
             $table->softDeletes();
-
             // Foreign Key
             $table->foreign('merchant_id')->references('id')->on('merchants');
-
             // Indexes for common queries
-            $table->index(['merchant_id', 'active']);
+            $table->index(['merchant_id']);
         });
-
-
         // Rolling Reserve Transactions
         Schema::create('rolling_reserve_entries', function (Blueprint $table) {
             $table->id();

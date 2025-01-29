@@ -74,7 +74,7 @@ class ExcelExportService
         $this->currentSheet->getRowDimension(1)->setRowHeight(
             40 * (substr_count($this->currentSheet->getCell('A1')->getValue(), "\n") + 1)
         );
-        $this->currentRow+=1;
+        $this->currentRow += 1;
         $this->addSectionHeader('Member Details');
         $this->currentSheet->getStyle('A1:G1')->applyFromArray([
             'font' => ['bold' => true],
@@ -130,15 +130,62 @@ class ExcelExportService
             ]);
             return;
         }
-        foreach ($currencyData['fees'] as $fee) {
-            $this->currentSheet->setCellValue('A' . $this->currentRow, $fee['type']);
-            $this->currentSheet->setCellValue('B' . $this->currentRow, $fee['is_percentage'] ? $fee['rate'] . '%' : $fee['rate']);
-            $this->currentSheet->setCellValue('C' . $this->currentRow, ''); // Terminal
-            $this->currentSheet->setCellValue('D' . $this->currentRow, $fee['count']);
-            $this->currentSheet->setCellValue('E' . $this->currentRow, $fee['base_amount_eur']);
-            $this->currentSheet->setCellValue('F' . $this->currentRow, $fee['amount']);
-            $this->currentSheet->setCellValue('G' . $this->currentRow, $fee['amount']); // EUR amount
+
+        // Sort fees by type (standard fees first, then others)
+        $standardFeeTypes = [
+            'MDR Fee', 'Transaction Fee', 'Declined Fee', 'Monthly Fee', 'Setup Fee',
+            'Payout Fee', 'Refund Fee', 'Chargeback Fee',
+            'Mastercard High Risk Fee', 'Visa High Risk Fee'
+        ];
+
+        $sortedFees = collect($currencyData['fees'])->sortBy(function ($fee) use ($standardFeeTypes) {
+            $index = array_search($fee['fee_type'], $standardFeeTypes);
+            return $index !== false ? $index : 999;
+        });
+
+        foreach ($sortedFees as $fee) {
+            $this->currentSheet->setCellValue('A' . $this->currentRow, $fee['fee_type']);
+            $this->currentSheet->setCellValue('B' . $this->currentRow, $fee['fee_rate']);
+            $this->currentSheet->setCellValue('C' . $this->currentRow, '');
+
+            // Set the appropriate count based on fee type
+            $count = match ($fee['fee_type']) {
+                'Declined Fee' => $fee['transactionData']['transaction_declined_count'] ?? 0,
+                'Refund Fee' => $fee['transactionData']['total_refunds_transaction_count'] ?? 0,
+                'Chargeback Fee' => $fee['transactionData']['chargeback_count'] ?? 0,
+                'Transaction Fee' => $fee['transactionData']['transaction_sales_count'] ?? 0,
+                default => ''
+            };
+
+            $this->currentSheet->setCellValue('D' . $this->currentRow, $count);
+            $this->currentSheet->setCellValue('E' . $this->currentRow, '');
+
+            // Calculate original currency amount
+            $originalAmount = $fee['fee_amount'] / ($fee['transactionData']['exchange_rate'] * 1.01);
+            $this->currentSheet->setCellValue('F' . $this->currentRow, $originalAmount);
+            $this->currentSheet->setCellValue('G' . $this->currentRow, $fee['fee_amount']); // EUR amount
+
             $this->currentRow++;
+        }
+
+        // Add total row
+        $lastRow = $this->currentRow - 1;
+        if ($lastRow > $this->currentRow - 2) {
+            $this->currentRow++;
+            $this->currentSheet->setCellValue('A' . $this->currentRow, 'Total');
+            $this->currentSheet->setCellValue('F' . $this->currentRow,
+                '=SUM(F' . ($this->currentRow - $sortedFees->count() - 1) . ':F' . ($lastRow) . ')');
+            $this->currentSheet->setCellValue('G' . $this->currentRow,
+                '=SUM(G' . ($this->currentRow - $sortedFees->count() - 1) . ':G' . ($lastRow) . ')');
+
+            // Format total row
+            $this->currentSheet->getStyle('A' . $this->currentRow . ':G' . $this->currentRow)
+                ->getFont()
+                ->setBold(true);
+
+            $this->currentSheet->getStyle('F' . $this->currentRow . ':G' . $this->currentRow)
+                ->getNumberFormat()
+                ->setFormatCode(\PhpOffice\PhpSpreadsheet\Style\NumberFormat::FORMAT_NUMBER_COMMA_SEPARATED2);
         }
     }
 
@@ -199,7 +246,7 @@ class ExcelExportService
         $this->addSectionHeader('Summary');
 
         // Helper function to safely get total from either array or model
-        $getTotal = function($data, $key) {
+        $getTotal = function ($data, $key) {
             if (empty($data)) {
                 return 0;
             }
