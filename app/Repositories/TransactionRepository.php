@@ -8,14 +8,41 @@ use Illuminate\Support\Facades\DB;
 use App\Repositories\Interfaces\TransactionRepositoryInterface;
 use Carbon\Carbon;
 
-class TransactionRepository implements TransactionRepositoryInterface
+
+/**
+ * TransactionRepository handles database operations related to merchant transactions.
+ *
+ * This repository provides methods for retrieving, calculating, and analyzing
+ * transaction data across different currencies and time ranges.
+ *
+ * @package App\Repositories
+ */
+readonly class TransactionRepository implements TransactionRepositoryInterface
 {
+    /**
+     * Create a new TransactionRepository instance.
+     *
+     * @param DynamicLogger $logger Logging service for transaction-related events
+     */
     public function __construct(
-        private readonly DynamicLogger $logger
+        private DynamicLogger $logger
     )
     {
     }
 
+    /**
+     * Retrieves merchant transactions based on specified criteria.
+     *
+     * This method fetches transactions for a specific merchant within a given date range,
+     * with optional currency filtering. It joins additional tables to provide comprehensive
+     * transaction details.
+     *
+     * @param int $merchantId The unique identifier of the merchant
+     * @param array $dateRange Associative array with 'start' and 'end' date keys
+     * @param string|null $currency Optional currency filter
+     *
+     * @return Collection A collection of transaction records
+     */
     public function getMerchantTransactions(int $merchantId, array $dateRange, string $currency = null): Collection
     {
         $query = DB::connection('payment_gateway_mysql')
@@ -49,10 +76,21 @@ class TransactionRepository implements TransactionRepositoryInterface
         return $results;
     }
 
+    /**
+     * Calculates comprehensive transaction totals across different currencies.
+     *
+     * This method processes a collection of transactions and computes various
+     * totals including sales, declined sales, refunds, and their EUR equivalents.
+     * It also calculates transaction counts and average exchange rates.
+     *
+     * @param mixed $transactions Collection of transaction records
+     * @param array $exchangeRates Lookup of exchange rates by currency and date
+     *
+     * @return array Associative array of transaction totals per currency
+     */
     public function calculateTransactionTotals($transactions, $exchangeRates): array
     {
         $totals = [];
-        $rateCount = 0;
         foreach ($transactions as $transaction) {
             $currency = $transaction->currency;
             if (!isset($totals[$currency])) {
@@ -71,18 +109,17 @@ class TransactionRepository implements TransactionRepositoryInterface
             }
 
             $rate = $this->getDailyExchangeRate($transaction, $exchangeRates);
-            $rateCount++;
             $amount = $transaction->amount / 100; // Convert from cents
 
             if (mb_strtoupper($transaction->transaction_type) === 'SALE' &&
                 mb_strtoupper($transaction->transaction_status) === 'APPROVED') {
                 $totals[$currency]['total_sales'] += $amount;
-                $totals[$currency]['total_sales_eur'] += $amount * $rate;
+                $totals[$currency]['total_sales_eur'] += ($amount * $rate);
                 $totals[$currency]['transaction_sales_count']++;
             } elseif (mb_strtoupper($transaction->transaction_type) === 'SALE' &&
                 mb_strtoupper($transaction->transaction_status) === 'DECLINED') {
                 $totals[$currency]['total_declined_sales'] += $amount;
-                $totals[$currency]['total_decline_sales_eur'] += $amount * $rate;
+                $totals[$currency]['total_decline_sales_eur'] += ($amount * $rate);
                 $totals[$currency]['transaction_declined_count']++;
             } elseif (in_array(mb_strtoupper($transaction->transaction_type), ['REFUND', 'PARTIAL REFUND'])) {
                 $totals[$currency]['total_refunds'] += $amount;
@@ -91,10 +128,21 @@ class TransactionRepository implements TransactionRepositoryInterface
             }
         }
         //Get the average exchange rate
-        $totals[$currency]['exchange_rate'] = $totals[$currency]['total_sales_eur']/$totals[$currency]['total_sales'];
+        $totals[$currency]['exchange_rate'] = $totals[$currency]['total_sales_eur'] / $totals[$currency]['total_sales'];
         return $totals;
     }
 
+    /**
+     * Retrieves exchange rates for specified currencies within a date range.
+     *
+     * Fetches exchange rates from the scheme_rates table, creating a lookup
+     * map with currency, brand, and date as the key.
+     *
+     * @param array $dateRange Associative array with 'start' and 'end' date keys
+     * @param array $currencies Array of currency codes to fetch rates for
+     *
+     * @return array Associative array of exchange rates
+     */
     public function getExchangeRates(array $dateRange, array $currencies)
     {
         $rates = DB::connection('payment_gateway_mysql')
@@ -119,8 +167,18 @@ class TransactionRepository implements TransactionRepositoryInterface
 
         return $rateMap;
     }
-
-    private function getDailyExchangeRate($transaction, $exchangeRates): float
+    /**
+     * Determines the daily exchange rate for a specific transaction.
+     *
+     * Retrieves the appropriate exchange rate based on transaction currency,
+     * card type, and transaction date. Defaults to 1.0 if no rate is found.
+     *
+     * @param mixed $transaction Transaction record
+     * @param array $exchangeRates Lookup of exchange rates
+     *
+     * @return float Exchange rate for the transaction
+     */
+    private function getDailyExchangeRate(mixed $transaction, array $exchangeRates): float
     {
         if ($transaction->currency === 'EUR') {
             return 1.0;
@@ -134,11 +192,15 @@ class TransactionRepository implements TransactionRepositoryInterface
     }
 
     /**
-     * This function is deprecated and should not be used.
-     * Use the calculateTransactionTotals() instead.
-     *
+     * /**
+     * * Retrieves daily transaction totals for a merchant.
+     * *
+     * * @param int $merchantId The unique identifier of the merchant
+     * * @param array $dateRange Associative array with 'start' and 'end' date keys
+     * * @param string|null $currency Optional currency filter
+     * *
      * @return Collection
-     * @deprecated This function is deprecated since version 2.0.0.
+     * @deprecated Since version 2.0.0. Use calculateTransactionTotals() instead.
      */
     public function getDailyTotals(int $merchantId, array $dateRange, string $currency = null)
     {
