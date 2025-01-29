@@ -1,7 +1,7 @@
 <div class="flex flex-col h-full">
     <!-- Logo Section -->
     <div class="flex items-center justify-between h-16 px-4 border-b border-gray-200">
-        <a href="{{ route('dashboard') }}" class="flex items-center">
+        <a href="{{ route('admin.dashboard') }}" class="flex items-center">
             <x-authentication-card-logo class="w-72 h-16" />
         </a>
     </div>

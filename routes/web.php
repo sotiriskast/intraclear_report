@@ -11,9 +11,6 @@ use App\Livewire\RoleManagement;
 use App\Livewire\UserManagement;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/register', function () {
-    abort(404); // Or redirect to a specific page
-});
 Route::middleware(['auth:web', 'verified',
 ])->group(function () {
     Route::get('/', function () {
@@ -21,7 +18,7 @@ Route::middleware(['auth:web', 'verified',
     });
 
     Route::prefix('admin')->group(function () {
-        Route::get('/dashboard', function () {return view('dashboard');})->name('dashboard');
+        Route::get('/dashboard', function () {return view('dashboard');})->name('admin.dashboard');
         Route::get('/users', UserManagement::class)->name('admin.users')->middleware(['can:manage-users']);
         Route::get('/roles', RoleManagement::class)->name('admin.roles')->middleware(['can:manage-roles']);
         Route::get('/merchants', MerchantManagement::class)->name('admin.merchants')->middleware(['can:manage-merchants']);

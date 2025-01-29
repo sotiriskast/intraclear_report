@@ -11,7 +11,7 @@ class NavigationService
     {
         return [
             'dashboard' => [
-                'route' => 'dashboard',
+                'route' => 'admin.dashboard',
                 'label' => 'Dashboard',
                 'icon' => 'dashboard',
                 'permission' => null, // Always visible
