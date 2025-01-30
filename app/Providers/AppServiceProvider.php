@@ -4,10 +4,14 @@ namespace App\Providers;
 
 use App\Console\Commands\GenerateSettlementReports;
 use App\Console\Commands\ImportMerchants;
+use App\Repositories\FeeRepository;
 use App\Repositories\RoleRepository;
 use App\Services\DynamicLogger;
 use App\Services\ExcelExportService;
 use App\Services\MerchantSyncService;
+use App\Services\Settlement\Fee\FeeFrequencyHandler;
+use App\Services\Settlement\Fee\FeeService;
+use App\Services\Settlement\Fee\StandardFeeHandler;
 use App\Services\Settlement\SettlementService;
 use Illuminate\Support\ServiceProvider;
 
@@ -54,6 +58,14 @@ class AppServiceProvider extends ServiceProvider
             return new ImportMerchants(
                 $app->make(DynamicLogger::class),
                 $app->make(MerchantSyncService::class)
+            );
+        });
+        $this->app->singleton(FeeService::class, function ($app) {
+            return new FeeService(
+                $app->make(FeeRepository::class),
+                $app->make(DynamicLogger::class),
+                $app->make(FeeFrequencyHandler::class),
+                $app->make(StandardFeeHandler::class)
             );
         });
     }

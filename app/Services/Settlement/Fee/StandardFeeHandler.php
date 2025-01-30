@@ -2,173 +2,221 @@
 
 namespace App\Services\Settlement\Fee;
 
+use App\DTO\TransactionData;
 use App\Repositories\MerchantRepository;
 use App\Repositories\MerchantSettingRepository;
-use App\Repositories\FeeTypeRepository;
-use App\Repositories\FeeRepository;
+use App\Services\DynamicLogger;
+use App\Services\Settlement\Fee\Configurations\FeeCondition;
+use App\Services\Settlement\Fee\Configurations\FeeConfiguration;
+use App\Services\Settlement\Fee\Configurations\FeeRegistry;
+use App\Services\Settlement\Fee\Factories\FeeCalculatorFactory;
 
 class StandardFeeHandler
 {
-    private array $feeTypeMap;
+    private FeeRegistry $feeRegistry;
+    private FeeCalculatorFactory $calculatorFactory;
 
     public function __construct(
         private readonly MerchantSettingRepository $merchantSettingRepository,
         private readonly MerchantRepository        $merchantRepository,
-        private readonly FeeTypeRepository         $feeTypeRepository,
-        private readonly FeeRepository             $feeRepository
+        private readonly DynamicLogger             $logger
     )
     {
-        $this->feeTypeMap = $this->feeTypeRepository->getStandardFeeTypes();
+        $this->feeRegistry = new FeeRegistry();
+        $this->calculatorFactory = new FeeCalculatorFactory();
+        $this->initializeFeeConfigurations();
     }
 
-    public function getStandardFees(int $merchantId, array $transactionData, array $dateRange): array
+    private function initializeFeeConfigurations(): void
     {
-        $settings = $this->merchantSettingRepository->findByMerchant($this->merchantRepository->getMerchantIdByAccountId($merchantId));
-        if (!$settings) {
-            return [];
-        }
-
-        $standardFees = [];
-        // Map of fees to process
-        $feesToProcess = [
-            [
-                'key' => 'mdr_fee',
-                'name' => 'MDR Fee',
-                'amount' => $settings->mdr_percentage,
-                'is_percentage' => true,
-                'frequency' => 'transaction',
-                'calculateAmount' => fn() => ($transactionData['total_sales_eur'] ?? 0) * ($settings->mdr_percentage / 10000)
-            ],
-            [
-                'key' => 'transaction_fee',
-                'name' => 'Transaction Fee',
-                'amount' => $settings->transaction_fee,
-                'is_percentage' => false,
-                'frequency' => 'transaction',
-                'calculateAmount' => fn() => ($settings->transaction_fee / 100) * ($transactionData['transaction_sales_count'] ?? 0)
-            ],
-            [
-                'key' => 'payout_fee',
-                'name' => 'Payout Fee',
-                'amount' => $settings->payout_fee,
-                'is_percentage' => false,
-                'frequency' => 'transaction',
-                'calculateAmount' => fn() => $settings->payout_fee / 100
-            ],
-            [
-                'key' => 'refund_fee',
-                'name' => 'Refund Fee',
-                'amount' => $settings->refund_fee,
-                'is_percentage' => false,
-                'frequency' => 'transaction',
-                'calculateAmount' => fn() => ($settings->refund_fee / 100) * ($transactionData['refund_count'] ?? 0)
-            ],
-            [
-                'key' => 'declined_fee',
-                'name' => 'Declined Fee',
-                'amount' => $settings->declined_fee,
-                'is_percentage' => false,
-                'frequency' => 'transaction',
-                'calculateAmount' => fn() => ($settings->declined_fee / 100) * ($transactionData['transaction_declined_count'] ?? 0)
-            ],
-            [
-                'key' => 'chargeback_fee',
-                'name' => 'Chargeback Fee',
-                'amount' => $settings->chargeback_fee,
-                'is_percentage' => false,
-                'frequency' => 'transaction',
-                'calculateAmount' => fn() => ($settings->chargeback_fee / 100) * ($transactionData['chargeback_count'] ?? 0)
-            ],
-            [
-                'key' => 'monthly_fee',
-                'name' => 'Monthly Fee',
-                'amount' => $settings->monthly_fee,
-                'is_percentage' => false,
-                'frequency' => 'monthly',
-                'calculateAmount' => fn() => $settings->monthly_fee / 100
-            ],
-            [
-                'key' => 'mastercard_high_risk_fee',
-                'name' => 'Mastercard High Risk Fee',
-                'amount' => $settings->mastercard_high_risk_fee_applied,
-                'is_percentage' => false,
-                'frequency' => 'monthly',
-                'calculateAmount' => fn() => $settings->mastercard_high_risk_fee_applied / 100
-            ],
-            [
-                'key' => 'visa_high_risk_fee',
-                'name' => 'Visa High Risk Fee',
-                'amount' => $settings->visa_high_risk_fee_applied,
-                'is_percentage' => false,
-                'frequency' => 'monthly',
-                'calculateAmount' => fn() => $settings->visa_high_risk_fee_applied / 100
-            ],
-            [
-                'key' => 'setup_fee',
-                'name' => 'Setup Fee',
-                'amount' => $settings->setup_fee,
-                'is_percentage' => false,
-                'frequency' => 'one_time',
-                'calculateAmount' => fn() => $settings->setup_fee / 100,
-                'condition' => fn() => !$settings->setup_fee_charged
-            ]
+        $standardFees = [
+            new FeeConfiguration(
+                'mdr_fee',
+                'MDR Fee',
+                0,
+                true,
+                'transaction'
+            ),
+            new FeeConfiguration(
+                'transaction_fee',
+                'Transaction Fee',
+                0,
+                false,
+                'transaction'
+            ),
+            new FeeConfiguration(
+                'payout_fee',
+                'Payout Fee',
+                0,
+                false,
+                'transaction'
+            ),
+            new FeeConfiguration(
+                'refund_fee',
+                'Refund Fee',
+                0,
+                false,
+                'transaction'
+            ),
+            new FeeConfiguration(
+                'declined_fee',
+                'Declined Fee',
+                0,
+                false,
+                'transaction'
+            ),
+            new FeeConfiguration(
+                'chargeback_fee',
+                'Chargeback Fee',
+                0,
+                false,
+                'transaction'
+            ),
+            new FeeConfiguration(
+                'monthly_fee',
+                'Monthly Fee',
+                0,
+                false,
+                'monthly'
+            ),
+            new FeeConfiguration(
+                'setup_fee',
+                'Setup Fee',
+                0,
+                false,
+                'one_time',
+                new FeeCondition(fn($settings) => !$settings->setup_fee_charged)
+            ),
+            new FeeConfiguration(
+                'mastercard_high_risk_fee',
+                'Mastercard High Risk Fee',
+                0,
+                false,
+                'monthly',
+                new FeeCondition(fn($settings) => $settings->mastercard_high_risk_fee_applied > 0)
+            ),
+            new FeeConfiguration(
+                'visa_high_risk_fee',
+                'Visa High Risk Fee',
+                0,
+                false,
+                'monthly',
+                new FeeCondition(fn($settings) => $settings->visa_high_risk_fee_applied > 0)
+            ),
         ];
 
-        foreach ($feesToProcess as $feeConfig) {
-            if (!isset($this->feeTypeMap[$feeConfig['key']])) {
-                continue;
-            }
-
-            // Skip if fee amount is 0
-//            if ($feeConfig['amount'] <= 0) {
-//                continue;
-//            }
-
-            // Check additional conditions if they exist
-            if (isset($feeConfig['condition']) && !$feeConfig['condition']()) {
-                continue;
-            }
-
-            $feeAmount = $feeConfig['calculateAmount']();
-//            if ($feeAmount <= 0) {
-//                continue;
-//            }
-
-            $fee = [
-                'fee_type' => $feeConfig['name'],
-                'fee_type_id' => $this->feeTypeMap[$feeConfig['key']]['id'],
-                'fee_rate' => $this->formatRate($feeConfig['amount'], $feeConfig['is_percentage']),
-                'fee_amount' => $feeAmount,
-                'frequency' => $feeConfig['frequency'],
-                'is_percentage' => $feeConfig['is_percentage'],
-                'transactionData' => $transactionData,
-            ];
-
-            $this->logFeeApplication($merchantId, $fee, $transactionData, $dateRange);
-            $standardFees[] = $fee;
+        foreach ($standardFees as $fee) {
+            $this->feeRegistry->register($fee);
         }
+    }
 
-        return $standardFees;
+    public function getStandardFees(int $merchantId, array $rawTransactionData, array $dateRange): array
+    {
+        try {
+            $settings = $this->merchantSettingRepository->findByMerchant($this->merchantRepository->getMerchantIdByAccountId($merchantId));
+            if (!$settings) {
+                $this->logger->log('warning', 'Merchant settings not found', [
+                    'merchant_id' => $merchantId
+                ]);
+                return [];
+            }
+
+            $transactionData = TransactionData::fromArray($rawTransactionData);
+            $standardFees = [];
+
+            foreach ($this->feeRegistry->all() as $feeConfig) {
+                try {
+                    if (!$this->shouldProcessFee($feeConfig, $settings)) {
+                        continue;
+                    }
+
+                    $amount = $this->getFeeAmount($settings, $feeConfig->key);
+                    if (!$amount) {
+                        continue;
+                    }
+
+                    $calculator = $this->calculatorFactory->createCalculator(
+                        $feeConfig->frequency,
+                        $feeConfig->isPercentage,
+                        $feeConfig->key
+                    );
+
+                    $feeAmount = $calculator->calculate($transactionData, $amount);
+
+                    if ($feeAmount > 0) {
+                        $standardFees[] = [
+                            'fee_type' => $feeConfig->name,
+                            'fee_type_id' => $this->getFeeTypeId($feeConfig->key),
+                            'fee_rate' => $this->formatRate($amount, $feeConfig->isPercentage),
+                            'fee_amount' => $feeAmount,
+                            'frequency' => $feeConfig->frequency,
+                            'is_percentage' => $feeConfig->isPercentage,
+                            'transactionData' => $rawTransactionData
+                        ];
+                    }
+                } catch (\Exception $e) {
+                    $this->logger->log('error', 'Error processing fee', [
+                        'merchant_id' => $merchantId,
+                        'fee_key' => $feeConfig->key,
+                        'error' => $e->getMessage()
+                    ]);
+                    continue;
+                }
+            }
+
+            return $standardFees;
+        } catch (\Exception $e) {
+            $this->logger->log('error', 'Failed to calculate standard fees', [
+                'merchant_id' => $merchantId,
+                'error' => $e->getMessage()
+            ]);
+            return [];
+        }
+    }
+
+    private function shouldProcessFee(FeeConfiguration $config, $settings): bool
+    {
+        return $config->meetsCondition($settings);
+    }
+
+    private function getFeeAmount($settings, string $key): int
+    {
+        return match ($key) {
+            'mdr_fee' => $settings->mdr_percentage,
+            'transaction_fee' => $settings->transaction_fee,
+            'payout_fee' => $settings->payout_fee,
+            'refund_fee' => $settings->refund_fee,
+            'declined_fee' => $settings->declined_fee,
+            'chargeback_fee' => $settings->chargeback_fee,
+            'monthly_fee' => $settings->monthly_fee,
+            'setup_fee' => $settings->setup_fee,
+            'mastercard_high_risk_fee' => $settings->mastercard_high_risk_fee_applied,
+            'visa_high_risk_fee' => $settings->visa_high_risk_fee_applied,
+            default => 0
+        };
+    }
+
+    private function getFeeTypeId(string $key): int
+    {
+        return match ($key) {
+            'mdr_fee' => 1,
+            'transaction_fee' => 2,
+            'monthly_fee' => 3,
+            'setup_fee' => 4,
+            'payout_fee' => 5,
+            'refund_fee' => 6,
+            'declined_fee' => 7,
+            'chargeback_fee' => 8,
+            'mastercard_high_risk_fee' => 9,
+            'visa_high_risk_fee' => 10,
+            default => 0
+        };
     }
 
     private function formatRate(int $amount, bool $isPercentage): string
     {
-        if ($isPercentage) {
-            return number_format($amount / 100, 2) . '%';
-        }
-        return number_format($amount / 100, 2);
-    }
-
-    private function logFeeApplication(int $merchantId, array $fee, array $transactionData, array $dateRange): void
-    {
-        $this->feeRepository->logFeeApplication([
-            'merchant_id' => $merchantId,
-            'fee_type_id' => $fee['fee_type_id'],
-            'base_amount' => $transactionData['total_sales_amount'] ?? 0,
-            'base_currency' => $transactionData['currency'] ?? 'EUR',
-            'fee_amount_eur' => $fee['fee_amount'],
-            'exchange_rate' => $transactionData['exchange_rate'] ?? 1.0,
-            'applied_date' => $dateRange['start'],
-        ]);
+        return $isPercentage ?
+            number_format($amount / 100, 2) . '%' :
+            number_format($amount / 100, 2);
     }
 }

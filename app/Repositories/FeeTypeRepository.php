@@ -3,6 +3,7 @@
 namespace App\Repositories;
 
 use App\Models\FeeType;
+use Schema;
 
 class FeeTypeRepository
 {
@@ -13,6 +14,9 @@ class FeeTypeRepository
      */
     public function getStandardFeeTypes(): array
     {
+        if (!Schema::hasTable('fee_types')) {
+            return [];
+        }
         return FeeType::whereIn('key', [
             'mdr_fee',
             'transaction_fee',
