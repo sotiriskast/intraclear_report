@@ -17,7 +17,7 @@ class FeeTypeSeeder extends Seeder
             [
                 'name' => 'MDR Fee',
                 'key' => 'mdr_fee',
-                'frequency_type' => 'transaction',
+                'frequency_type' => 'weekly',
                 'is_percentage' => true,
             ],
             [

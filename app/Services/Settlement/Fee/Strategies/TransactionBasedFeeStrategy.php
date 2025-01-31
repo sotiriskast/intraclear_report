@@ -9,6 +9,6 @@ class TransactionBasedFeeStrategy implements FeeCalculationStrategy
 
     public function calculate(TransactionData $transactionData, int $amount): float
     {
-        return ($amount / 100) * ($transactionData->transaction_sales_count ?? 0);
+        return ($amount / 100) * ($transactionData->transactionSalesCount ?? 0);
     }
 }

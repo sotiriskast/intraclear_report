@@ -99,13 +99,20 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
                 $totals[$currency] = [
                     'total_sales' => 0,
                     'total_sales_eur' => 0,
+                    'transaction_sales_count' => 0,
+
+                    // Declined metrics
                     'total_declined_sales' => 0,
-                    'total_decline_sales_eur' => 0,
+                    'total_declined_sales_eur' => 0,
                     'transaction_declined_count' => 0,
+
+                    // Refund metrics
                     'total_refunds' => 0,
                     'total_refunds_eur' => 0,
-                    'transaction_sales_count' => 0,
-                    'refund_count' => 0,
+                    'transaction_refunds_count' => 0,
+
+                    // Additional data
+                    'currency' => $currency,
                     'exchange_rate' => 0
                 ];
             }
@@ -121,12 +128,12 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
             } elseif (mb_strtoupper($transaction->transaction_type) === 'SALE' &&
                 mb_strtoupper($transaction->transaction_status) === 'DECLINED') {
                 $totals[$currency]['total_declined_sales'] += $amount;
-                $totals[$currency]['total_decline_sales_eur'] += ($amount * ($rate * self::RATE));
+                $totals[$currency]['total_declined_sales_eur'] += ($amount * ($rate * self::RATE));
                 $totals[$currency]['transaction_declined_count']++;
             } elseif (in_array(mb_strtoupper($transaction->transaction_type), ['REFUND', 'PARTIAL REFUND'])) {
                 $totals[$currency]['total_refunds'] += $amount;
-                $totals[$currency]['total_refunds_eur'] += $amount * ($rate * self::RATE);
-                $totals[$currency]['refund_count']++;
+                $totals[$currency]['total_refunds_eur'] += ($amount * ($rate * self::RATE));
+                $totals[$currency]['transaction_refunds_count']++;
             }
         }
         //Get the average exchange rate
@@ -159,17 +166,14 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
             ->where('to_currency', 'EUR')
             ->whereBetween('added', [$dateRange['start'], $dateRange['end']])
             ->get();
-
         // Create a lookup array with currency_brand_date as key
         $rateMap = [];
         foreach ($rates as $rate) {
             $key = $rate->from_currency . '_' . strtoupper($rate->brand) . '_' . $rate->rate_date;
             $rateMap[$key] = $rate->rate;
         }
-
         return $rateMap;
     }
-
     /**
      * Determines the daily exchange rate for a specific transaction.
      *
@@ -192,39 +196,5 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
         $key = "{$transaction->currency}_{$cardType}_{$date}";
 
         return $exchangeRates[$key] ?? 1.0;
-    }
-
-    /**
-     * /**
-     * * Retrieves daily transaction totals for a merchant.
-     * *
-     * * @param int $merchantId The unique identifier of the merchant
-     * * @param array $dateRange Associative array with 'start' and 'end' date keys
-     * * @param string|null $currency Optional currency filter
-     * *
-     * @return Collection
-     * @deprecated Since version 2.0.0. Use calculateTransactionTotals() instead.
-     */
-    public function getDailyTotals(int $merchantId, array $dateRange, string $currency = null)
-    {
-        $query = DB::connection('payment_gateway_mysql')
-            ->table('transactions')
-            ->select([
-                'currency',
-                DB::raw('SUM(CASE WHEN transaction_type = "sale" AND transaction_status = "APPROVED" THEN amount ELSE 0 END) as sales_amount'),
-                DB::raw('SUM(CASE WHEN transaction_type = "sale" AND transaction_status = "DECLINED" THEN amount ELSE 0 END) as declined_amount'),
-                DB::raw('SUM(CASE WHEN transaction_type IN ("Refund", "Partial Refund") AND transaction_status = "APPROVED" THEN amount ELSE 0 END) as refund_amount'),
-                DB::raw('COUNT(CASE WHEN transaction_type = "sale" AND transaction_status = "APPROVED" THEN 1 END) as sales_count'),
-                DB::raw('COUNT(CASE WHEN transaction_type = "sale" AND transaction_status = "DECLINED" THEN 1 END) as declined_count'),
-                DB::raw('COUNT(CASE WHEN transaction_type IN ("Refund", "Partial Refund") AND transaction_status = "APPROVED" THEN 1 END) as refund_count')
-            ])
-            ->where('account_id', $merchantId)
-            ->whereBetween('added', [$dateRange['start'], $dateRange['end']]);
-
-        if ($currency) {
-            $query->where('currency', $currency);
-        }
-        trigger_error('Function getDailyTotals() is deprecated. Use calculateTransactionTotals() instead.', E_USER_DEPRECATED);
-        return $query->groupBy('currency')->get();
     }
 }

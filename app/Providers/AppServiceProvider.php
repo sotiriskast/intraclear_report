@@ -9,6 +9,7 @@ use App\Repositories\RoleRepository;
 use App\Services\DynamicLogger;
 use App\Services\ExcelExportService;
 use App\Services\MerchantSyncService;
+use App\Services\Settlement\Fee\CustomFeeHandler;
 use App\Services\Settlement\Fee\FeeFrequencyHandler;
 use App\Services\Settlement\Fee\FeeService;
 use App\Services\Settlement\Fee\StandardFeeHandler;
@@ -65,6 +66,7 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(FeeRepository::class),
                 $app->make(DynamicLogger::class),
                 $app->make(FeeFrequencyHandler::class),
+                $app->make(CustomFeeHandler::class),
                 $app->make(StandardFeeHandler::class)
             );
         });

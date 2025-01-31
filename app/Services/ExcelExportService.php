@@ -142,26 +142,27 @@ class ExcelExportService
             $index = array_search($fee['fee_type'], $standardFeeTypes);
             return $index !== false ? $index : 999;
         });
-
+        $isFirstFee = true;
         foreach ($sortedFees as $fee) {
             $this->currentSheet->setCellValue('A' . $this->currentRow, $fee['fee_type']);
             $this->currentSheet->setCellValue('B' . $this->currentRow, $fee['fee_rate']);
-            $this->currentSheet->setCellValue('C' . $this->currentRow, '');
-
             // Set the appropriate count based on fee type
             $count = match ($fee['fee_type']) {
                 'Declined Fee' => $fee['transactionData']['transaction_declined_count'] ?? 0,
-                'Refund Fee' => $fee['transactionData']['total_refunds_transaction_count'] ?? 0,
+                'Refund Fee' => $fee['transactionData']['transaction_refunds_count'] ?? 0,
                 'Chargeback Fee' => $fee['transactionData']['chargeback_count'] ?? 0,
                 'Transaction Fee' => $fee['transactionData']['transaction_sales_count'] ?? 0,
                 default => ''
             };
-
             $this->currentSheet->setCellValue('D' . $this->currentRow, $count);
-            $this->currentSheet->setCellValue('E' . $this->currentRow, '');
-
+            if ($isFirstFee) {
+                $this->currentSheet->setCellValue('E' . $this->currentRow, $fee['transactionData']['total_sales'] ?? 0);
+                $isFirstFee = false;
+            } else {
+                $this->currentSheet->setCellValue('E' . $this->currentRow, '');
+            }
             // Calculate original currency amount
-            $originalAmount = $fee['fee_amount'] / ($fee['transactionData']['exchange_rate'] * 1.01);
+            $originalAmount = $fee['fee_amount'] / $fee['transactionData']['exchange_rate'];
             $this->currentSheet->setCellValue('F' . $this->currentRow, $originalAmount);
             $this->currentSheet->setCellValue('G' . $this->currentRow, $fee['fee_amount']); // EUR amount
 
