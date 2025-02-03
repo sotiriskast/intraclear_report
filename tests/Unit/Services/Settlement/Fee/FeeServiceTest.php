@@ -2,13 +2,17 @@
 
 namespace Tests\Unit\Services\Settlement\Fee;
 
+use App\Models\FeeType;
+use App\Repositories\Interfaces\FeeRepositoryInterface;
+use App\Services\Settlement\Fee\interfaces\CustomFeeHandlerInterface;
+use App\Services\Settlement\Fee\interfaces\FeeFrequencyHandlerInterface;
+use App\Services\Settlement\Fee\interfaces\StandardFeeHandlerInterface;
+use Mockery;
+use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 use App\Services\Settlement\Fee\FeeService;
 use App\Services\DynamicLogger;
-use App\Models\Merchant;
-use App\Models\MerchantSetting;
-use App\Models\FeeType;
-use App\Models\MerchantFee;
+
 
 class FeeServiceTest extends TestCase
 {
@@ -18,51 +22,47 @@ class FeeServiceTest extends TestCase
     {
         parent::setUp();
 
-        $this->feeService = app(FeeService::class);
+        $this->feeRepository = Mockery::mock(FeeRepositoryInterface::class);
+        $this->logger = Mockery::mock(DynamicLogger::class);
+        $this->frequencyHandler = Mockery::mock(FeeFrequencyHandlerInterface::class);
+        $this->customFeeHandler = Mockery::mock(CustomFeeHandlerInterface::class);
+        $this->standardFeeHandler = Mockery::mock(StandardFeeHandlerInterface::class);
 
-        // Set up common fee types
-        FeeType::create([
-            'name' => 'MDR Fee',
-            'key' => 'mdr_fee',
-            'frequency_type' => 'transaction',
-            'is_percentage' => true,
-        ]);
-
-        FeeType::create([
-            'name' => 'Transaction Fee',
-            'key' => 'transaction_fee',
-            'frequency_type' => 'transaction',
-            'is_percentage' => false,
-        ]);
-
-        FeeType::create([
-            'name' => 'Monthly Fee',
-            'key' => 'monthly_fee',
-            'frequency_type' => 'monthly',
-            'is_percentage' => false,
-        ]);
+        $this->feeService = new FeeService(
+            $this->feeRepository,
+            $this->logger,
+            $this->frequencyHandler,
+            $this->customFeeHandler,
+            $this->standardFeeHandler
+        );
     }
 
-    /** @test */
+    private function setupLoggerExpectations(int $merchantId, int $standardFeesCount, int $customFeesCount): void
+    {
+        // Allow any info logging
+        $this->logger
+            ->shouldReceive('log')
+            ->withArgs(function ($level, $message, $context) {
+                return $level === 'info';
+            })
+            ->zeroOrMoreTimes();
+        // Allow any error logging
+        $this->logger
+            ->shouldReceive('log')
+            ->withArgs(function ($level, $message, $context) {
+                return $level === 'error';
+            })
+            ->zeroOrMoreTimes();
+        // Mock fee repository logging
+        $this->feeRepository
+            ->shouldReceive('logFeeApplication')
+            ->zeroOrMoreTimes()
+            ->andReturn(null);
+    }
+    #[Test]
     public function it_calculates_standard_fees_correctly(): void
     {
         // Arrange
-        $merchant = Merchant::create([
-            'account_id' => 1,
-            'name' => 'Test Merchant',
-            'email' => 'test@example.com',
-            'active' => true
-        ]);
-
-        MerchantSetting::create([
-            'merchant_id' => $merchant->id,
-            'mdr_percentage' => 250, // 2.50%
-            'transaction_fee' => 35,  // 0.35 EUR
-            'monthly_fee' => 15000,   // 150.00 EUR
-            'rolling_reserve_percentage' => 1000,
-            'holding_period_days' => 180
-        ]);
-
         $transactionData = [
             'total_sales_eur' => 1000.00,
             'total_sales' => 1000.00,
@@ -70,50 +70,61 @@ class FeeServiceTest extends TestCase
             'currency' => 'EUR',
             'exchange_rate' => 1.0
         ];
-
         $dateRange = [
             'start' => '2025-01-01',
             'end' => '2025-01-31'
         ];
+        $this->setupLoggerExpectations(1, 2, 0);
+        $this->standardFeeHandler
+            ->shouldReceive('getStandardFees')
+            ->once()
+            ->with(1, $transactionData)
+            ->andReturn([
+                [
+                    'fee_type' => 'MDR Fee',
+                    'fee_type_id' => 1,
+                    'fee_amount' => 25.00,
+                    'frequency' => 'transaction'
+                ],
+                [
+                    'fee_type' => 'Transaction Fee',
+                    'fee_type_id' => 2,
+                    'fee_amount' => 0.70,
+                    'frequency' => 'transaction'
+                ]
+            ]);
+        $this->frequencyHandler
+            ->shouldReceive('shouldApplyFee')
+            ->twice()
+            ->andReturn(true);
+
+        $this->customFeeHandler
+            ->shouldReceive('getCustomFees')
+            ->once()
+            ->with(1, $transactionData, $dateRange['start'])
+            ->andReturn([]);
 
         // Act
-        $fees = $this->feeService->calculateFees($merchant->account_id, $transactionData, $dateRange);
+        $fees = $this->feeService->calculateFees(1, $transactionData, $dateRange);
 
         // Assert
         $this->assertNotEmpty($fees);
 
         $mdrFee = collect($fees)->firstWhere('fee_type', 'MDR Fee');
         $this->assertNotNull($mdrFee);
-        $this->assertEquals(25.00, $mdrFee['fee_amount']); // 2.50% of 1000
+        $this->assertEquals(25.00, $mdrFee['fee_amount']);
 
         $transactionFee = collect($fees)->firstWhere('fee_type', 'Transaction Fee');
         $this->assertNotNull($transactionFee);
-        $this->assertEquals(0.70, $transactionFee['fee_amount']); // 0.35 * 2 transactions
+        $this->assertEquals(0.70, $transactionFee['fee_amount']);
     }
-
-    /** @test */
+    #[Test]
     public function it_handles_multiple_currencies_correctly(): void
     {
         // Arrange
-        $merchant = Merchant::create([
-            'account_id' => 2,
-            'name' => 'Test Merchant 2',
-            'email' => 'test2@example.com',
-            'active' => true
-        ]);
-
-        MerchantSetting::create([
-            'merchant_id' => $merchant->id,
-            'mdr_percentage' => 250,
-            'transaction_fee' => 35,
-            'monthly_fee' => 15000,
-            'rolling_reserve_percentage' => 1000,
-            'holding_period_days' => 180
-        ]);
-
         $transactionData = [
-            'total_sales_eur' => 1200.00, // Converted amount
-            'total_sales' => 1000.00,     // Original amount
+            'total_sales_eur' => 1200.00,
+            'total_sales' => 1000.00,
             'transaction_sales_count' => 1,
             'currency' => 'USD',
             'exchange_rate' => 1.2
@@ -124,35 +135,44 @@ class FeeServiceTest extends TestCase
             'end' => '2025-01-31'
         ];
 
+        $this->setupLoggerExpectations(2, 1, 0);
+
+        $this->standardFeeHandler
+            ->shouldReceive('getStandardFees')
+            ->once()
+            ->with(2, $transactionData)
+            ->andReturn([
+                [
+                    'fee_type' => 'MDR Fee',
+                    'fee_type_id' => 1,
+                    'fee_amount' => 30.00,
+                    'frequency' => 'transaction'
+                ]
+            ]);
+
+        $this->frequencyHandler
+            ->shouldReceive('shouldApplyFee')
+            ->once()
+            ->andReturn(true);
+
+        $this->customFeeHandler
+            ->shouldReceive('getCustomFees')
+            ->once()
+            ->with(2, $transactionData, $dateRange['start'])
+            ->andReturn([]);
+
         // Act
-        $fees = $this->feeService->calculateFees($merchant->account_id, $transactionData, $dateRange);
+        $fees = $this->feeService->calculateFees(2, $transactionData, $dateRange);
 
         // Assert
         $mdrFee = collect($fees)->firstWhere('fee_type', 'MDR Fee');
         $this->assertNotNull($mdrFee);
-        $this->assertEquals(30.00, $mdrFee['fee_amount']); // 2.50% of 1200 EUR
+        $this->assertEquals(30.00, $mdrFee['fee_amount']);
     }
-
-    /** @test */
+    #[Test]
     public function it_handles_zero_transaction_amounts(): void
     {
         // Arrange
-        $merchant = Merchant::create([
-            'account_id' => 3,
-            'name' => 'Test Merchant 3',
-            'email' => 'test3@example.com',
-            'active' => true
-        ]);
-
-        MerchantSetting::create([
-            'merchant_id' => $merchant->id,
-            'mdr_percentage' => 250,
-            'transaction_fee' => 35,
-            'monthly_fee' => 15000,
-            'rolling_reserve_percentage' => 1000,
-            'holding_period_days' => 180
-        ]);
-
         $transactionData = [
             'total_sales_eur' => 0,
             'total_sales' => 0,
@@ -166,25 +186,55 @@ class FeeServiceTest extends TestCase
             'end' => '2025-01-31'
         ];
 
+        $this->setupLoggerExpectations(3, 2, 0);
+
+        $this->standardFeeHandler
+            ->shouldReceive('getStandardFees')
+            ->once()
+            ->with(3, $transactionData)
+            ->andReturn([
+                [
+                    'fee_type' => 'Monthly Fee',
+                    'fee_type_id' => 3,
+                    'fee_amount' => 150.00,
+                    'frequency' => 'monthly'
+                ],
+                [
+                    'fee_type' => 'MDR Fee',
+                    'fee_type_id' => 1,
+                    'fee_amount' => 0,
+                    'frequency' => 'transaction'
+                ]
+            ]);
+
+        $this->frequencyHandler
+            ->shouldReceive('shouldApplyFee')
+            ->twice()
+            ->andReturn(true);
+
+        $this->customFeeHandler
+            ->shouldReceive('getCustomFees')
+            ->once()
+            ->with(3, $transactionData, $dateRange['start'])
+            ->andReturn([]);
+
         // Act
-        $fees = $this->feeService->calculateFees($merchant->account_id, $transactionData, $dateRange);
+        $fees = $this->feeService->calculateFees(3, $transactionData, $dateRange);
 
         // Assert
         $this->assertNotEmpty($fees);
 
-        // Should still include monthly fee even with zero transactions
         $monthlyFee = collect($fees)->firstWhere('fee_type', 'Monthly Fee');
         $this->assertNotNull($monthlyFee);
         $this->assertEquals(150.00, $monthlyFee['fee_amount']);
 
-        // MDR fee should be zero
         $mdrFee = collect($fees)->firstWhere('fee_type', 'MDR Fee');
         if ($mdrFee) {
             $this->assertEquals(0, $mdrFee['fee_amount']);
         }
     }
 
-    /** @test */
+    #[Test]
     public function it_handles_invalid_merchant_gracefully(): void
     {
         $transactionData = [
@@ -200,8 +250,29 @@ class FeeServiceTest extends TestCase
             'end' => '2025-01-31'
         ];
 
-        // Act & Assert
+        $this->standardFeeHandler
+            ->shouldReceive('getStandardFees')
+            ->once()
+            ->with(99999, $transactionData)
+            ->andThrow(new \Exception('Merchant not found'));
+
+        $this->customFeeHandler
+            ->shouldReceive('getCustomFees')
+            ->never();
+
+        $this->frequencyHandler
+            ->shouldReceive('shouldApplyFee')
+            ->never();
+
+        $this->logger
+            ->shouldReceive('log')
+            ->once()
+            ->withArgs(['error', 'Failed to calculate fees', Mockery::hasKey('error')])
+            ->andReturn(null);
+
         $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('Merchant not found');
+
         $this->feeService->calculateFees(99999, $transactionData, $dateRange);
     }
 }

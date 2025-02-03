@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Services\Settlement\Fee;
 
+use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 use App\Services\Settlement\Fee\FeeFrequencyHandler;
 use App\Repositories\FeeRepository;
@@ -19,7 +20,7 @@ class FeeFrequencyHandlerTest extends TestCase
         $this->handler = new FeeFrequencyHandler($this->feeRepository);
     }
 
-    /** @test */
+    #[Test]
     public function it_always_returns_true_for_transaction_frequency(): void
     {
         $result = $this->handler->shouldApplyFee(
@@ -32,7 +33,7 @@ class FeeFrequencyHandlerTest extends TestCase
         $this->assertTrue($result);
     }
 
-    /** @test */
+    #[Test]
     public function it_always_returns_true_for_daily_frequency(): void
     {
         $result = $this->handler->shouldApplyFee(
@@ -45,7 +46,7 @@ class FeeFrequencyHandlerTest extends TestCase
         $this->assertTrue($result);
     }
 
-    /** @test */
+    #[Test]
     public function it_always_returns_true_for_weekly_frequency(): void
     {
         $result = $this->handler->shouldApplyFee(
@@ -58,7 +59,7 @@ class FeeFrequencyHandlerTest extends TestCase
         $this->assertTrue($result);
     }
 
-    /** @test */
+    #[Test]
     public function it_handles_one_time_fee_not_previously_applied(): void
     {
         $result = $this->handler->shouldApplyFee(
@@ -71,7 +72,7 @@ class FeeFrequencyHandlerTest extends TestCase
         $this->assertTrue($result);
     }
 
-    /** @test */
+    #[Test]
     public function it_handles_monthly_fee_in_first_week(): void
     {
         $date = ['start' => '2025-01-02', 'end' => '2025-01-31']; // First week of month
@@ -81,7 +82,7 @@ class FeeFrequencyHandlerTest extends TestCase
         $this->assertTrue($result);
     }
 
-    /** @test */
+    #[Test]
     public function it_handles_monthly_fee_not_in_first_week(): void
     {
         $date = ['start' => '2025-01-15', 'end' => '2025-01-31']; // Not in first week
@@ -91,7 +92,7 @@ class FeeFrequencyHandlerTest extends TestCase
         $this->assertFalse($result);
     }
 
-    /** @test */
+    #[Test]
     public function it_handles_yearly_fee_in_first_week_of_year(): void
     {
         $date = ['start' => '2025-01-02', 'end' => '2025-01-31']; // First week of year
@@ -101,7 +102,7 @@ class FeeFrequencyHandlerTest extends TestCase
         $this->assertTrue($result);
     }
 
-    /** @test */
+    #[Test]
     public function it_handles_yearly_fee_not_in_first_week(): void
     {
         $date = ['start' => '2025-02-01', 'end' => '2025-02-28']; // Not in first week
@@ -111,7 +112,7 @@ class FeeFrequencyHandlerTest extends TestCase
         $this->assertFalse($result);
     }
 
-    /** @test */
+    #[Test]
     public function it_returns_false_for_invalid_frequency_type(): void
     {
         $result = $this->handler->shouldApplyFee(

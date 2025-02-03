@@ -33,7 +33,18 @@ class AppServiceProvider extends ServiceProvider
             \App\Repositories\Interfaces\FeeRepositoryInterface::class,
             \App\Repositories\FeeRepository::class
         );
-
+        $this->app->bind(
+            \App\Services\Settlement\Fee\interfaces\FeeFrequencyHandlerInterface::class,
+            \App\Services\Settlement\Fee\FeeFrequencyHandler::class
+        );
+        $this->app->bind(
+            \App\Services\Settlement\Fee\interfaces\CustomFeeHandlerInterface::class,
+            \App\Services\Settlement\Fee\CustomFeeHandler::class
+        );
+        $this->app->bind(
+            \App\Services\Settlement\Fee\interfaces\StandardFeeHandlerInterface::class,
+            \App\Services\Settlement\Fee\StandardFeeHandler::class
+        );
         $this->app->bind(
             \App\Repositories\Interfaces\RollingReserveRepositoryInterface::class,
             \App\Repositories\RollingReserveRepository::class

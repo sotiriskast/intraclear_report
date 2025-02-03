@@ -2,12 +2,14 @@
 
 namespace App\Services\Settlement\Fee;
 
+use App\Services\Settlement\Fee\interfaces\FeeFrequencyHandlerInterface;
 use Carbon\Carbon;
 use App\Repositories\Interfaces\FeeRepositoryInterface;
 
-readonly class FeeFrequencyHandler
+readonly class FeeFrequencyHandler implements FeeFrequencyHandlerInterface
 {
     public function __construct(
+
         private FeeRepositoryInterface $feeRepository
     ) {
     }

@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Services\Settlement\Fee;
 
+use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 use App\Models\Merchant;
 use App\Models\MerchantSetting;
@@ -55,7 +56,7 @@ class StandardFeeHandlerTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[Test]
     public function it_calculates_mdr_fee_correctly(): void
     {
         // Arrange
@@ -93,7 +94,7 @@ class StandardFeeHandlerTest extends TestCase
         $this->assertEquals(25.00, $fees[0]['fee_amount']); // 2.50% of 1000
     }
 
-    /** @test */
+    #[Test]
     public function it_calculates_transaction_fee_correctly(): void
     {
         // Arrange
@@ -131,7 +132,7 @@ class StandardFeeHandlerTest extends TestCase
         $this->assertEquals(1.75, $fees[0]['fee_amount']); // 0.35 * 5 transactions
     }
 
-    /** @test */
+    #[Test]
     public function it_returns_empty_array_when_no_fees_configured(): void
     {
         // Arrange
@@ -166,7 +167,7 @@ class StandardFeeHandlerTest extends TestCase
         $this->assertEmpty($fees);
     }
 
-    /** @test */
+    #[Test]
     public function it_calculates_multiple_fees_correctly(): void
     {
         // Arrange
@@ -209,7 +210,7 @@ class StandardFeeHandlerTest extends TestCase
         $this->assertEquals(1.75, $transactionFee['fee_amount']); // 0.35 * 5
     }
 
-    /** @test */
+    #[Test]
     public function it_handles_invalid_merchant_gracefully(): void
     {
         // Act

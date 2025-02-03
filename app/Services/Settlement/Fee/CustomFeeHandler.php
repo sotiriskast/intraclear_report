@@ -6,8 +6,9 @@ use App\DTO\TransactionData;
 use App\Repositories\Interfaces\FeeRepositoryInterface;
 use App\Services\DynamicLogger;
 use App\Services\Settlement\Fee\Factories\FeeCalculatorFactory;
+use App\Services\Settlement\Fee\interfaces\CustomFeeHandlerInterface;
 
-readonly class CustomFeeHandler
+readonly class CustomFeeHandler implements CustomFeeHandlerInterface
 {
     private FeeCalculatorFactory $calculatorFactory;
 

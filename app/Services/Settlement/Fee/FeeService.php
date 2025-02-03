@@ -4,15 +4,19 @@ namespace App\Services\Settlement\Fee;
 
 use App\Repositories\Interfaces\FeeRepositoryInterface;
 use App\Services\DynamicLogger;
+use App\Services\Settlement\Fee\interfaces\CustomFeeHandlerInterface;
+use App\Services\Settlement\Fee\interfaces\FeeFrequencyHandlerInterface;
+use App\Services\Settlement\Fee\interfaces\StandardFeeHandlerInterface;
 
 readonly class FeeService
 {
     public function __construct(
-        private FeeRepositoryInterface $feeRepository,
-        private DynamicLogger          $logger,
-        private FeeFrequencyHandler    $frequencyHandler,
-        private CustomFeeHandler       $customFeeHandler,
-        private StandardFeeHandler     $standardFeeHandler
+        private FeeRepositoryInterface       $feeRepository,
+        private DynamicLogger                $logger,
+        private FeeFrequencyHandlerInterface $frequencyHandler,
+        private CustomFeeHandlerInterface $customFeeHandler,
+        private StandardFeeHandlerInterface $standardFeeHandler
+
 
     )
     {

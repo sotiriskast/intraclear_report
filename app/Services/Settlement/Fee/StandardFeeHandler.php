@@ -11,8 +11,9 @@ use App\Services\Settlement\Fee\Configurations\FeeCondition;
 use App\Services\Settlement\Fee\Configurations\FeeConfiguration;
 use App\Services\Settlement\Fee\Configurations\FeeRegistry;
 use App\Services\Settlement\Fee\Factories\FeeCalculatorFactory;
+use App\Services\Settlement\Fee\interfaces\StandardFeeHandlerInterface;
 
-class StandardFeeHandler
+class StandardFeeHandler implements StandardFeeHandlerInterface
 {
     private FeeRegistry $feeRegistry;
     private FeeCalculatorFactory $calculatorFactory;
@@ -26,50 +27,6 @@ class StandardFeeHandler
         $this->feeRegistry = new FeeRegistry();
         $this->calculatorFactory = new FeeCalculatorFactory();
 
-    }
-
-    private function initializeFeeConfigurations(): void
-    {
-        if ($this->initialized) {
-            return;
-        }
-        try {
-            // Get all fee types from database
-            $feeTypes = FeeType::all();
-            foreach ($feeTypes as $feeType) {
-                $condition = $this->getFeeCondition($feeType->key);
-                $feeConfig = new FeeConfiguration(
-                    $feeType->key,
-                    $feeType->name,
-                    0, // Amount will be set from settings
-                    $feeType->is_percentage,
-                    $feeType->frequency_type,
-                    $condition
-                );
-
-                $this->feeRegistry->register($feeConfig);
-            }
-            $this->initialized = true;
-        } catch (\Exception $e) {
-            $this->logger->log('error', 'Failed to initialize fee configurations', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            throw $e;
-        }
-    }
-    private function getFeeCondition(string $key): ?FeeCondition
-    {
-        return match ($key) {
-            'setup_fee' => new FeeCondition(fn($settings) => !$settings->setup_fee_charged),
-            'mastercard_high_risk_fee' => new FeeCondition(
-                fn($settings) => $settings->mastercard_high_risk_fee_applied > 0
-            ),
-            'visa_high_risk_fee' => new FeeCondition(
-                fn($settings) => $settings->visa_high_risk_fee_applied > 0
-            ),
-            default => null
-        };
     }
     public function getStandardFees(int $merchantId, array $rawTransactionData): array
     {
@@ -135,12 +92,53 @@ class StandardFeeHandler
             return [];
         }
     }
+    private function initializeFeeConfigurations(): void
+    {
+        if ($this->initialized) {
+            return;
+        }
+        try {
+            // Get all fee types from database
+            $feeTypes = FeeType::all();
+            foreach ($feeTypes as $feeType) {
+                $condition = $this->getFeeCondition($feeType->key);
+                $feeConfig = new FeeConfiguration(
+                    $feeType->key,
+                    $feeType->name,
+                    0, // Amount will be set from settings
+                    $feeType->is_percentage,
+                    $feeType->frequency_type,
+                    $condition
+                );
 
+                $this->feeRegistry->register($feeConfig);
+            }
+            $this->initialized = true;
+        } catch (\Exception $e) {
+            $this->logger->log('error', 'Failed to initialize fee configurations', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e;
+        }
+    }
+    private function getFeeCondition(string $key): ?FeeCondition
+    {
+        return match ($key) {
+            'setup_fee' => new FeeCondition(fn($settings) => !$settings->setup_fee_charged),
+            'mastercard_high_risk_fee' => new FeeCondition(
+                fn($settings) => $settings->mastercard_high_risk_fee_applied > 0
+            ),
+            'visa_high_risk_fee' => new FeeCondition(
+                fn($settings) => $settings->visa_high_risk_fee_applied > 0
+            ),
+            default => null
+        };
+    }
     private function shouldProcessFee(FeeConfiguration $config, $settings): bool
     {
         return !$config->condition || $config->meetsCondition($settings);
     }
-
     private function getFeeAmount($settings, string $key): int
     {
         return match ($key) {
@@ -157,7 +155,6 @@ class StandardFeeHandler
             default => 0
         };
     }
-
     private function getFeeTypeId(string $key): int
     {
         return match ($key) {
@@ -174,7 +171,6 @@ class StandardFeeHandler
             default => 0
         };
     }
-
     private function formatRate(int $amount, bool $isPercentage): string
     {
         return $isPercentage ?
