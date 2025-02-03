@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Services\Excel\ReserveExcelFormatter;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -14,7 +15,10 @@ class ExcelExportService
     protected $currentSheet;
     protected $currentRow = 1;
 
-    public function __construct(private DynamicLogger $logger)
+    public function __construct(
+        private readonly DynamicLogger $logger,
+        private ReserveExcelFormatter  $reserveFormatter
+    )
     {
     }
 
@@ -192,53 +196,20 @@ class ExcelExportService
 
     protected function addGeneratedReserveDetails($currencyData)
     {
-        $this->currentRow += 2;
-        $this->addSectionHeader('Generated Reserve Details');
-
-        // Add safety check
-        if (!isset($currencyData['rolling_reserve']) || !is_array($currencyData['rolling_reserve'])) {
-            $this->logger->log('warning', 'No rolling reserve data found or invalid format', [
-                'currency_data' => $currencyData
-            ]);
-            return;
-        }
-
-        foreach ($currencyData['rolling_reserve'] as $reserve) {
-            // Validate reserve data
-            if (!is_array($reserve)) {
-                $this->logger->log('warning', 'Invalid reserve entry format', [
-                    'reserve' => $reserve
-                ]);
-                continue;
-            }
-
-            $this->currentRow++;
-            $this->currentSheet->setCellValue('A' . $this->currentRow, 'Rolling Reserve');
-
-            // Safely access array values with defaults
-            $percentage = $reserve['percentage'] ?? 10; // Default to 10%
-            $originalAmount = $reserve['original_amount'] ?? 0;
-            $reserveAmountEur = $reserve['reserve_amount_eur'] ?? 0;
-
-            $this->currentSheet->setCellValue('B' . $this->currentRow, $percentage . '%');
-            $this->currentSheet->setCellValue('E' . $this->currentRow, $originalAmount);
-            $this->currentSheet->setCellValue('G' . $this->currentRow, $reserveAmountEur);
-        }
+        $this->reserveFormatter->formatGeneratedReserves(
+            $this->currentSheet,
+            $currencyData,
+            $this->currentRow
+        );
     }
 
     protected function addRefundedReserveDetails($currencyData)
     {
-        $this->currentRow += 2;
-        $this->addSectionHeader('Refunded Reserve Details');
-
-        if (!empty($currencyData['releaseable_reserve'])) {
-            foreach ($currencyData['releaseable_reserve'] as $reserve) {
-                $this->currentRow++;
-                $this->currentSheet->setCellValue('A' . $this->currentRow, 'Released Reserve');
-                $this->currentSheet->setCellValue('E' . $this->currentRow, $reserve['original_amount']);
-                $this->currentSheet->setCellValue('G' . $this->currentRow, $reserve['reserve_amount_eur']);
-            }
-        }
+        $this->reserveFormatter->formatReleasedReserves(
+            $this->currentSheet,
+            $currencyData,
+            $this->currentRow
+        );
     }
 
     protected function addSummarySection($currencyData)

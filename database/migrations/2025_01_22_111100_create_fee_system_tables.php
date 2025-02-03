@@ -82,7 +82,7 @@ return new class extends Migration {
             $table->integer('original_amount');
             $table->string('original_currency', 3);
             $table->integer('reserve_amount_eur');
-            $table->float('exchange_rate');
+            $table->decimal('exchange_rate', 10, 4)->nullable();
             $table->date('period_start');        // Settlement period start
             $table->date('period_end');          // Settlement period end
             $table->timestamp('created_at');     // When the reserve was created

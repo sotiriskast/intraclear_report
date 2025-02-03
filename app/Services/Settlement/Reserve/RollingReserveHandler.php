@@ -17,7 +17,7 @@ class RollingReserveHandler
 
     public function __construct(
         private readonly RollingReserveRepositoryInterface $reserveRepository,
-        private DynamicLogger                              $logger,
+        private readonly DynamicLogger                     $logger,
         private readonly MerchantRepository                $merchantRepository
 
 
@@ -32,41 +32,85 @@ class RollingReserveHandler
         array  $dateRange
     ): array
     {
-        $result = [
-            'new_reserve' => [],
-            'released_reserves' => []
-        ];
-
         try {
-            // First, get releasable reserves - this should continue even if there's an error
-            $result['released_reserves'] = $this->getReleaseableReserves($merchantId, $dateRange['start']);
+            $startDate = Carbon::parse($dateRange['start']);
+            $endDate = Carbon::parse($dateRange['end']);
 
-            // Then attempt to create new reserve
-            if (!$this->reserveExists($merchantId, $currency, $dateRange)) {
-                $result['new_reserve'] = $this->createNewReserve(
+            // Check and process releasable reserves for the current week
+            $releasedReserves = $this->processReleasableReserves(
+                $merchantId,
+                $currency,
+                $startDate,
+                $endDate
+            );
+
+            // Create new reserve if there are transactions and no existing reserve
+            $newReserve = null;
+            if (!empty($transactionData['total_sales']) && !$this->reserveExists($merchantId, $currency, $dateRange)) {
+                $newReserve = $this->createNewReserve(
                     $merchantId,
                     $transactionData,
                     $currency,
                     $dateRange
                 );
-            } else {
-                $this->logger->log('info', 'Rolling reserve already exists for this period', [
-                    'merchant_id' => $merchantId,
-                    'currency' => $currency,
-                    'period' => $dateRange
-                ]);
             }
+
+            return [
+                'new_reserve' => $newReserve,
+                'released_reserves' => $releasedReserves
+            ];
+
         } catch (\Exception $e) {
             $this->logger->log('error', 'Error processing rolling reserve', [
                 'merchant_id' => $merchantId,
                 'currency' => $currency,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error' => $e->getMessage()
             ]);
             throw $e;
-
         }
-        return $result;
+    }
+
+    private function processReleasableReserves(
+        int    $merchantId,
+        string $currency,
+        Carbon $weekStart,
+        Carbon $weekEnd
+    ): array
+    {
+        try {
+            $merchantId = $this->merchantRepository->getMerchantIdByAccountId($merchantId);
+            // Get all reserves that are due for release within this week's period
+            $releasableReserves = $this->reserveRepository->getReleaseableFunds(
+                $merchantId,
+                $weekEnd->toDateString()
+            );
+            $test = $releasableReserves->map(function ($item) {
+                return $item->toArray();
+            })->all();
+            if ($releasableReserves->isNotEmpty()) {
+                $entryIds = $releasableReserves->pluck('id')->toArray();
+
+                // Mark reserves as released
+                $this->reserveRepository->markReserveAsReleased($entryIds);
+
+                $this->logger->log('info', 'Released rolling reserves', [
+                    'merchant_id' => $merchantId,
+                    'currency' => $currency,
+                    'count' => count($entryIds),
+                    'week_period' => [
+                        'start' => $weekStart->toDateString(),
+                        'end' => $weekEnd->toDateString()
+                    ]
+                ]);
+            }
+            return $releasableReserves->toArray();
+        } catch (\Exception $e) {
+            $this->logger->log('error', 'Error processing releasable reserves', [
+                'merchant_id' => $merchantId,
+                'error' => $e->getMessage()
+            ]);
+            return [];
+        }
     }
 
     public function createNewReserve(
@@ -97,38 +141,15 @@ class RollingReserveHandler
             'account_id' => $merchantId,
             'amount' => $reserveAmount,
             'amount_eur' => $reserveAmountEur,
+            'release_due_date' => $reserveData->releaseDueDate->toDateString()
         ]);
 
         return $this->reserveRepository->createReserveEntry($reserveData->toArray());
     }
 
-    private function getReleaseableReserves(int $merchantId, string $currentDate): array
-    {
-        try {
-            $releasableReserves = $this->reserveRepository->getReleaseableFunds(
-                $merchantId,
-                $currentDate
-            );
-
-            if (!empty($releasableReserves)) {
-                // Convert collection to array and get IDs
-                $entryIds = $releasableReserves->pluck('id')->toArray();
-                $this->reserveRepository->markReserveAsReleased($entryIds);
-            }
-
-            // Convert collection to array before returning
-            return $releasableReserves->toArray();
-        } catch (\Exception $e) {
-            $this->logger->log('error', 'Error processing releasable reserves', [
-                'merchant_id' => $merchantId,
-                'error' => $e->getMessage()
-            ]);
-            return [];
-        }
-    }
-
     private function reserveExists(int $merchantId, string $currency, array $dateRange): bool
     {
+        $merchantId = $this->merchantRepository->getMerchantIdByAccountId($merchantId);
         try {
             return DB::table('rolling_reserve_entries')
                 ->where('merchant_id', $merchantId)
