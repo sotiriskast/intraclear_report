@@ -13,17 +13,20 @@ readonly class ReserveExcelFormatter
 {
     public function __construct(
         private DynamicLogger $logger
-    ) {
+    )
+    {
     }
 
     public function formatGeneratedReserves(
         Worksheet $sheet,
-        array $currencyData,
-        int &$currentRow
-    ): void {
+        array     $currencyData,
+        int       &$currentRow
+    ): void
+    {
+        $currentRow +=2;
         // Add section header
         $this->addSectionHeader($sheet, 'Generated Reserve Details', $currentRow);
-
+        $currentRow++;
         $rollingReserve = $currencyData['rolling_reserve'] ?? null;
         if (!$rollingReserve) {
             $this->logger->log('warning', 'No rolling reserve data found', [
@@ -56,24 +59,40 @@ readonly class ReserveExcelFormatter
         }
 
         $this->applyFormatting($sheet, $currentRow);
+        $currentRow++;
     }
 
     public function formatReleasedReserves(
         Worksheet $sheet,
-        array $currencyData,
-        int &$currentRow
-    ): void {
-        $currentRow += 2;
+        array     $currencyData,
+        int       &$currentRow
+    ): void
+    {
+        $currentRow +=2;
         $this->addSectionHeader($sheet, 'Released Reserve Details', $currentRow);
+        $currentRow ++;
 
-        if (empty($currencyData['releaseable_reserve'])) {
+              if (empty($currencyData['releaseable_reserve'])) {
             return;
         }
 
-        $headers = ['Type', 'Period', 'Release Date', 'Original Amount', 'Reserve EUR', 'Status'];
+        $headers = ['Type', 'Period', 'Release Date','Exchange rate', 'Original Amount', 'Reserve EUR', 'Status'];
         $this->addTableHeaders($sheet, $headers, $currentRow);
 
+        $currency = $currencyData['currency'] ?? null;
+        if (!$currency) {
+            $this->logger->log('warning', 'Currency not found in currency data', [
+                'currency_data' => $currencyData
+            ]);
+            return;
+        }
+
         foreach ($currencyData['releaseable_reserve'] as $reserve) {
+            // Skip if currency doesn't match
+            if ($reserve['original_currency'] !== $currency) {
+                continue;
+            }
+
             $currentRow++;
             $sheet->setCellValue('A' . $currentRow, 'Released Reserve');
             $sheet->setCellValue('B' . $currentRow,
@@ -81,9 +100,10 @@ readonly class ReserveExcelFormatter
                 Carbon::parse($reserve['period_end'])->format('d/m/Y')
             );
             $sheet->setCellValue('C' . $currentRow, Carbon::parse($reserve['released_at'])->format('d/m/Y'));
-            $sheet->setCellValue('D' . $currentRow, $reserve['original_amount']);
-            $sheet->setCellValue('E' . $currentRow, $reserve['reserve_amount_eur']);
-            $sheet->setCellValue('F' . $currentRow, 'Released');
+            $sheet->setCellValue('D' . $currentRow, $reserve['exchange_rate']);
+            $sheet->setCellValue('E' . $currentRow, $reserve['original_amount']);
+            $sheet->setCellValue('F' . $currentRow, $reserve['reserve_amount_eur']);
+            $sheet->setCellValue('G' . $currentRow, 'Released');
 
             $this->formatAmountCells($sheet, $currentRow);
         }

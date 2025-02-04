@@ -11,7 +11,7 @@ readonly class ReserveEntryData
         public int             $originalAmount,
         public string          $originalCurrency,
         public int             $reserveAmountEur,
-        public int             $exchangeRate,
+        public float           $exchangeRate,
         public CarbonInterface $periodStart,
         public CarbonInterface $periodEnd,
         public CarbonInterface $releaseDueDate,

@@ -120,19 +120,22 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
             $rate = $this->getDailyExchangeRate($transaction, $exchangeRates);
             $amount = $transaction->amount / 100; // Convert from cents
 
+            // Apply the RATE factor only for non-EUR currencies
+            $effectiveRate = $currency === 'EUR' ? $rate : ($rate * self::RATE);
+
             if (mb_strtoupper($transaction->transaction_type) === 'SALE' &&
                 mb_strtoupper($transaction->transaction_status) === 'APPROVED') {
                 $totals[$currency]['total_sales'] += $amount;
-                $totals[$currency]['total_sales_eur'] += ($amount * ($rate * self::RATE));
+                $totals[$currency]['total_sales_eur'] += ($amount * $effectiveRate);
                 $totals[$currency]['transaction_sales_count']++;
             } elseif (mb_strtoupper($transaction->transaction_type) === 'SALE' &&
                 mb_strtoupper($transaction->transaction_status) === 'DECLINED') {
                 $totals[$currency]['total_declined_sales'] += $amount;
-                $totals[$currency]['total_declined_sales_eur'] += ($amount * ($rate * self::RATE));
+                $totals[$currency]['total_declined_sales_eur'] += ($amount * $effectiveRate);
                 $totals[$currency]['transaction_declined_count']++;
             } elseif (in_array(mb_strtoupper($transaction->transaction_type), ['REFUND', 'PARTIAL REFUND'])) {
                 $totals[$currency]['total_refunds'] += $amount;
-                $totals[$currency]['total_refunds_eur'] += ($amount * ($rate * self::RATE));
+                $totals[$currency]['total_refunds_eur'] += ($amount * $effectiveRate);
                 $totals[$currency]['transaction_refunds_count']++;
             }
         }

@@ -84,13 +84,11 @@ class RollingReserveHandler
                 $merchantId,
                 $weekEnd->toDateString()
             );
-            $test = $releasableReserves->map(function ($item) {
-                return $item->toArray();
-            })->all();
+            $releasableReserves = $releasableReserves->filter(function ($reserve) use ($currency) {
+                return $reserve->original_currency === $currency;
+            });
             if ($releasableReserves->isNotEmpty()) {
                 $entryIds = $releasableReserves->pluck('id')->toArray();
-
-                // Mark reserves as released
                 $this->reserveRepository->markReserveAsReleased($entryIds);
 
                 $this->logger->log('info', 'Released rolling reserves', [
@@ -103,7 +101,12 @@ class RollingReserveHandler
                     ]
                 ]);
             }
-            return $releasableReserves->toArray();
+            return $releasableReserves->map(function ($reserve) {
+                $attributes = $reserve->getAttributes();
+                $attributes['original_amount'] = $attributes['original_amount'] / 100;
+                $attributes['reserve_amount_eur'] = $attributes['reserve_amount_eur'] / 100;
+                return $attributes;
+            })->all();
         } catch (\Exception $e) {
             $this->logger->log('error', 'Error processing releasable reserves', [
                 'merchant_id' => $merchantId,
@@ -130,7 +133,7 @@ class RollingReserveHandler
             originalAmount: (int)round($reserveAmount * 100),
             originalCurrency: $currency,
             reserveAmountEur: (int)round($reserveAmountEur * 100),
-            exchangeRate: (int)round($transactionData['exchange_rate']),
+            exchangeRate: $currency === 'EUR' ? 1.0 :$transactionData['exchange_rate'],
             periodStart: Carbon::parse($dateRange['start']),
             periodEnd: Carbon::parse($dateRange['end']),
             releaseDueDate: Carbon::parse($dateRange['end'])->addMonths(self::RESERVE_PERIOD_MONTHS),
@@ -141,6 +144,8 @@ class RollingReserveHandler
             'account_id' => $merchantId,
             'amount' => $reserveAmount,
             'amount_eur' => $reserveAmountEur,
+            'currency' => $currency,
+            'exchange_rate' => $currency === 'EUR' ? 1.0 : $transactionData['exchange_rate'],
             'release_due_date' => $reserveData->releaseDueDate->toDateString()
         ]);
 
