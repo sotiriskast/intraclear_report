@@ -8,15 +8,32 @@ use PhpOffice\PhpSpreadsheet\Style\{Fill, Border, Alignment, NumberFormat};
 use Illuminate\Support\Collection;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use Carbon\Carbon;
-
+/**
+ * Handles Excel formatting for reserve-related sections in settlement reports
+ * Responsible for formatting both generated and released reserve details
+ * with consistent styling and layout
+ */
 readonly class ReserveExcelFormatter
 {
+    /**
+     * Initialize the reserve formatter
+     *
+     * @param DynamicLogger $logger Service for logging formatting operations
+     */
     public function __construct(
         private DynamicLogger $logger
     )
     {
     }
-
+    /**
+     * Format the generated reserves section of the worksheet
+     * Includes reserve amounts, periods, and release dates
+     *
+     * @param Worksheet $sheet Active worksheet
+     * @param array $currencyData Currency-specific data containing reserve information
+     * @param int &$currentRow Current row position in worksheet (passed by reference)
+     * @return void
+     */
     public function formatGeneratedReserves(
         Worksheet $sheet,
         array     $currencyData,
@@ -61,7 +78,15 @@ readonly class ReserveExcelFormatter
         $this->applyFormatting($sheet, $currentRow);
         $currentRow++;
     }
-
+    /**
+     * Format the released reserves section of the worksheet
+     * Details reserves that have been released during the settlement period
+     *
+     * @param Worksheet $sheet Active worksheet
+     * @param array $currencyData Currency-specific data containing released reserve information
+     * @param int &$currentRow Current row position in worksheet (passed by reference)
+     * @return void
+     */
     public function formatReleasedReserves(
         Worksheet $sheet,
         array     $currencyData,
@@ -108,7 +133,14 @@ readonly class ReserveExcelFormatter
             $this->formatAmountCells($sheet, $currentRow);
         }
     }
-
+    /**
+     * Add a formatted section header to the worksheet
+     *
+     * @param Worksheet $sheet Active worksheet
+     * @param string $title Header text
+     * @param int &$row Current row position (passed by reference)
+     * @return void
+     */
     private function addSectionHeader(Worksheet $sheet, string $title, int &$row): void
     {
         $sheet->setCellValue("A{$row}", $title);
@@ -131,7 +163,14 @@ readonly class ReserveExcelFormatter
 
         $sheet->getRowDimension($row)->setRowHeight(20);
     }
-
+    /**
+     * Add formatted column headers for a table section
+     *
+     * @param Worksheet $sheet Active worksheet
+     * @param array $headers Array of header texts
+     * @param int &$row Current row position (passed by reference)
+     * @return void
+     */
     private function addTableHeaders(Worksheet $sheet, array $headers, int &$row): void
     {
         foreach ($headers as $index => $header) {
@@ -149,7 +188,14 @@ readonly class ReserveExcelFormatter
 
         $sheet->getRowDimension($row)->setRowHeight(20);
     }
-
+    /**
+     * Add a formatted row for a single reserve entry
+     *
+     * @param Worksheet $sheet Active worksheet
+     * @param RollingReserveEntry $reserve Reserve entry to format
+     * @param int $row Current row position
+     * @return void
+     */
     private function addReserveRow(Worksheet $sheet, \App\Models\RollingReserveEntry $reserve, int $row): void
     {
         $sheet->setCellValue("A{$row}", 'Rolling Reserve');
@@ -165,7 +211,14 @@ readonly class ReserveExcelFormatter
             ->getNumberFormat()
             ->setFormatCode(NumberFormat::FORMAT_NUMBER_COMMA_SEPARATED2);
     }
-
+    /**
+     * Apply consistent formatting to the entire reserve section
+     * Includes column sizing, borders, and row heights
+     *
+     * @param Worksheet $sheet Active worksheet
+     * @param int $lastRow Last row number of the section
+     * @return void
+     */
     private function applyFormatting(Worksheet $sheet, int $lastRow): void
     {
         // Auto-size columns
@@ -184,7 +237,14 @@ readonly class ReserveExcelFormatter
             $sheet->getRowDimension($row)->setRowHeight(20);
         }
     }
-
+    /**
+     * Format cells containing monetary amounts
+     * Applies consistent number formatting with thousands separator and decimals
+     *
+     * @param Worksheet $sheet Active worksheet
+     * @param int $row Row containing amount cells
+     * @return void
+     */
     private function formatAmountCells(Worksheet $sheet, int $row): void
     {
         $sheet->getStyle('E' . $row . ':F' . $row)
