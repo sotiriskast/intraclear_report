@@ -13,11 +13,24 @@ use App\Services\Settlement\Fee\Configurations\FeeRegistry;
 use App\Services\Settlement\Fee\Factories\FeeCalculatorFactory;
 use App\Services\Settlement\Fee\interfaces\StandardFeeHandlerInterface;
 
+/**
+ * Handles the calculation and processing of standard fees for merchants
+ * This service is responsible for determining applicable fees based on
+ * merchant settings and transaction data
+ */
 class StandardFeeHandler implements StandardFeeHandlerInterface
 {
     private FeeRegistry $feeRegistry;
     private FeeCalculatorFactory $calculatorFactory;
     private bool $initialized = false;
+
+    /**
+     * Initialize the fee handler with required dependencies
+     *
+     * @param MerchantSettingRepository $merchantSettingRepository Repository for merchant settings
+     * @param MerchantRepository $merchantRepository Repository for merchant data
+     * @param DynamicLogger $logger Logger for tracking operations
+     */
     public function __construct(
         private readonly MerchantSettingRepository $merchantSettingRepository,
         private readonly MerchantRepository        $merchantRepository,
@@ -26,41 +39,58 @@ class StandardFeeHandler implements StandardFeeHandlerInterface
     {
         $this->feeRegistry = new FeeRegistry();
         $this->calculatorFactory = new FeeCalculatorFactory();
-
     }
+
+    /**
+     * Calculate all applicable standard fees for a merchant based on their settings and transaction data
+     *
+     * @param int $merchantId The merchant's ID
+     * @param array $rawTransactionData Transaction data for fee calculation
+     * @return array Array of calculated fees with their details
+     */
     public function getStandardFees(int $merchantId, array $rawTransactionData): array
     {
         $this->initializeFeeConfigurations();
         if (!$this->initialized) {
             return [];
         }
+
         try {
-            $settings = $this->merchantSettingRepository->findByMerchant($this->merchantRepository->getMerchantIdByAccountId($merchantId));
+            // Get merchant settings using account ID
+            $settings = $this->merchantSettingRepository->findByMerchant(
+                $this->merchantRepository->getMerchantIdByAccountId($merchantId)
+            );
+
             if (!$settings) {
                 $this->logger->log('warning', 'Merchant settings not found', [
                     'merchant_id' => $merchantId
                 ]);
                 return [];
             }
+
             $transactionData = TransactionData::fromArray($rawTransactionData);
             $standardFees = [];
 
+            // Process each configured fee type
             foreach ($this->feeRegistry->all() as $feeConfig) {
                 try {
-                    // For fees without conditions, always process them
+                    // Check if fee should be processed based on conditions
                     if ($feeConfig->condition === null || $this->shouldProcessFee($feeConfig, $settings)) {
                         $amount = $this->getFeeAmount($settings, $feeConfig->key);
 
-                        if ($amount > 0) {
+                        if ($amount >= 0) {
+                            // Create appropriate calculator based on fee configuration
                             $calculator = $this->calculatorFactory->createCalculator(
                                 $feeConfig->frequency,
                                 $feeConfig->isPercentage,
                                 $feeConfig->key
                             );
 
+                            // Calculate the actual fee amount
                             $feeAmount = $calculator->calculate($transactionData, $amount);
 
-                            if ($feeAmount > 0) {
+                            if ($feeAmount >= 0) {
+                                // Prepare fee details for return
                                 $standardFees[] = [
                                     'fee_type' => $feeConfig->name,
                                     'fee_type_id' => $this->getFeeTypeId($feeConfig->key),
@@ -79,7 +109,7 @@ class StandardFeeHandler implements StandardFeeHandlerInterface
                         'fee_key' => $feeConfig->key,
                         'error' => $e->getMessage()
                     ]);
-                    continue;
+                    continue; // Continue processing other fees if one fails
                 }
             }
 
@@ -92,20 +122,28 @@ class StandardFeeHandler implements StandardFeeHandlerInterface
             return [];
         }
     }
+
+    /**
+     * Initialize fee configurations from the database
+     * This loads all fee types and their configurations into the registry
+     *
+     * @throws \Exception If initialization fails
+     */
     private function initializeFeeConfigurations(): void
     {
         if ($this->initialized) {
             return;
         }
+
         try {
-            // Get all fee types from database
+            // Load all fee types from database
             $feeTypes = FeeType::all();
             foreach ($feeTypes as $feeType) {
                 $condition = $this->getFeeCondition($feeType->key);
                 $feeConfig = new FeeConfiguration(
                     $feeType->key,
                     $feeType->name,
-                    0, // Amount will be set from settings
+                    0, // Amount will be set from merchant settings
                     $feeType->is_percentage,
                     $feeType->frequency_type,
                     $condition
@@ -122,6 +160,14 @@ class StandardFeeHandler implements StandardFeeHandlerInterface
             throw $e;
         }
     }
+
+    /**
+     * Get the condition for a specific fee type
+     * Defines when specific fees should be applied based on merchant settings
+     *
+     * @param string $key The fee type key
+     * @return FeeCondition|null Condition object or null if no specific conditions
+     */
     private function getFeeCondition(string $key): ?FeeCondition
     {
         return match ($key) {
@@ -135,10 +181,26 @@ class StandardFeeHandler implements StandardFeeHandlerInterface
             default => null
         };
     }
+
+    /**
+     * Determine if a fee should be processed based on its configuration and merchant settings
+     *
+     * @param FeeConfiguration $config Fee configuration
+     * @param object $settings Merchant settings
+     * @return bool Whether the fee should be processed
+     */
     private function shouldProcessFee(FeeConfiguration $config, $settings): bool
     {
         return !$config->condition || $config->meetsCondition($settings);
     }
+
+    /**
+     * Get the fee amount from merchant settings based on fee type
+     *
+     * @param object $settings Merchant settings
+     * @param string $key Fee type key
+     * @return int Fee amount in smallest currency unit (e.g., cents)
+     */
     private function getFeeAmount($settings, string $key): int
     {
         return match ($key) {
@@ -155,6 +217,14 @@ class StandardFeeHandler implements StandardFeeHandlerInterface
             default => 0
         };
     }
+
+    /**
+     * Get the fee type ID for a given fee key
+     * Maps fee keys to their corresponding database IDs
+     *
+     * @param string $key Fee type key
+     * @return int Fee type ID
+     */
     private function getFeeTypeId(string $key): int
     {
         return match ($key) {
@@ -171,6 +241,15 @@ class StandardFeeHandler implements StandardFeeHandlerInterface
             default => 0
         };
     }
+
+    /**
+     * Format the fee rate for display
+     * Converts internal rate representation to human-readable format
+     *
+     * @param int $amount Fee amount in smallest currency unit
+     * @param bool $isPercentage Whether the fee is a percentage
+     * @return string Formatted rate with appropriate suffix
+     */
     private function formatRate(int $amount, bool $isPercentage): string
     {
         return $isPercentage ?

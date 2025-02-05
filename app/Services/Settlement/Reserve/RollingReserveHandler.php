@@ -9,12 +9,27 @@ use App\Repositories\MerchantRepository;
 use App\Services\DynamicLogger;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
-
+/**
+ * Handles the processing and management of rolling reserves for merchant settlements
+ * Manages creation of new reserves, release of existing reserves, and tracking of reserve periods
+ */
 class RollingReserveHandler
 {
+    /**
+     * Number of months to hold the reserve before release
+     */
     private const RESERVE_PERIOD_MONTHS = 6;
+    /**
+     * Percentage of transaction amount to hold in reserve
+     */
     private const RESERVE_PERCENTAGE = 10;
-
+    /**
+     * Initialize the rolling reserve handler with required dependencies
+     *
+     * @param RollingReserveRepositoryInterface $reserveRepository Repository for reserve operations
+     * @param DynamicLogger $logger Service for logging operations
+     * @param MerchantRepository $merchantRepository Repository for merchant data
+     */
     public function __construct(
         private readonly RollingReserveRepositoryInterface $reserveRepository,
         private readonly DynamicLogger                     $logger,
@@ -24,7 +39,25 @@ class RollingReserveHandler
     )
     {
     }
-
+    /**
+     * Process settlement reserves for a given merchant and period
+     * Handles both creation of new reserves and release of existing ones
+     *
+     * @param int $merchantId ID of the merchant account
+     * @param array $transactionData Transaction data including:
+     *                              - total_sales: float (in original currency)
+     *                              - total_sales_eur: float (in EUR)
+     *                              - exchange_rate: float
+     * @param string $currency Currency code of the transaction
+     * @param array $dateRange Array containing:
+     *                        - start: string (Y-m-d format)
+     *                        - end: string (Y-m-d format)
+     *
+     * @return array Array containing:
+     *               - new_reserve: RollingReserveEntry|null
+     *               - released_reserves: array
+     * @throws \Exception If processing fails
+     */
     public function processSettlementReserve(
         int    $merchantId,
         array  $transactionData,
@@ -69,7 +102,16 @@ class RollingReserveHandler
             throw $e;
         }
     }
-
+    /**
+     * Process and release reserves that have reached their release date
+     *
+     * @param int $merchantId ID of the merchant account
+     * @param string $currency Currency code to filter reserves
+     * @param Carbon $weekStart Start of the week period
+     * @param Carbon $weekEnd End of the week period
+     *
+     * @return array Array of released reserve entries with amounts converted from cents
+     */
     private function processReleasableReserves(
         int    $merchantId,
         string $currency,
@@ -115,7 +157,16 @@ class RollingReserveHandler
             return [];
         }
     }
-
+    /**
+     * Create a new rolling reserve entry for a transaction period
+     *
+     * @param int $merchantId ID of the merchant account
+     * @param array $transactionData Transaction data including total sales amounts
+     * @param string $currency Currency code of the transaction
+     * @param array $dateRange Period start and end dates
+     *
+     * @return RollingReserveEntry Newly created reserve entry
+     */
     public function createNewReserve(
         int    $merchantId,
         array  $transactionData,
@@ -151,7 +202,15 @@ class RollingReserveHandler
 
         return $this->reserveRepository->createReserveEntry($reserveData->toArray());
     }
-
+    /**
+     * Check if a reserve already exists for the given period and currency
+     *
+     * @param int $merchantId ID of the merchant account
+     * @param string $currency Currency code to check
+     * @param array $dateRange Period start and end dates
+     *
+     * @return bool True if reserve exists, false otherwise
+     */
     private function reserveExists(int $merchantId, string $currency, array $dateRange): bool
     {
         $merchantId = $this->merchantRepository->getMerchantIdByAccountId($merchantId);

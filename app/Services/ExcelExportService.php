@@ -11,10 +11,25 @@ use Carbon\Carbon;
 
 class ExcelExportService
 {
+    /**
+     * @var Spreadsheet Current spreadsheet being generated
+     */
     protected $spreadsheet;
+    /**
+     * @var \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet Current worksheet being modified
+     */
     protected $currentSheet;
+    /**
+     * @var int Current row position in the active worksheet
+     */
     protected $currentRow = 1;
 
+    /**
+     * Initialize the Excel export service
+     *
+     * @param DynamicLogger $logger Service for logging export operations
+     * @param ReserveExcelFormatter $reserveFormatter Service for formatting reserve sections
+     */
     public function __construct(
         private readonly DynamicLogger $logger,
         private ReserveExcelFormatter  $reserveFormatter
@@ -22,6 +37,16 @@ class ExcelExportService
     {
     }
 
+    /**
+     * Generate a complete settlement report for a merchant
+     *
+     * @param int $merchantId ID of the merchant
+     * @param array $settlementData Settlement data containing shop and transaction information
+     * @param array $dateRange Array with 'start' and 'end' dates for the settlement period
+     *
+     * @return string Path to the generated Excel file
+     * @throws \Exception If report generation fails
+     */
     public function generateReport(int $merchantId, array $settlementData, array $dateRange)
     {
         try {
@@ -47,6 +72,13 @@ class ExcelExportService
         }
     }
 
+    /**
+     * Create a worksheet for a specific shop and currency combination
+     *
+     * @param array $shopData Shop information including ID and name
+     * @param array $currencyData Transaction and fee data for specific currency
+     * @param array $dateRange Settlement period date range
+     */
     protected function createShopCurrencySheet($shopData, $currencyData, $dateRange)
     {
         $sheetName = $this->createSheetName($shopData, $currencyData['currency']);
@@ -63,13 +95,23 @@ class ExcelExportService
         $this->formatSheet();
     }
 
-    protected function createSheetName($shopData, $currency)
+    /**
+     * Generate a valid worksheet name from shop data and currency
+     *
+     * @param array $shopData Shop information
+     * @param string $currency Currency code
+     * @return string Sanitized worksheet name
+     */
+    protected function createSheetName(array $shopData, string $currency): string
     {
         $shopName = preg_replace('/[^\w\d]/', '_', $shopData['corp_name']);
         return substr($shopName, 0, 15) . '_' . $shopData['shop_id'] . '_' . $currency;
     }
 
-    protected function addCompanyHeader()
+    /**
+     * Add company header section to current worksheet
+     */
+    protected function addCompanyHeader(): void
     {
         $this->currentSheet->setCellValue('A1', 'INTRACLEAR LIMITED');
         $this->currentSheet->setCellValue('F1', 'Issue date: ' . Carbon::now()->format('d/m/Y'));
@@ -89,7 +131,14 @@ class ExcelExportService
         ]);
     }
 
-    protected function addMerchantDetails($shopData, $currencyData, $dateRange)
+    /**
+     * Add merchant details section to worksheet
+     *
+     * @param array $shopData Shop information
+     * @param array $currencyData Currency-specific data
+     * @param array $dateRange Settlement period
+     */
+    protected function addMerchantDetails(array $shopData, array $currencyData, array $dateRange): void
     {
         $this->currentRow = 3;
         $details = [
@@ -120,7 +169,13 @@ class ExcelExportService
         }
     }
 
-    protected function addChargeDetails($currencyData)
+    /**
+     * Add fee and charge details section
+     * Includes MDR, transaction fees, declined fees, etc.
+     *
+     * @param array $currencyData Currency-specific data including fees
+     */
+    protected function addChargeDetails(array $currencyData): void
     {
         $this->addSectionHeader('Charge Details');
 
@@ -194,7 +249,12 @@ class ExcelExportService
         }
     }
 
-    protected function addGeneratedReserveDetails($currencyData)
+    /**
+     * Add table Rolling Reserve with consistent formatting
+     *
+     * @param array $currencyData Currency-specific data including Rolling Reserve
+     */
+    protected function addGeneratedReserveDetails(array $currencyData): void
     {
         $this->reserveFormatter->formatGeneratedReserves(
             $this->currentSheet,
@@ -203,7 +263,12 @@ class ExcelExportService
         );
     }
 
-    protected function addRefundedReserveDetails($currencyData)
+    /**
+     * Add table Released Rolling Reserve with consistent formatting
+     * *
+     * * @param array $currencyData Currency-specific data including Released Rolling Reserve
+     */
+    protected function addRefundedReserveDetails(array $currencyData): void
     {
         $this->reserveFormatter->formatReleasedReserves(
             $this->currentSheet,
@@ -212,7 +277,12 @@ class ExcelExportService
         );
     }
 
-    protected function addSummarySection($currencyData)
+    /**
+     * Add table for summary details
+     * *
+     * * @param array $currencyData Array of summary details
+     */
+    protected function addSummarySection(array $currencyData): void
     {
         $this->currentRow += 2;
         $this->addSectionHeader('Summary');
@@ -274,7 +344,12 @@ class ExcelExportService
         }
     }
 
-    protected function addSectionHeader($title)
+    /**
+     * Add section header with consistent styling
+     *
+     * @param string $title Header title text
+     */
+    protected function addSectionHeader(string $title): void
     {
         $this->currentSheet->setCellValue('A' . $this->currentRow, $title);
         $this->currentSheet->mergeCells('A' . $this->currentRow . ':G' . $this->currentRow);
@@ -287,7 +362,12 @@ class ExcelExportService
         ]);
     }
 
-    protected function addTableHeaders($headers)
+    /**
+     * Add table headers with consistent formatting
+     *
+     * @param array $headers Array of header texts
+     */
+    protected function addTableHeaders(array $headers): void
     {
         $this->currentRow++;
         foreach ($headers as $index => $header) {
@@ -298,7 +378,11 @@ class ExcelExportService
         $this->currentRow++;
     }
 
-    protected function formatSheet()
+    /**
+     * Apply consistent formatting to the entire worksheet
+     * Includes column widths, borders, and number formatting
+     */
+    protected function formatSheet(): void
     {
         foreach (range('A', 'G') as $column) {
             $this->currentSheet->getColumnDimension($column)->setAutoSize(true);
@@ -316,7 +400,15 @@ class ExcelExportService
             ->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
     }
 
-    protected function saveReport($merchantId, $dateRange)
+    /**
+     * Save the generated report to disk
+     *
+     * @param int $merchantId Merchant ID for filename
+     * @param array $dateRange Date range for filename
+     * @return string Path to saved file
+     * @throws \Exception If saving fails
+     */
+    protected function saveReport(int $merchantId, array $dateRange): string
     {
         $fileName = sprintf(
             'settlement_report_%s_%s_%s.xlsx',
@@ -324,16 +416,12 @@ class ExcelExportService
             Carbon::parse($dateRange['start'])->format('YmdHis'),
             Carbon::parse($dateRange['end'])->format('YmdHis')
         );
-
         $path = storage_path('app/reports/' . $fileName);
-
         if (!file_exists(dirname($path))) {
             mkdir(dirname($path), 0755, true);
         }
-
         $writer = new Xlsx($this->spreadsheet);
         $writer->save($path);
-
         return $path;
     }
 }
