@@ -8,6 +8,7 @@ use PhpOffice\PhpSpreadsheet\Style\{Fill, Border, Alignment, NumberFormat};
 use Illuminate\Support\Collection;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use Carbon\Carbon;
+
 /**
  * Handles Excel formatting for reserve-related sections in settlement reports
  * Responsible for formatting both generated and released reserve details
@@ -25,6 +26,7 @@ readonly class ReserveExcelFormatter
     )
     {
     }
+
     /**
      * Format the generated reserves section of the worksheet
      * Includes reserve amounts, periods, and release dates
@@ -40,7 +42,7 @@ readonly class ReserveExcelFormatter
         int       &$currentRow
     ): void
     {
-        $currentRow +=2;
+        $currentRow += 2;
         // Add section header
         $this->addSectionHeader($sheet, 'Generated Reserve Details', $currentRow);
         $currentRow++;
@@ -78,6 +80,7 @@ readonly class ReserveExcelFormatter
         $this->applyFormatting($sheet, $currentRow);
         $currentRow++;
     }
+
     /**
      * Format the released reserves section of the worksheet
      * Details reserves that have been released during the settlement period
@@ -93,15 +96,15 @@ readonly class ReserveExcelFormatter
         int       &$currentRow
     ): void
     {
-        $currentRow +=2;
+        $currentRow += 2;
         $this->addSectionHeader($sheet, 'Released Reserve Details', $currentRow);
-        $currentRow ++;
+        $currentRow++;
 
-              if (empty($currencyData['releaseable_reserve'])) {
+        if (empty($currencyData['releaseable_reserve'])) {
             return;
         }
 
-        $headers = ['Type', 'Period', 'Release Date','Exchange rate', 'Original Amount', 'Reserve EUR', 'Status'];
+        $headers = ['Type', 'Period', 'Release Date', 'Exchange rate', 'Original Amount', 'Reserve EUR', 'Status'];
         $this->addTableHeaders($sheet, $headers, $currentRow);
 
         $currency = $currencyData['currency'] ?? null;
@@ -133,6 +136,7 @@ readonly class ReserveExcelFormatter
             $this->formatAmountCells($sheet, $currentRow);
         }
     }
+
     /**
      * Add a formatted section header to the worksheet
      *
@@ -163,6 +167,7 @@ readonly class ReserveExcelFormatter
 
         $sheet->getRowDimension($row)->setRowHeight(20);
     }
+
     /**
      * Add formatted column headers for a table section
      *
@@ -188,6 +193,7 @@ readonly class ReserveExcelFormatter
 
         $sheet->getRowDimension($row)->setRowHeight(20);
     }
+
     /**
      * Add a formatted row for a single reserve entry
      *
@@ -211,6 +217,7 @@ readonly class ReserveExcelFormatter
             ->getNumberFormat()
             ->setFormatCode(NumberFormat::FORMAT_NUMBER_COMMA_SEPARATED2);
     }
+
     /**
      * Apply consistent formatting to the entire reserve section
      * Includes column sizing, borders, and row heights
@@ -237,6 +244,7 @@ readonly class ReserveExcelFormatter
             $sheet->getRowDimension($row)->setRowHeight(20);
         }
     }
+
     /**
      * Format cells containing monetary amounts
      * Applies consistent number formatting with thousands separator and decimals
