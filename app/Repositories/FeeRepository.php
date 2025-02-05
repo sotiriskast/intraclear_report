@@ -8,9 +8,9 @@ use App\Models\FeeHistory;
 use App\Repositories\Interfaces\FeeRepositoryInterface;
 use Illuminate\Database\Eloquent\Collection;
 
-class FeeRepository implements FeeRepositoryInterface
+readonly class FeeRepository implements FeeRepositoryInterface
 {
-    public function __construct(private readonly MerchantRepository $merchantRepository)
+    public function __construct(private MerchantRepository $merchantRepository)
     {
     }
     /**
