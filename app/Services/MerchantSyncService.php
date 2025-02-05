@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Repositories\MerchantSettingRepository;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -23,10 +24,13 @@ class MerchantSyncService
      * @param DynamicLogger $logger Logging service for sync-related events
      */
     public function __construct(
-        private DynamicLogger $logger
+        private readonly DynamicLogger    $logger,
+        private MerchantSettingRepository $merchantSettingRepository
+
     )
     {
     }
+
     /**
      * Synchronizes merchant data from the payment gateway to the primary database.
      *
@@ -46,7 +50,7 @@ class MerchantSyncService
     {
         try {
             // Initialize statistics tracking
-            $stats = ['new' => 0, 'updated' => 0];
+            $stats = ['new' => 0, 'updated' => 0, 'settings_created' => 0];
             // Retrieve existing merchants for comparison
             $existingMerchants = $this->getExistingMerchants();
             // Fetch source merchant data from payment gateway
@@ -58,12 +62,31 @@ class MerchantSyncService
                 $isNew = !isset($existingMerchants[$merchant->id]);
                 $this->upsertMerchant($merchant);
                 $stats[$isNew ? 'new' : 'updated']++;
+                // Only proceed with settings creation for new merchants
+                if ($isNew) {
+                    // Retrieve the internal merchant ID using the account_id from the payment gateway
+                    // We need this because the merchant table uses an auto-incrementing ID
+                    // different from the account_id in the payment gateway
+                    $merchantId = DB::connection('mariadb')
+                        ->table('merchants')
+                        ->where('account_id', $merchant->id)
+                        ->value('id');
+
+                    // Create settings only if:
+                    // 1. We successfully retrieved the merchant ID
+                    // 2. The merchant doesn't already have settings
+                    if ($merchantId && !$this->merchantSettingRepository->isExistingForMerchant($merchantId)) {
+                        $this->createDefaultSettings($merchantId);
+                        $stats['settings_created']++;
+                    }
+                }
             }
             // Commit database transaction
             DB::connection('mariadb')->commit();
             $this->logger->log('info', 'Merchant sync completed successfully', [
                 'new_merchants' => $stats['new'],
-                'updated_merchants' => $stats['updated']
+                'updated_merchants' => $stats['updated'],
+                'settings_created' => $stats['settings_created'],
             ]);
             return $stats;
         } catch (\Exception $e) {
@@ -77,6 +100,47 @@ class MerchantSyncService
             throw $e;
         }
     }
+
+    /**
+     * Creates default settings for a new merchant.
+     *
+     * @param int $merchantId The ID of the merchant
+     * @throws \Exception If settings creation fails
+     */
+    private function createDefaultSettings(int $merchantId): void
+    {
+        try {
+            $defaultSettings = [
+                'merchant_id' => $merchantId,
+                'rolling_reserve_percentage' => 1000,
+                'holding_period_days' => 180,
+                'mdr_percentage' => 500,
+                'transaction_fee' => 35,
+                'declined_fee' => 25,
+                'payout_fee' => 100,
+                'refund_fee' => 100,
+                'chargeback_fee' => 4000,
+                'monthly_fee' => 15000,
+                'mastercard_high_risk_fee_applied' => 15000,
+                'visa_high_risk_fee_applied' => 15000,
+                'setup_fee' => 50000,
+                'setup_fee_charged' => false
+            ];
+
+            $this->merchantSettingRepository->create($defaultSettings);
+
+            $this->logger->log('info', 'Created default settings for merchant', [
+                'merchant_id' => $merchantId
+            ]);
+        } catch (\Exception $e) {
+            $this->logger->log('error', 'Failed to create default settings for merchant', [
+                'merchant_id' => $merchantId,
+                'error' => $e->getMessage()
+            ]);
+            throw $e;
+        }
+    }
+
     /**
      * Retrieves existing merchants from the primary database.
      *
@@ -91,6 +155,7 @@ class MerchantSyncService
             ->pluck('id', 'account_id')
             ->toArray();
     }
+
     /**
      * Fetches merchant source data from the payment gateway database.
      *
@@ -111,6 +176,7 @@ class MerchantSyncService
             ])
             ->get();
     }
+
     /**
      * Upserts (updates or inserts) a merchant record in the primary database.
      *
