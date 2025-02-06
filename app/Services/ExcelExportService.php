@@ -89,6 +89,7 @@ class ExcelExportService
         $this->addCompanyHeader();
         $this->addMerchantDetails($shopData, $currencyData, $dateRange);
         $this->addChargeDetails($currencyData);
+        $this->addRefundChargeDetails($currencyData);
         $this->addGeneratedReserveDetails($currencyData);
         $this->addRefundedReserveDetails($currencyData);
         $this->addSummarySection($currencyData);
@@ -209,7 +210,7 @@ class ExcelExportService
             $count = match ($fee['fee_type']) {
                 'Declined Fee' => $fee['transactionData']['transaction_declined_count'] ?? 0,
                 'Refund Fee' => $fee['transactionData']['transaction_refunds_count'] ?? 0,
-                'Chargeback Fee' => $fee['transactionData']['chargeback_count'] ?? 0,
+                'Chargeback Fee' => $fee['transactionData']['total_chargeback_count'] ?? 0,
                 'Transaction Fee' => $fee['transactionData']['transaction_sales_count'] ?? 0,
                 default => ''
             };
@@ -247,6 +248,61 @@ class ExcelExportService
                 ->getNumberFormat()
                 ->setFormatCode(\PhpOffice\PhpSpreadsheet\Style\NumberFormat::FORMAT_NUMBER_COMMA_SEPARATED2);
         }
+    }
+
+    protected function addRefundChargeDetails(array $currencyData): void
+    {
+        $this->currentRow += 2;
+        $this->addSectionHeader('Refund/Chargeback Details');
+        $this->currentRow++;
+        //HEADER
+        $this->currentSheet->setCellValue('A' . $this->currentRow, 'Charge Name');
+        $this->currentSheet->mergeCells('A' . $this->currentRow . ':E' . $this->currentRow);
+        $this->currentSheet->setCellValue('F' . $this->currentRow, 'Total ' . $currencyData['currency']);
+        $this->currentSheet->setCellValue('G' . $this->currentRow, 'Total EUR');
+        $this->currentSheet->getStyle('A' . $this->currentRow)->getFont()->setBold(true);
+        $this->currentSheet->getStyle('F' . $this->currentRow)->getFont()->setBold(true);
+        $this->currentSheet->getStyle('G' . $this->currentRow)->getFont()->setBold(true);
+        //END HEADER
+        $startRow = $this->currentRow + 1;
+        $this->currentRow++;
+
+        // Declined Charge back
+        $this->currentSheet->setCellValue('A' . $this->currentRow, 'Return Chargeback');
+        $this->currentSheet->mergeCells('A' . $this->currentRow . ':E' . $this->currentRow);
+        $this->currentSheet->setCellValue('F' . $this->currentRow, $currencyData['total_declined_chargeback_amount']);
+        $this->currentSheet->setCellValue('G' . $this->currentRow, $currencyData['total_declined_chargeback_amount_eur']);
+        $this->currentRow++;
+        // Refund Ammount
+        $this->currentSheet->setCellValue('A' . $this->currentRow, 'Refund Amount');
+        $this->currentSheet->mergeCells('A' . $this->currentRow . ':E' . $this->currentRow);
+        $this->currentSheet->setCellValue('F' . $this->currentRow, $currencyData['total_refunds_amount']);
+        $this->currentSheet->setCellValue('G' . $this->currentRow, $currencyData['total_refunds_amount_eur']);
+        $this->currentRow++;
+        //Chargeback
+        $this->currentSheet->setCellValue('A' . $this->currentRow, 'Chargeback');
+        $this->currentSheet->mergeCells('A' . $this->currentRow . ':E' . $this->currentRow);
+        $this->currentSheet->setCellValue('F' . $this->currentRow, $currencyData['total_approved_chargeback_amount'] + $currencyData['total_processing_chargeback_amount']);
+        $this->currentSheet->setCellValue('G' . $this->currentRow, $currencyData['total_approved_chargeback_amount_eur'] + $currencyData['total_processing_chargeback_amount_eur']);
+        $this->currentRow += 2;
+        //Total Calculation
+        $this->currentSheet->setCellValue('A' . $this->currentRow, 'Total Refund Amount');
+        $this->currentSheet->mergeCells('A' . $this->currentRow . ':E' . $this->currentRow);
+        $this->currentSheet->getStyle('A' . $this->currentRow)->getFont()->setBold(true);
+        $this->currentSheet->getStyle('F' . $this->currentRow)->getFont()->setBold(true);
+        $this->currentSheet->getStyle('G' . $this->currentRow)->getFont()->setBold(true);
+
+        // Add formulas for total calculation
+        // Formula: Processing + Approved - Declined
+        $this->currentSheet->setCellValue(
+            'F' . $this->currentRow,
+            "=F{$startRow}+F" . ($startRow + 1) . "-F" . ($startRow + 2)
+        );
+        $this->currentSheet->setCellValue(
+            'G' . $this->currentRow,
+            "=G{$startRow}+G" . ($startRow + 1) . "-G" . ($startRow + 2)
+        );
+
     }
 
     /**

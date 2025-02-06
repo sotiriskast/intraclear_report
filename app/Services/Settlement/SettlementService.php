@@ -137,10 +137,25 @@ readonly class SettlementService
                 'total_refunds_amount' => $currencyTotals['total_refunds'] ?? 0,
                 'total_refunds_amount_eur' => $currencyTotals['total_refunds_eur'] ?? 0,
 
+                // Chargeback processing
+                'total_processing_chargeback_amount' => $currencyTotals['processing_chargeback_amount'] ?? 0,
+                'total_processing_chargeback_amount_eur' => $currencyTotals['processing_chargeback_amount_eur'] ?? 0,
+
+                // Chargeback approved
+                'total_approved_chargeback_amount' => $currencyTotals['approved_chargeback_amount'] ?? 0,
+                'total_approved_chargeback_amount_eur' => $currencyTotals['approved_chargeback_amount_eur'] ?? 0,
+
+                // Chargeback declined
+                'total_declined_chargeback_amount' => $currencyTotals['declined_chargeback_amount'] ?? 0,
+                'total_declined_chargeback_amount_eur' => $currencyTotals['declined_chargeback_amount_eur'] ?? 0,
+
                 // Transaction count metrics
                 'total_sales_transaction_count' => $currencyTotals['transaction_sales_count'] ?? 0,
                 'total_decline_transaction_count' => $currencyTotals['transaction_declined_count'] ?? 0,
                 'total_refunds_transaction_count' => $currencyTotals['refund_count'] ?? 0,
+                'total_processing_chargeback_count' => $currencyTotals['processing_chargeback_count'] ?? 0,
+                'total_chargeback_count' => $currencyTotals['total_chargeback_count'] ?? 0,
+
 
                 // Additional financial details
                 'fees' => $fees,

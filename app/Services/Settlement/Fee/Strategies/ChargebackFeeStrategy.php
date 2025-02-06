@@ -23,6 +23,6 @@ class ChargebackFeeStrategy implements FeeCalculationStrategy
      */
     public function calculate(TransactionData $transactionData, int $amount): float
     {
-        return ($amount / 100) * $transactionData->chargebackCount ?? 0;
+        return ($amount / 100) * $transactionData->totalChargebackCount ?? 0;
     }
 }
