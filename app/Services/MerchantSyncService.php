@@ -119,7 +119,7 @@ class MerchantSyncService
                 'declined_fee' => 25,
                 'payout_fee' => 100,
                 'refund_fee' => 100,
-                'chargeback_fee' => 4000,
+                'chargeback_fee' => 400,
                 'monthly_fee' => 15000,
                 'mastercard_high_risk_fee_applied' => 15000,
                 'visa_high_risk_fee_applied' => 15000,

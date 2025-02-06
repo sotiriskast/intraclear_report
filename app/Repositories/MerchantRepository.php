@@ -25,4 +25,20 @@ class MerchantRepository
     {
         return Merchant::query()->where('account_id', $accountId)->first()->id;
     }
+    public function getActive()
+    {
+        return Merchant::query()
+            ->active()
+            ->orderBy('name')
+            ->get();
+    }
+
+    // If you need with pagination
+    public function getActiveWithPagination($perPage = 10)
+    {
+        return Merchant::query()
+            ->active()
+            ->orderBy('name')
+            ->paginate($perPage);
+    }
 }
