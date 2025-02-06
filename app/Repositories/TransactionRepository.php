@@ -100,18 +100,17 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
                     'total_sales' => 0,
                     'total_sales_eur' => 0,
                     'transaction_sales_count' => 0,
-
-                    // Declined metrics
                     'total_declined_sales' => 0,
                     'total_declined_sales_eur' => 0,
                     'transaction_declined_count' => 0,
-
-                    // Refund metrics
                     'total_refunds' => 0,
                     'total_refunds_eur' => 0,
                     'transaction_refunds_count' => 0,
-
-                    // Additional data
+                    'total_chargeback_amount' => 0,
+                    'total_chargeback_amount_eur' => 0,
+                    'chargeback_count' => 0,
+                    'processing_chargeback_count' => 0,
+                    'processing_chargeback_amount' => 0,
                     'currency' => $currency,
                     'exchange_rate' => 0
                 ];
@@ -123,24 +122,40 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
             // Apply the RATE factor only for non-EUR currencies
             $effectiveRate = $currency === 'EUR' ? $rate : ($rate * self::RATE);
 
-            if (mb_strtoupper($transaction->transaction_type) === 'SALE' &&
-                mb_strtoupper($transaction->transaction_status) === 'APPROVED') {
+            $transactionType = mb_strtoupper($transaction->transaction_type);
+            $transactionStatus = mb_strtoupper($transaction->transaction_status);
+
+            if ($transactionType === 'CHARGEBACK') {
+                // Handle chargebacks based on status
+                if ($transactionStatus === 'PROCESSING') {
+                    $totals[$currency]['processing_chargeback_count']++;
+                    $totals[$currency]['processing_chargeback_amount'] += $amount;
+                    // Deduct processing chargeback amount from total sales
+                    $totals[$currency]['total_sales'] -= $amount;
+                    $totals[$currency]['total_sales_eur'] -= ($amount * $effectiveRate);
+                } else {
+                    $totals[$currency]['chargeback_count']++;
+                    $totals[$currency]['total_chargeback_amount'] += $amount;
+                    $totals[$currency]['total_chargeback_amount_eur'] += ($amount * $effectiveRate);
+                }
+            } elseif ($transactionType === 'SALE' && $transactionStatus === 'APPROVED') {
                 $totals[$currency]['total_sales'] += $amount;
                 $totals[$currency]['total_sales_eur'] += ($amount * $effectiveRate);
                 $totals[$currency]['transaction_sales_count']++;
-            } elseif (mb_strtoupper($transaction->transaction_type) === 'SALE' &&
-                mb_strtoupper($transaction->transaction_status) === 'DECLINED') {
+            } elseif ($transactionType === 'SALE' && $transactionStatus === 'DECLINED') {
                 $totals[$currency]['total_declined_sales'] += $amount;
                 $totals[$currency]['total_declined_sales_eur'] += ($amount * $effectiveRate);
                 $totals[$currency]['transaction_declined_count']++;
-            } elseif (in_array(mb_strtoupper($transaction->transaction_type), ['REFUND', 'PARTIAL REFUND'])) {
+            } elseif (in_array($transactionType, ['REFUND', 'PARTIAL REFUND'])) {
                 $totals[$currency]['total_refunds'] += $amount;
                 $totals[$currency]['total_refunds_eur'] += ($amount * $effectiveRate);
                 $totals[$currency]['transaction_refunds_count']++;
             }
         }
-        //Get the average exchange rate
+
+
         $totals[$currency]['exchange_rate'] = $totals[$currency]['total_sales_eur'] / $totals[$currency]['total_sales'];
+
         return $totals;
     }
 
@@ -177,6 +192,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
         }
         return $rateMap;
     }
+
     /**
      * Determines the daily exchange rate for a specific transaction.
      *
