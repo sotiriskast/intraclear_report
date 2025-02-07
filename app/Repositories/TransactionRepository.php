@@ -2,6 +2,8 @@
 
 namespace App\Repositories;
 
+use App\DTO\ChargebackData;
+use App\Services\Chargeback\Interfaces\ChargebackProcessorInterface;
 use App\Services\DynamicLogger;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -27,7 +29,9 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
      * @param DynamicLogger $logger Logging service for transaction-related events
      */
     public function __construct(
-        private DynamicLogger $logger
+        private ChargebackProcessorInterface $chargebackProcessor,
+        private DynamicLogger                $logger
+
     )
     {
     }
@@ -47,6 +51,12 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
      */
     public function getMerchantTransactions(int $merchantId, array $dateRange, string $currency = null): Collection
     {
+        // First, get all tracked chargeback IDs from our local database for this merchant
+        $trackedChargebacks = DB::table('chargeback_trackings')
+            ->where('merchant_id', $merchantId)
+            ->where('settled', false)  // Only get unresolved chargebacks
+            ->pluck('transaction_id')
+            ->toArray();
         $query = DB::connection('payment_gateway_mysql')
             ->table('transactions')
             ->select([
@@ -77,7 +87,6 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
         $this->logger->log('info', "Found transactions", ['count' => $results->count()]);
         return $results;
     }
-
     /**
      * Calculates comprehensive transaction totals across different currencies.
      *
@@ -131,6 +140,10 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
             $transactionStatus = mb_strtoupper($transaction->transaction_status);
 
             if ($transactionType === 'CHARGEBACK') {
+                // Create ChargebackData and process it
+                $chargebackData = ChargebackData::fromTransaction($transaction, $rate);
+                $this->chargebackProcessor->processChargeback($transaction->account_id, $chargebackData);
+
                 // Handle chargebacks based on status
                 if ($transactionStatus === 'PROCESSING') {
                     $totals[$currency]['processing_chargeback_count']++;
@@ -140,7 +153,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
                 } elseif ($transactionStatus === 'APPROVED') {
                     $totals[$currency]['approved_chargeback_amount'] += $amount;
                     $totals[$currency]['approved_chargeback_amount_eur'] += ($amount * $effectiveRate);
-                }else{
+                } else {
                     $totals[$currency]['declined_chargeback_amount'] += $amount;
                     $totals[$currency]['declined_chargeback_amount_eur'] += ($amount * $effectiveRate);
                 }
@@ -161,9 +174,39 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
         }
 
 
-        $totals[$currency]['exchange_rate'] = $totals[$currency]['total_sales_eur'] / $totals[$currency]['total_sales'];
+        // Replace the direct division with a safer calculation
+        if ($totals[$currency]['total_sales'] > 0) {
+            $totals[$currency]['exchange_rate'] = $totals[$currency]['total_sales_eur'] / $totals[$currency]['total_sales'];
+        } else {
+            // If there are no sales, use the last known exchange rate from the transactions
+            // or default to 1.0 for EUR, or the rate from exchange rates table
+            $totals[$currency]['exchange_rate'] = $currency === 'EUR' ? 1.0 : $this->getLastKnownExchangeRate($currency, $exchangeRates);
+        }
 
         return $totals;
+    }
+
+    /**
+     * Gets the last known exchange rate for a currency from the provided rates
+     *
+     * @param string $currency The currency code
+     * @param array $exchangeRates Array of exchange rates
+     * @return float The exchange rate or 1.0 if not found
+     */
+    private function getLastKnownExchangeRate(string $currency, array $exchangeRates): float
+    {
+        // Try to find any rate for this currency
+        foreach ($exchangeRates as $key => $rate) {
+            if (str_starts_with($key, $currency . '_')) {
+                return $rate;
+            }
+        }
+
+        // Default to 1.0 if no rate found
+        $this->logger->log('warning', 'No exchange rate found for currency', [
+            'currency' => $currency
+        ]);
+        return 1.0;
     }
 
     /**

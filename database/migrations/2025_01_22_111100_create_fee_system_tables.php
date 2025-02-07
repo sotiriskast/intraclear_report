@@ -122,6 +122,28 @@ return new class extends Migration {
             $table->softDeletes();
             $table->foreign('merchant_id')->references('id')->on('merchants');
         });
+
+        Schema::create('chargeback_trackings', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('merchant_id')->constrained('merchants');
+            $table->string('transaction_id');
+            $table->decimal('amount', 10, 2);
+            $table->string('currency', 3);
+            $table->decimal('amount_eur', 10, 2);
+            $table->decimal('exchange_rate', 10, 4);
+            $table->string('initial_status');
+            $table->string('current_status');
+            $table->timestamp('processing_date');
+            $table->timestamp('status_changed_date')->nullable();
+            $table->boolean('settled')->default(false);
+            $table->timestamp('settled_date')->nullable();
+            $table->timestamps();
+            $table->softDeletes();
+
+            $table->index(['merchant_id', 'transaction_id']);
+            $table->index(['current_status', 'settled']);
+            $table->index('processing_date');
+        });
     }
 
     /**
@@ -136,5 +158,7 @@ return new class extends Migration {
         Schema::dropIfExists('merchant_fees');
         Schema::dropIfExists('fee_types');
         Schema::dropIfExists('settlement_reports');
+        Schema::dropIfExists('chargeback_tracking');
+
     }
 };
