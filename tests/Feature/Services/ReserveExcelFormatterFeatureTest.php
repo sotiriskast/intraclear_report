@@ -1,6 +1,6 @@
 <?php
 
-namespace Feature\Services;
+namespace Tests\Feature\Services;
 
 use App\Models\Merchant;
 use App\Models\RollingReserveEntry;
@@ -50,8 +50,8 @@ class ReserveExcelFormatterFeatureTest extends TestCase
         $formatter->formatGeneratedReserves($worksheet, $currencyData, $currentRow);
 
         // Assert
-        $this->assertEquals('Generated Reserve Details', $worksheet->getCell('A1')->getValue());
-        $this->assertEquals('Rolling Reserve', $worksheet->getCell('A3')->getValue());
-        $this->assertEquals(100.00, (float)$worksheet->getCell('E3')->getValue());
+        $this->assertEquals('Generated Reserve Details', $worksheet->getCell('A3')->getValue());
+        $this->assertEquals('Rolling Reserve', $worksheet->getCell('A6')->getValue());
+        $this->assertEquals(100.00, (float)$worksheet->getCell('E6')->getValue());
     }
 }

@@ -34,31 +34,22 @@ class StandardFeeHandlerTest extends TestCase
         );
 
         // Create fee types needed for testing
+
+
+
+
+
+    }
+
+    #[Test]
+    public function it_calculates_mdr_fee_correctly(): void
+    {
         FeeType::create([
             'name' => 'MDR Fee',
             'key' => 'mdr_fee',
             'frequency_type' => 'transaction',
             'is_percentage' => true,
         ]);
-
-        FeeType::create([
-            'name' => 'Transaction Fee',
-            'key' => 'transaction_fee',
-            'frequency_type' => 'transaction',
-            'is_percentage' => false,
-        ]);
-
-        FeeType::create([
-            'name' => 'Monthly Fee',
-            'key' => 'monthly_fee',
-            'frequency_type' => 'monthly',
-            'is_percentage' => false,
-        ]);
-    }
-
-    #[Test]
-    public function it_calculates_mdr_fee_correctly(): void
-    {
         // Arrange
         $merchant = Merchant::create([
             'account_id' => 1,
@@ -97,6 +88,12 @@ class StandardFeeHandlerTest extends TestCase
     #[Test]
     public function it_calculates_transaction_fee_correctly(): void
     {
+        FeeType::create([
+            'name' => 'Transaction Fee',
+            'key' => 'transaction_fee',
+            'frequency_type' => 'transaction',
+            'is_percentage' => false,
+        ]);
         // Arrange
         $merchant = Merchant::create([
             'account_id' => 2,
@@ -170,6 +167,25 @@ class StandardFeeHandlerTest extends TestCase
     #[Test]
     public function it_calculates_multiple_fees_correctly(): void
     {
+
+        FeeType::create([
+            'name' => 'MDR Fee',
+            'key' => 'mdr_fee',
+            'frequency_type' => 'weekly',
+            'is_percentage' => true,
+        ]);
+        FeeType::create([
+            'name' => 'Transaction Fee',
+            'key' => 'transaction_fee',
+            'frequency_type' => 'transaction',
+            'is_percentage' => false,
+        ]);
+        FeeType::create([
+            'name' => 'Monthly Fee',
+            'key' => 'monthly_fee',
+            'frequency_type' => 'monthly',
+            'is_percentage' => true,
+        ]);
         // Arrange
         $merchant = Merchant::create([
             'account_id' => 4,
@@ -182,7 +198,7 @@ class StandardFeeHandlerTest extends TestCase
             'merchant_id' => $merchant->id,
             'mdr_percentage' => 250, // 2.50%
             'transaction_fee' => 35, // 0.35 per transaction
-            'monthly_fee' => 0,
+            'monthly_fee' => 100,
             'rolling_reserve_percentage' => 1000,
             'holding_period_days' => 180
         ]);
@@ -199,7 +215,7 @@ class StandardFeeHandlerTest extends TestCase
         $fees = $this->standardFeeHandler->getStandardFees($merchant->account_id, $transactionData);
 
         // Assert
-        $this->assertCount(2, $fees);
+        $this->assertCount(3, $fees);
 
         $mdrFee = collect($fees)->firstWhere('fee_type', 'MDR Fee');
         $this->assertNotNull($mdrFee);
@@ -207,7 +223,11 @@ class StandardFeeHandlerTest extends TestCase
 
         $transactionFee = collect($fees)->firstWhere('fee_type', 'Transaction Fee');
         $this->assertNotNull($transactionFee);
-        $this->assertEquals(1.75, $transactionFee['fee_amount']); // 0.35 * 5
+        $this->assertEquals(1.75, $transactionFee['fee_amount']);
+
+        $monthlyFee = collect($fees)->firstWhere('fee_type', 'Monthly Fee');
+        $this->assertNotNull($monthlyFee);
+        $this->assertEquals(10.00, $monthlyFee['fee_amount']);
     }
 
     #[Test]

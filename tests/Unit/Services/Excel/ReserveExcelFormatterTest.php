@@ -59,11 +59,11 @@ class ReserveExcelFormatterTest extends TestCase
         $this->formatter->formatGeneratedReserves($this->worksheet, $currencyData, $this->currentRow);
 
         // Assert
-        $this->assertEquals('Generated Reserve Details', $this->worksheet->getCell('A1')->getValue());
-        $this->assertEquals('Type', $this->worksheet->getCell('A2')->getValue());
-        $this->assertEquals('Rolling Reserve', $this->worksheet->getCell('A3')->getValue());
-        $this->assertEquals(100.00, (float)$this->worksheet->getCell('E3')->getValue());
-        $this->assertEquals(85.00, (float)$this->worksheet->getCell('F3')->getValue());
+        $this->assertEquals('Generated Reserve Details', $this->worksheet->getCell('A3')->getValue());
+        $this->assertEquals('Type', $this->worksheet->getCell('A5')->getValue());
+        $this->assertEquals('Rolling Reserve', $this->worksheet->getCell('A6')->getValue());
+        $this->assertEquals(100.00, (float)$this->worksheet->getCell('E6')->getValue());
+        $this->assertEquals(85.00, (float)$this->worksheet->getCell('F6')->getValue());
     }
 
     #[Test]
@@ -107,14 +107,14 @@ class ReserveExcelFormatterTest extends TestCase
         $this->formatter->formatGeneratedReserves($this->worksheet, $currencyData, $this->currentRow);
 
         // Assert
-        $this->assertEquals('Generated Reserve Details', $this->worksheet->getCell('A1')->getValue());
-        $this->assertEquals('Type', $this->worksheet->getCell('A2')->getValue());
-        $this->assertEquals('Rolling Reserve', $this->worksheet->getCell('A3')->getValue());
-        $this->assertEquals(100.00, (float)$this->worksheet->getCell('E3')->getValue());
-        $this->assertEquals(85.00, (float)$this->worksheet->getCell('F3')->getValue());
-        $this->assertEquals('Rolling Reserve', $this->worksheet->getCell('A4')->getValue());
-        $this->assertEquals(200.00, (float)$this->worksheet->getCell('E4')->getValue());
-        $this->assertEquals(170.00, (float)$this->worksheet->getCell('F4')->getValue());
+        $this->assertEquals('Generated Reserve Details', $this->worksheet->getCell('A3')->getValue());
+        $this->assertEquals('Type', $this->worksheet->getCell('A5')->getValue());
+        $this->assertEquals('Rolling Reserve', $this->worksheet->getCell('A6')->getValue());
+        $this->assertEquals(100.00, (float)$this->worksheet->getCell('E6')->getValue());
+        $this->assertEquals(85.00, (float)$this->worksheet->getCell('F6')->getValue());
+        $this->assertEquals('Rolling Reserve', $this->worksheet->getCell('A7')->getValue());
+        $this->assertEquals(200.00, (float)$this->worksheet->getCell('E7')->getValue());
+        $this->assertEquals(170.00, (float)$this->worksheet->getCell('F7')->getValue());
     }
 
     #[Test]
