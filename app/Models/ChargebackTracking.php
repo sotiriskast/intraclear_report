@@ -2,10 +2,11 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\{Model, SoftDeletes};
 use Carbon\Carbon;
-
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
+
 /**
  * ChargebackTracking Model
  *
@@ -42,7 +43,7 @@ class ChargebackTracking extends Model
         'processing_date',
         'status_changed_date',
         'settled',
-        'settled_date'
+        'settled_date',
     ];
 
     protected $casts = [

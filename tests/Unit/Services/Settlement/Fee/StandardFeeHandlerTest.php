@@ -2,30 +2,33 @@
 
 namespace Tests\Unit\Services\Settlement\Fee;
 
-use PHPUnit\Framework\Attributes\Test;
-use Tests\TestCase;
+use App\Models\FeeType;
 use App\Models\Merchant;
 use App\Models\MerchantSetting;
-use App\Models\FeeType;
-use App\Services\Settlement\Fee\StandardFeeHandler;
-use App\Services\DynamicLogger;
-use App\Repositories\MerchantSettingRepository;
 use App\Repositories\MerchantRepository;
+use App\Repositories\MerchantSettingRepository;
+use App\Services\DynamicLogger;
+use App\Services\Settlement\Fee\StandardFeeHandler;
+use PHPUnit\Framework\Attributes\Test;
+use Tests\TestCase;
 
 class StandardFeeHandlerTest extends TestCase
 {
     private StandardFeeHandler $standardFeeHandler;
+
     private MerchantSettingRepository $merchantSettingRepository;
+
     private MerchantRepository $merchantRepository;
+
     private DynamicLogger $logger;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->merchantSettingRepository = new MerchantSettingRepository();
-        $this->merchantRepository = new MerchantRepository();
-        $this->logger = new DynamicLogger();
+        $this->merchantSettingRepository = new MerchantSettingRepository;
+        $this->merchantRepository = new MerchantRepository;
+        $this->logger = new DynamicLogger;
 
         $this->standardFeeHandler = new StandardFeeHandler(
             $this->merchantSettingRepository,
@@ -34,10 +37,6 @@ class StandardFeeHandlerTest extends TestCase
         );
 
         // Create fee types needed for testing
-
-
-
-
 
     }
 
@@ -55,7 +54,7 @@ class StandardFeeHandlerTest extends TestCase
             'account_id' => 1,
             'name' => 'Test Merchant',
             'email' => 'test@example.com',
-            'active' => true
+            'active' => true,
         ]);
 
         MerchantSetting::create([
@@ -64,7 +63,7 @@ class StandardFeeHandlerTest extends TestCase
             'transaction_fee' => 0,
             'monthly_fee' => 0,
             'rolling_reserve_percentage' => 1000,
-            'holding_period_days' => 180
+            'holding_period_days' => 180,
         ]);
 
         $transactionData = [
@@ -72,7 +71,7 @@ class StandardFeeHandlerTest extends TestCase
             'total_sales' => 1000.00,
             'transaction_sales_count' => 1,
             'currency' => 'EUR',
-            'exchange_rate' => 1.0
+            'exchange_rate' => 1.0,
         ];
 
         // Act
@@ -99,7 +98,7 @@ class StandardFeeHandlerTest extends TestCase
             'account_id' => 2,
             'name' => 'Test Merchant 2',
             'email' => 'test2@example.com',
-            'active' => true
+            'active' => true,
         ]);
 
         MerchantSetting::create([
@@ -108,7 +107,7 @@ class StandardFeeHandlerTest extends TestCase
             'transaction_fee' => 35, // 0.35 EUR per transaction
             'monthly_fee' => 0,
             'rolling_reserve_percentage' => 1000,
-            'holding_period_days' => 180
+            'holding_period_days' => 180,
         ]);
 
         $transactionData = [
@@ -116,7 +115,7 @@ class StandardFeeHandlerTest extends TestCase
             'total_sales' => 1000.00,
             'transaction_sales_count' => 5, // 5 transactions
             'currency' => 'EUR',
-            'exchange_rate' => 1.0
+            'exchange_rate' => 1.0,
         ];
 
         // Act
@@ -137,7 +136,7 @@ class StandardFeeHandlerTest extends TestCase
             'account_id' => 3,
             'name' => 'Test Merchant 3',
             'email' => 'test3@example.com',
-            'active' => true
+            'active' => true,
         ]);
 
         MerchantSetting::create([
@@ -146,7 +145,7 @@ class StandardFeeHandlerTest extends TestCase
             'transaction_fee' => 0,
             'monthly_fee' => 0,
             'rolling_reserve_percentage' => 1000,
-            'holding_period_days' => 180
+            'holding_period_days' => 180,
         ]);
 
         $transactionData = [
@@ -154,7 +153,7 @@ class StandardFeeHandlerTest extends TestCase
             'total_sales' => 1000.00,
             'transaction_sales_count' => 1,
             'currency' => 'EUR',
-            'exchange_rate' => 1.0
+            'exchange_rate' => 1.0,
         ];
 
         // Act
@@ -191,7 +190,7 @@ class StandardFeeHandlerTest extends TestCase
             'account_id' => 4,
             'name' => 'Test Merchant 4',
             'email' => 'test4@example.com',
-            'active' => true
+            'active' => true,
         ]);
 
         MerchantSetting::create([
@@ -200,7 +199,7 @@ class StandardFeeHandlerTest extends TestCase
             'transaction_fee' => 35, // 0.35 per transaction
             'monthly_fee' => 100,
             'rolling_reserve_percentage' => 1000,
-            'holding_period_days' => 180
+            'holding_period_days' => 180,
         ]);
 
         $transactionData = [
@@ -208,7 +207,7 @@ class StandardFeeHandlerTest extends TestCase
             'total_sales' => 1000.00,
             'transaction_sales_count' => 5,
             'currency' => 'EUR',
-            'exchange_rate' => 1.0
+            'exchange_rate' => 1.0,
         ];
 
         // Act

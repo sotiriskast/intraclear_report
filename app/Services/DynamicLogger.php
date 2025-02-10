@@ -1,11 +1,11 @@
 <?php
+
 namespace App\Services;
 
-use App\Services\Logging\DebugLogHandler;
-use App\Services\Logging\LogHandlerInterface;
-use App\Services\Logging\InfoLogHandler;
-use App\Services\Logging\ErrorLogHandler;
 use App\Services\Logging\CustomLogHandler;
+use App\Services\Logging\DebugLogHandler;
+use App\Services\Logging\ErrorLogHandler;
+use App\Services\Logging\InfoLogHandler;
 use Illuminate\Support\Facades\Auth;
 
 class DynamicLogger
@@ -16,18 +16,18 @@ class DynamicLogger
     {
         // Predefined handlers
         $this->handlers = [
-            'info' => new InfoLogHandler(),
-            'error' => new ErrorLogHandler(),
-            'debug' => new DebugLogHandler(),
+            'info' => new InfoLogHandler,
+            'error' => new ErrorLogHandler,
+            'debug' => new DebugLogHandler,
         ];
     }
 
     /**
      * Logs a message with a specified level and context.
      *
-     * @param string $level The log level (e.g., info, error, debug).
-     * @param string $message The log message.
-     * @param array $context Additional context for the log entry.
+     * @param  string  $level  The log level (e.g., info, error, debug).
+     * @param  string  $message  The log message.
+     * @param  array  $context  Additional context for the log entry.
      */
     public function log(string $level, string $message, array $context = []): void
     {
@@ -38,7 +38,7 @@ class DynamicLogger
     /**
      * Adds default context, including authenticated user details.
      *
-     * @param array $context The original log context.
+     * @param  array  $context  The original log context.
      * @return array The updated context with default metadata.
      */
     protected function addAuthUserContext(array $context): array

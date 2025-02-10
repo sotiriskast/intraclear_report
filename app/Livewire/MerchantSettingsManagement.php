@@ -3,8 +3,8 @@
 namespace App\Livewire;
 
 use App\Models\MerchantSetting;
-use App\Repositories\MerchantSettingRepository;
 use App\Repositories\MerchantRepository;
+use App\Repositories\MerchantSettingRepository;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -15,26 +15,45 @@ class MerchantSettingsManagement extends Component
     use WithPagination;
 
     public $merchants;
+
     public $selectedMerchantId;
+
     public $rollingReservePercentage = 10;
+
     public $holdingPeriodDays = 180;
+
     public $mdrPercentage = 5;
+
     public $transactionFee = 0.35;
+
     public $declinedFee = 0.25;
+
     public $payoutFee = 1;
+
     public $refundFee = 1.25;
+
     public $chargebackFee = 25;
+
     public $monthlyFee = 150;
+
     public $mastercardHighRiskFee = 500;
+
     public $visaHighRiskFee = 450;
+
     public $setupFee = 500;
+
     public $setupFeeCharged = false;
+
     public $active = true;
+
     public $showCreateModal = false;
+
     public $editSettingId = null;
 
     private $merchantSettingRepository;
+
     private $merchantRepository;
+
     protected function rules()
     {
         return [
@@ -57,9 +76,8 @@ class MerchantSettingsManagement extends Component
 
     public function boot(
         MerchantSettingRepository $merchantSettingRepository,
-        MerchantRepository        $merchantRepository
-    )
-    {
+        MerchantRepository $merchantRepository
+    ) {
         $this->merchantSettingRepository = $merchantSettingRepository;
         $this->merchantRepository = $merchantRepository;
     }
@@ -77,12 +95,13 @@ class MerchantSettingsManagement extends Component
 
     public function create()
     {
-        //Double check if is already exists
+        // Double check if is already exists
         $existingSetting = MerchantSetting::where('merchant_id', $this->selectedMerchantId)
             ->exists();
 
         if ($existingSetting) {
             session()->flash('error', 'A merchant setting already exists and cannot be created again.');
+
             return;
         }
         $this->validate();
@@ -180,7 +199,7 @@ class MerchantSettingsManagement extends Component
             'setupFeeCharged',
             'active',
             'showCreateModal',
-            'editSettingId'
+            'editSettingId',
         ]);
     }
 
@@ -189,7 +208,7 @@ class MerchantSettingsManagement extends Component
         $merchantSettings = $this->merchantSettingRepository->getAll(['merchant']);
 
         return view('livewire.merchant-settings-management', [
-            'merchantSettings' => $merchantSettings
+            'merchantSettings' => $merchantSettings,
         ]);
     }
 }

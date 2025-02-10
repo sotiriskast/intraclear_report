@@ -12,13 +12,11 @@ use Illuminate\Database\Eloquent\Collection;
 class RollingReserveRepository implements RollingReserveRepositoryInterface
 {
     public function __construct(
-        private DynamicLogger      $logger,
+        private DynamicLogger $logger,
         private MerchantRepository $merchantRepository,
-    )
-    {
-    }
+    ) {}
 
-    public function getMerchantReserveSettings(int $merchantId, string $currency, string $date = null)
+    public function getMerchantReserveSettings(int $merchantId, string $currency, ?string $date = null)
     {
         $merchantId = $this->merchantRepository->getMerchantIdByAccountId($merchantId);
         $query = MerchantRollingReserve::where('merchant_id', $merchantId)
@@ -37,10 +35,9 @@ class RollingReserveRepository implements RollingReserveRepositoryInterface
     }
 
     public function getReleaseableFunds(
-        int                    $merchantId,
+        int $merchantId,
         string|CarbonInterface $date
-    ): Collection
-    {
+    ): Collection {
         try {
             $query = RollingReserveEntry::query()
                 ->where('merchant_id', $merchantId)
@@ -53,7 +50,7 @@ class RollingReserveRepository implements RollingReserveRepositoryInterface
             $this->logger->log('info', 'Retrieved releaseable funds', [
                 'merchant_id' => $merchantId,
                 'date' => $date,
-                'count' => $releases->count()
+                'count' => $releases->count(),
             ]);
 
             return $releases;
@@ -61,7 +58,7 @@ class RollingReserveRepository implements RollingReserveRepositoryInterface
             $this->logger->log('error', 'Error retrieving releaseable funds', [
                 'merchant_id' => $merchantId,
                 'date' => $date,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
             throw $e;
         }
@@ -80,14 +77,14 @@ class RollingReserveRepository implements RollingReserveRepositoryInterface
 
             $this->logger->log('info', 'Marked reserves as released', [
                 'entry_ids' => $entryIds,
-                'affected_count' => $affected
+                'affected_count' => $affected,
             ]);
 
             return $affected;
         } catch (\Exception $e) {
             $this->logger->log('error', 'Error marking reserves as released', [
                 'entry_ids' => $entryIds,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
             throw $e;
         }
@@ -105,8 +102,9 @@ class RollingReserveRepository implements RollingReserveRepositoryInterface
             if ($existing) {
                 $this->logger->log('info', 'Reserve entry already exists for this period', [
                     'merchant_id' => $data['merchant_id'],
-                    'period' => $data['period_start'] . ' to ' . $data['period_end']
+                    'period' => $data['period_start'].' to '.$data['period_end'],
                 ]);
+
                 return $existing;
             }
 
@@ -114,7 +112,7 @@ class RollingReserveRepository implements RollingReserveRepositoryInterface
         } catch (\Exception $e) {
             $this->logger->log('error', 'Failed to create reserve entry', [
                 'data' => $data,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
             throw $e;
         }

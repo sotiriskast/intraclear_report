@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Services\Logging;
 
 use Illuminate\Support\Facades\Log;

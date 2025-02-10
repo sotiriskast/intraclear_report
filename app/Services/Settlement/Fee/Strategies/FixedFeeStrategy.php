@@ -2,8 +2,8 @@
 
 namespace App\Services\Settlement\Fee\Strategies;
 
-use App\Services\Settlement\Fee\Strategies\interfaces\FeeCalculationStrategy;
 use App\DTO\TransactionData;
+use App\Services\Settlement\Fee\Strategies\interfaces\FeeCalculationStrategy;
 
 /**
  * Strategy for calculating fixed fees
@@ -16,8 +16,8 @@ class FixedFeeStrategy implements FeeCalculationStrategy
      * Calculate a fixed fee amount
      * Simply converts the amount from smallest currency unit (cents) to base currency
      *
-     * @param TransactionData $transactionData DTO containing transaction details (unused in fixed fee calculation)
-     * @param int $amount Fee amount in smallest currency unit (cents)
+     * @param  TransactionData  $transactionData  DTO containing transaction details (unused in fixed fee calculation)
+     * @param  int  $amount  Fee amount in smallest currency unit (cents)
      * @return float Fixed fee amount in base currency
      */
     public function calculate(TransactionData $transactionData, int $amount): float

@@ -2,8 +2,8 @@
 
 namespace Tests\Unit;
 
-use Tests\TestCase;
 use App\Models\FeeType;
+use Tests\TestCase;
 
 class FeeTypeTest extends TestCase
 {
@@ -18,7 +18,7 @@ class FeeTypeTest extends TestCase
 
         $this->assertDatabaseHas('fee_types', [
             'name' => 'Test Fee',
-            'key' => 'test_fee'
+            'key' => 'test_fee',
         ]);
     }
 }

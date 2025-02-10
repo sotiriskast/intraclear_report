@@ -24,7 +24,7 @@ class CheckRoleMiddlewareTest extends TestCase
 
     public function test_super_admin_can_access_protected_route()
     {
-        $middleware = new CheckRole();
+        $middleware = new CheckRole;
 
         // Create a super-admin user
         $user = User::factory()->create();
@@ -32,7 +32,7 @@ class CheckRoleMiddlewareTest extends TestCase
 
         // Mock a request
         $request = Request::create('/test-protected-route', 'GET');
-        $request->setUserResolver(fn() => $user);
+        $request->setUserResolver(fn () => $user);
 
         // Pass the request through the middleware
         $response = $middleware->handle($request, function () {
@@ -46,7 +46,7 @@ class CheckRoleMiddlewareTest extends TestCase
 
     public function test_admin_can_access_protected_route()
     {
-        $middleware = new CheckRole();
+        $middleware = new CheckRole;
 
         // Create an admin user
         $user = User::factory()->create();
@@ -54,7 +54,7 @@ class CheckRoleMiddlewareTest extends TestCase
 
         // Mock a request
         $request = Request::create('/test-protected-route', 'GET');
-        $request->setUserResolver(fn() => $user);
+        $request->setUserResolver(fn () => $user);
 
         // Pass the request through the middleware
         $response = $middleware->handle($request, function () {
@@ -68,14 +68,14 @@ class CheckRoleMiddlewareTest extends TestCase
 
     public function test_user_without_role_is_rejected()
     {
-        $middleware = new CheckRole();
+        $middleware = new CheckRole;
 
         // Create a user without any role
         $user = User::factory()->create();
 
         // Mock a request
         $request = Request::create('/test-protected-route', 'GET');
-        $request->setUserResolver(fn() => $user);
+        $request->setUserResolver(fn () => $user);
 
         // Expect the middleware to throw an exception
         $this->expectException(\Symfony\Component\HttpKernel\Exception\HttpException::class);
@@ -88,11 +88,11 @@ class CheckRoleMiddlewareTest extends TestCase
 
     public function test_unauthenticated_user_is_rejected()
     {
-        $middleware = new CheckRole();
+        $middleware = new CheckRole;
 
         // Mock a request with no authenticated user
         $request = Request::create('/test-protected-route', 'GET');
-        $request->setUserResolver(fn() => null);
+        $request->setUserResolver(fn () => null);
 
         // Expect the middleware to throw an exception
         $this->expectException(\Symfony\Component\HttpKernel\Exception\HttpException::class);

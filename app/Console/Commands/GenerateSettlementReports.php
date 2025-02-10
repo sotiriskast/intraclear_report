@@ -30,13 +30,11 @@ class GenerateSettlementReports extends Command
      */
     protected $description = 'Generate settlement reports for merchants';
 
-
     public function __construct(
-        private SettlementService  $settlementService,
+        private SettlementService $settlementService,
         private ExcelExportService $excelService,
-        private DynamicLogger      $logger
-    )
-    {
+        private DynamicLogger $logger
+    ) {
         parent::__construct();
 
     }
@@ -72,6 +70,7 @@ class GenerateSettlementReports extends Command
 
                 if (empty($shopData)) {
                     $this->warn("No data found for merchant ID: {$merchant->account_id}");
+
                     continue;
                 }
 
@@ -90,13 +89,13 @@ class GenerateSettlementReports extends Command
                             'corp_name' => $shop['corp_name'],
                             'shop_id' => $shop['shop_id'],
                             'transactions_by_currency' => [
-                                array_merge(['currency' => $currency], $settlementInfo)
-                            ]
+                                array_merge(['currency' => $currency], $settlementInfo),
+                            ],
                         ];
                     }
                 }
 
-                if (!empty($settlementData['data'])) {
+                if (! empty($settlementData['data'])) {
                     $filePath = $this->excelService->generateReport(
                         $merchant->account_id,
                         $settlementData,
@@ -111,13 +110,14 @@ class GenerateSettlementReports extends Command
             }
 
             $this->info('All reports generated successfully');
+
             return 0;
 
         } catch (\Exception $e) {
             $this->error("Error generating reports: {$e->getMessage()}");
-            $this->logger->log('error', "Settlement report generation failed", [
+            $this->logger->log('error', 'Settlement report generation failed', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
             throw $e;
         }
@@ -146,7 +146,7 @@ class GenerateSettlementReports extends Command
                 'shop.owner_name as corp_name',
             ])
             ->where('shop.account_id', $merchantId)
-            ->whereExists(function ($query) use ($merchantId, $dateRange) {
+            ->whereExists(function ($query) use ($dateRange) {
                 $query->select(DB::raw(1))
                     ->from('transactions')
                     ->whereColumn('transactions.shop_id', 'shop.id')
@@ -185,7 +185,7 @@ class GenerateSettlementReports extends Command
                 'start_date' => $dateRange['start'],
                 'end_date' => $dateRange['end'],
                 'created_at' => now(),
-                'updated_at' => now()
+                'updated_at' => now(),
             ]);
     }
 }

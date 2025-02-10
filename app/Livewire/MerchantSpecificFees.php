@@ -1,25 +1,35 @@
 <?php
+
 namespace App\Livewire;
 
+use App\Models\FeeType;
+use App\Models\Merchant;
+use App\Models\MerchantFee;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
-use App\Models\Merchant;
-use App\Models\FeeType;
-use App\Models\MerchantFee;
+
 #[Layout('layouts.app')]
 class MerchantSpecificFees extends Component
 {
     use WithPagination;
 
     public $merchant;
+
     public $feeTypes;
+
     public $selectedFeeTypeId;
+
     public $amount;
+
     public $effectiveFrom;
+
     public $effectiveTo;
+
     public $active = true;
+
     public $showCreateModal = false;
+
     public $editMerchantFeeId = null;
 
     protected $rules = [
@@ -53,7 +63,7 @@ class MerchantSpecificFees extends Component
             'amount' => $this->amount,
             'effective_from' => $this->effectiveFrom,
             'effective_to' => $this->effectiveTo,
-            'active' => $this->active
+            'active' => $this->active,
         ]);
 
         session()->flash('message', 'Merchant fee created successfully.');
@@ -108,7 +118,7 @@ class MerchantSpecificFees extends Component
             'effectiveFrom',
             'effectiveTo',
             'showCreateModal',
-            'editMerchantFeeId'
+            'editMerchantFeeId',
         ]);
         $this->effectiveFrom = now()->format('Y-m-d');
     }
@@ -121,7 +131,7 @@ class MerchantSpecificFees extends Component
             ->paginate(10);
 
         return view('livewire.merchant-specific-fees', [
-            'merchantFees' => $merchantFees
+            'merchantFees' => $merchantFees,
         ]);
     }
 }

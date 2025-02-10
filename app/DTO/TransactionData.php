@@ -5,47 +5,64 @@ namespace App\DTO;
 readonly class TransactionData
 {
     public const TOTAL_SALES_EUR = 'total_sales_eur';
+
     public const TOTAL_SALES = 'total_sales';
+
     public const TRANSACTION_SALES_COUNT = 'transaction_sales_count';
+
     public const TOTAL_DECLINED_SALES = 'total_declined_sales';
+
     public const TOTAL_DECLINED_SALES_EUR = 'total_declined_sales_eur';
+
     public const TRANSACTION_DECLINED_COUNT = 'transaction_declined_count';
+
     public const TOTAL_REFUNDS = 'total_refunds';
+
     public const TOTAL_REFUNDS_EUR = 'total_refunds_eur';
+
     public const TRANSACTION_REFUNDS_COUNT = 'transaction_refunds_count';
+
     public const TOTAL_CHARGEBACK_COUNT = 'total_chargeback_count';
+
     public const PROCESSING_CHARGEBACK_COUNT = 'processing_chargeback_count';
+
     public const PROCESSING_CHARGEBACK_AMOUNT = 'processing_chargeback_amount';
+
     public const PROCESSING_CHARGEBACK_AMOUNT_EUR = 'processing_chargeback_amount_eur';
+
     public const APPROVED_CHARGEBACK_COUNT = 'approved_chargeback_count';
+
     public const APPROVED_CHARGEBACK_AMOUNT = 'approved_chargeback_amount';
+
     public const DECLINED_CHARGEBACK_COUNT = 'declined_chargeback_count';
+
     public const DECLINED_CHARGEBACK_AMOUNT = 'declined_chargeback_amount';
+
     public const CURRENCY = 'currency';
+
     public const EXCHANGE_RATE = 'exchange_rate';
 
     public function __construct(
-        public float  $totalSalesEur = 0,
-        public float  $totalSales = 0,
-        public int    $transactionSalesCount = 0,
-        public float  $totalDeclinedSales = 0,
-        public float  $totalDeclinedSalesEur = 0,
-        public int    $transactionDeclinedCount = 0,
-        public float  $totalRefunds = 0,
-        public float  $totalRefundsEur = 0,
-        public int    $transactionRefundsCount = 0,
-        public int    $totalChargebackCount = 0,
-        public int    $processingChargebackCount = 0,
-        public float  $processingChargebackAmount = 0,
-        public float  $processingChargebackAmountEur = 0,
-        public int    $approvedChargebackCount = 0,
-        public float  $approvedChargebackAmount = 0,
-        public int    $declinedChargebackCount = 0,
-        public float  $declinedChargebackAmount = 0,
+        public float $totalSalesEur = 0,
+        public float $totalSales = 0,
+        public int $transactionSalesCount = 0,
+        public float $totalDeclinedSales = 0,
+        public float $totalDeclinedSalesEur = 0,
+        public int $transactionDeclinedCount = 0,
+        public float $totalRefunds = 0,
+        public float $totalRefundsEur = 0,
+        public int $transactionRefundsCount = 0,
+        public int $totalChargebackCount = 0,
+        public int $processingChargebackCount = 0,
+        public float $processingChargebackAmount = 0,
+        public float $processingChargebackAmountEur = 0,
+        public int $approvedChargebackCount = 0,
+        public float $approvedChargebackAmount = 0,
+        public int $declinedChargebackCount = 0,
+        public float $declinedChargebackAmount = 0,
         public string $currency = 'EUR',
-        public float  $exchangeRate = 1.0
-    ) {
-    }
+        public float $exchangeRate = 1.0
+    ) {}
 
     public static function initialize(string $currency): self
     {
@@ -98,7 +115,7 @@ readonly class TransactionData
             self::DECLINED_CHARGEBACK_COUNT => $this->declinedChargebackCount,
             self::DECLINED_CHARGEBACK_AMOUNT => $this->declinedChargebackAmount,
             self::CURRENCY => $this->currency,
-            self::EXCHANGE_RATE => $this->exchangeRate
+            self::EXCHANGE_RATE => $this->exchangeRate,
         ];
     }
 }

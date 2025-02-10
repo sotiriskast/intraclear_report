@@ -2,17 +2,15 @@
 
 namespace Tests\Unit\Services\Settlement\Fee;
 
-use App\Models\FeeType;
 use App\Repositories\Interfaces\FeeRepositoryInterface;
+use App\Services\DynamicLogger;
+use App\Services\Settlement\Fee\FeeService;
 use App\Services\Settlement\Fee\interfaces\CustomFeeHandlerInterface;
 use App\Services\Settlement\Fee\interfaces\FeeFrequencyHandlerInterface;
 use App\Services\Settlement\Fee\interfaces\StandardFeeHandlerInterface;
 use Mockery;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
-use App\Services\Settlement\Fee\FeeService;
-use App\Services\DynamicLogger;
-
 
 class FeeServiceTest extends TestCase
 {
@@ -59,6 +57,7 @@ class FeeServiceTest extends TestCase
             ->zeroOrMoreTimes()
             ->andReturn(null);
     }
+
     #[Test]
     public function it_calculates_standard_fees_correctly(): void
     {
@@ -68,11 +67,11 @@ class FeeServiceTest extends TestCase
             'total_sales' => 1000.00,
             'transaction_sales_count' => 2,
             'currency' => 'EUR',
-            'exchange_rate' => 1.0
+            'exchange_rate' => 1.0,
         ];
         $dateRange = [
             'start' => '2025-01-01',
-            'end' => '2025-01-31'
+            'end' => '2025-01-31',
         ];
         $this->setupLoggerExpectations(1, 2, 0);
         $this->standardFeeHandler
@@ -84,14 +83,14 @@ class FeeServiceTest extends TestCase
                     'fee_type' => 'MDR Fee',
                     'fee_type_id' => 1,
                     'fee_amount' => 25.00,
-                    'frequency' => 'transaction'
+                    'frequency' => 'transaction',
                 ],
                 [
                     'fee_type' => 'Transaction Fee',
                     'fee_type_id' => 2,
                     'fee_amount' => 0.70,
-                    'frequency' => 'transaction'
-                ]
+                    'frequency' => 'transaction',
+                ],
             ]);
         $this->frequencyHandler
             ->shouldReceive('shouldApplyFee')
@@ -118,6 +117,7 @@ class FeeServiceTest extends TestCase
         $this->assertNotNull($transactionFee);
         $this->assertEquals(0.70, $transactionFee['fee_amount']);
     }
+
     #[Test]
     public function it_handles_multiple_currencies_correctly(): void
     {
@@ -127,12 +127,12 @@ class FeeServiceTest extends TestCase
             'total_sales' => 1000.00,
             'transaction_sales_count' => 1,
             'currency' => 'USD',
-            'exchange_rate' => 1.2
+            'exchange_rate' => 1.2,
         ];
 
         $dateRange = [
             'start' => '2025-01-01',
-            'end' => '2025-01-31'
+            'end' => '2025-01-31',
         ];
 
         $this->setupLoggerExpectations(2, 1, 0);
@@ -146,8 +146,8 @@ class FeeServiceTest extends TestCase
                     'fee_type' => 'MDR Fee',
                     'fee_type_id' => 1,
                     'fee_amount' => 30.00,
-                    'frequency' => 'transaction'
-                ]
+                    'frequency' => 'transaction',
+                ],
             ]);
 
         $this->frequencyHandler
@@ -169,6 +169,7 @@ class FeeServiceTest extends TestCase
         $this->assertNotNull($mdrFee);
         $this->assertEquals(30.00, $mdrFee['fee_amount']);
     }
+
     #[Test]
     public function it_handles_zero_transaction_amounts(): void
     {
@@ -178,12 +179,12 @@ class FeeServiceTest extends TestCase
             'total_sales' => 0,
             'transaction_sales_count' => 0,
             'currency' => 'EUR',
-            'exchange_rate' => 1.0
+            'exchange_rate' => 1.0,
         ];
 
         $dateRange = [
             'start' => '2025-01-01',
-            'end' => '2025-01-31'
+            'end' => '2025-01-31',
         ];
 
         $this->setupLoggerExpectations(3, 2, 0);
@@ -197,14 +198,14 @@ class FeeServiceTest extends TestCase
                     'fee_type' => 'Monthly Fee',
                     'fee_type_id' => 3,
                     'fee_amount' => 150.00,
-                    'frequency' => 'monthly'
+                    'frequency' => 'monthly',
                 ],
                 [
                     'fee_type' => 'MDR Fee',
                     'fee_type_id' => 1,
                     'fee_amount' => 0,
-                    'frequency' => 'transaction'
-                ]
+                    'frequency' => 'transaction',
+                ],
             ]);
 
         $this->frequencyHandler
@@ -242,12 +243,12 @@ class FeeServiceTest extends TestCase
             'total_sales' => 1000.00,
             'transaction_sales_count' => 1,
             'currency' => 'EUR',
-            'exchange_rate' => 1.0
+            'exchange_rate' => 1.0,
         ];
 
         $dateRange = [
             'start' => '2025-01-01',
-            'end' => '2025-01-31'
+            'end' => '2025-01-31',
         ];
 
         $this->standardFeeHandler

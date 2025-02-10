@@ -2,21 +2,21 @@
 
 namespace Tests\Unit\Services\Settlement\Fee;
 
+use App\Repositories\FeeRepository;
+use App\Services\Settlement\Fee\FeeFrequencyHandler;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
-use App\Services\Settlement\Fee\FeeFrequencyHandler;
-use App\Repositories\FeeRepository;
-use Carbon\Carbon;
 
 class FeeFrequencyHandlerTest extends TestCase
 {
     private FeeFrequencyHandler $handler;
+
     private FeeRepository $feeRepository;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->feeRepository = new FeeRepository(new \App\Repositories\MerchantRepository());
+        $this->feeRepository = new FeeRepository(new \App\Repositories\MerchantRepository);
         $this->handler = new FeeFrequencyHandler($this->feeRepository);
     }
 

@@ -2,8 +2,9 @@
 
 namespace App\Services\Chargeback\Interfaces;
 
-use App\DTO\ChargebackData ;
+use App\DTO\ChargebackData;
 use App\Enums\ChargebackStatus;
+
 /**
  * Interface for processing individual chargebacks
  */
@@ -19,4 +20,3 @@ interface ChargebackProcessorInterface
      */
     public function handleStatusChange(string $transactionId, ChargebackStatus $newStatus): void;
 }
-

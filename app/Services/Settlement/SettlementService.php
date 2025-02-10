@@ -2,10 +2,10 @@
 
 namespace App\Services\Settlement;
 
+use App\Repositories\Interfaces\TransactionRepositoryInterface;
 use App\Services\Chargeback\Interfaces\ChargebackSettlementInterface;
 use App\Services\DynamicLogger;
 use App\Services\Settlement\Fee\FeeService;
-use App\Repositories\Interfaces\TransactionRepositoryInterface;
 use App\Services\Settlement\Reserve\RollingReserveHandler;
 
 /**
@@ -21,8 +21,6 @@ use App\Services\Settlement\Reserve\RollingReserveHandler;
  * - Uses readonly class to ensure immutability of dependencies
  * - Comprehensive error logging
  * - Detailed settlement calculations
- *
- * @package App\Services\Settlement
  */
 readonly class SettlementService
 {
@@ -32,22 +30,20 @@ readonly class SettlementService
      * Uses PHP 8.4 readonly class feature to enforce immutability of
      * service dependencies.
      *
-     * @param TransactionRepositoryInterface $transactionRepository Repository for fetching transaction data
-     * @param ChargebackSettlementInterface $chargebackSettlement Service for fetching transaction data
-     * @param RollingReserveHandler $rollingReserveHandler Service to manage rolling reserves
-     * @param DynamicLogger $logger Logging service for tracking settlement processes
-     * @param FeeService $feeService Service for calculating merchant fees
+     * @param  TransactionRepositoryInterface  $transactionRepository  Repository for fetching transaction data
+     * @param  ChargebackSettlementInterface  $chargebackSettlement  Service for fetching transaction data
+     * @param  RollingReserveHandler  $rollingReserveHandler  Service to manage rolling reserves
+     * @param  DynamicLogger  $logger  Logging service for tracking settlement processes
+     * @param  FeeService  $feeService  Service for calculating merchant fees
      */
     public function __construct(
         private TransactionRepositoryInterface $transactionRepository,
-        private ChargebackSettlementInterface  $chargebackSettlement,
-        private RollingReserveHandler          $rollingReserveHandler,
-        private DynamicLogger                  $logger,
-        private FeeService                     $feeService,
+        private ChargebackSettlementInterface $chargebackSettlement,
+        private RollingReserveHandler $rollingReserveHandler,
+        private DynamicLogger $logger,
+        private FeeService $feeService,
 
-    )
-    {
-    }
+    ) {}
 
     /**
      * Generates a comprehensive settlement report for a merchant.
@@ -61,10 +57,9 @@ readonly class SettlementService
      * 6. Process rolling reserves
      * 7. Compile and return settlement details
      *
-     * @param int $merchantId Unique identifier of the merchant
-     * @param array $dateRange Associative array containing 'start' and 'end' dates
-     * @param string $currency Currency code for the settlement
-     *
+     * @param  int  $merchantId  Unique identifier of the merchant
+     * @param  array  $dateRange  Associative array containing 'start' and 'end' dates
+     * @param  string  $currency  Currency code for the settlement
      * @return array Comprehensive settlement report with various financial metrics
      *
      * @throws \Exception If any part of the settlement generation fails
@@ -76,7 +71,7 @@ readonly class SettlementService
             $this->logger->log('info', 'Starting settlement generation', [
                 'merchant_id' => $merchantId,
                 'currency' => $currency,
-                'date_range' => $dateRange
+                'date_range' => $dateRange,
             ]);
             // Retrieve merchant transactions for the specified period
             $transactions = $this->transactionRepository->getMerchantTransactions(
@@ -87,7 +82,7 @@ readonly class SettlementService
             $this->logger->log('info', 'Retrieved merchant transactions', [
                 'merchant_id' => $merchantId,
                 'currency' => $currency,
-                'transaction_count' => $transactions->count()
+                'transaction_count' => $transactions->count(),
             ]);
 
             // Fetch and calculate exchange rates
@@ -97,7 +92,7 @@ readonly class SettlementService
             );
             $this->logger->log('info', 'Calculated exchange rates', [
                 'merchant_id' => $merchantId,
-                'currency' => $currency
+                'currency' => $currency,
             ]);
 
             // Calculate transaction totals
@@ -107,7 +102,7 @@ readonly class SettlementService
             );
             $this->logger->log('info', 'Calculated transaction totals', [
                 'merchant_id' => $merchantId,
-                'currency' => $currency
+                'currency' => $currency,
             ]);
 
             // Calculate merchant fees
@@ -130,7 +125,6 @@ readonly class SettlementService
                 $dateRange
             );
 
-
             // Compile and return comprehensive settlement report
             return [
                 // Sales metrics
@@ -150,8 +144,8 @@ readonly class SettlementService
                 'total_processing_chargeback_amount_eur' => $currencyTotals['processing_chargeback_amount_eur'] ?? 0,
 
                 // Chargeback approved
-                'total_approved_chargeback_amount' => (float)($currencyTotals['approved_chargeback_amount'] ?? 0 + $chargebackSettlements['approved_refunds'] ?? 0),
-                'total_approved_chargeback_amount_eur' => (float)($currencyTotals['approved_chargeback_amount_eur'] ?? 0 + $chargebackSettlements['approved_refunds_eur'] ?? 0),
+                'total_approved_chargeback_amount' => (float) ($currencyTotals['approved_chargeback_amount'] ?? 0 + $chargebackSettlements['approved_refunds'] ?? 0),
+                'total_approved_chargeback_amount_eur' => (float) ($currencyTotals['approved_chargeback_amount_eur'] ?? 0 + $chargebackSettlements['approved_refunds_eur'] ?? 0),
 
                 // Chargeback declined
                 'total_declined_chargeback_amount' => $currencyTotals['declined_chargeback_amount'] ?? 0,
@@ -168,8 +162,9 @@ readonly class SettlementService
                 'fees' => $fees,
                 'rolling_reserve' => $reserveProcessing['new_reserve'],
                 'releaseable_reserve' => $reserveProcessing['released_reserves'],
+                'rolling_reserved_percentage' => $reserveProcessing['reserved_percentage'],
                 'chargebackSettlement' => $chargebackSettlements,
-                'exchange_rate' => $currencyTotals['exchange_rate'] ?? 1.0
+                'exchange_rate' => $currencyTotals['exchange_rate'] ?? 1.0,
             ];
 
         } catch (\Exception $e) {
@@ -178,7 +173,7 @@ readonly class SettlementService
                 'merchant_id' => $merchantId,
                 'currency' => $currency,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
 
             // Rethrow the exception for higher-level error handling

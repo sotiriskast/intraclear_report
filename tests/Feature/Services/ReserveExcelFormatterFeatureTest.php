@@ -19,10 +19,10 @@ class ReserveExcelFormatterFeatureTest extends TestCase
         $merchant = Merchant::query()->create([
             'account_id' => 1,
             'name' => 'Test Merchant',
-            'active' => true
+            'active' => true,
         ]);
         // Arrange
-        $reserve = new RollingReserveEntry();
+        $reserve = new RollingReserveEntry;
         $reserve->forceFill([
             'merchant_id' => $merchant->id,
             'original_amount' => 10000,
@@ -32,17 +32,17 @@ class ReserveExcelFormatterFeatureTest extends TestCase
             'period_end' => '2025-01-31',
             'release_due_date' => '2025-07-31',
             'exchange_rate' => '0.8',
-            'status' => 'pending'
+            'status' => 'pending',
         ]);
         $reserve->save();
 
         $currencyData = [
             'currency' => 'USD',
-            'rolling_reserve' => $reserve
+            'rolling_reserve' => $reserve,
         ];
 
         $formatter = app(ReserveExcelFormatter::class);
-        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet;
         $worksheet = $spreadsheet->getActiveSheet();
         $currentRow = 1;
 
@@ -52,6 +52,6 @@ class ReserveExcelFormatterFeatureTest extends TestCase
         // Assert
         $this->assertEquals('Generated Reserve Details', $worksheet->getCell('A3')->getValue());
         $this->assertEquals('Rolling Reserve', $worksheet->getCell('A6')->getValue());
-        $this->assertEquals(100.00, (float)$worksheet->getCell('E6')->getValue());
+        $this->assertEquals(100.00, (float) $worksheet->getCell('E6')->getValue());
     }
 }

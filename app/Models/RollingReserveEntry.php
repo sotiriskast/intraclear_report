@@ -2,17 +2,17 @@
 
 namespace App\Models;
 
+use App\Observers\RollingReserveEntryObserver;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use App\Observers\RollingReserveEntryObserver;
 
 #[ObservedBy([RollingReserveEntryObserver::class])]
 class RollingReserveEntry extends Model
 {
-    use SoftDeletes, HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'merchant_id',
@@ -26,7 +26,7 @@ class RollingReserveEntry extends Model
         'released_at',
         'status',
         'created_at',
-        'updated_at'
+        'updated_at',
     ];
 
     protected $casts = [
@@ -40,7 +40,6 @@ class RollingReserveEntry extends Model
         'reserve_amount_eur' => 'integer',
         'exchange_rate' => 'decimal',
     ];
-
 
     public function merchant(): BelongsTo
     {

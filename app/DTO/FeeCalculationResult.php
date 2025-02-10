@@ -7,10 +7,10 @@ readonly class FeeCalculationResult
     public function __construct(
         public string $feeType,
         public string $feeRate,
-        public float  $feeAmount,
+        public float $feeAmount,
         public string $frequency,
-        public bool   $isPercentage,
-        public array  $transactionData
+        public bool $isPercentage,
+        public array $transactionData
     ) {}
 
     public function toArray(): array
@@ -21,7 +21,7 @@ readonly class FeeCalculationResult
             'fee_amount' => $this->feeAmount,
             'frequency' => $this->frequency,
             'is_percentage' => $this->isPercentage,
-            'transactionData' => $this->transactionData
+            'transactionData' => $this->transactionData,
         ];
     }
 }

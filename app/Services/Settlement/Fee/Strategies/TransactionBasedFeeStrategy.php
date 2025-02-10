@@ -2,8 +2,8 @@
 
 namespace App\Services\Settlement\Fee\Strategies;
 
-use App\Services\Settlement\Fee\Strategies\interfaces\FeeCalculationStrategy;
 use App\DTO\TransactionData;
+use App\Services\Settlement\Fee\Strategies\interfaces\FeeCalculationStrategy;
 
 /**
  * Strategy for calculating transaction-based fees
@@ -18,8 +18,8 @@ class TransactionBasedFeeStrategy implements FeeCalculationStrategy
      * Formula: (fee amount in base currency) * (number of successful sales transactions)
      * The fee amount is converted from cents to base currency by dividing by 100
      *
-     * @param TransactionData $transactionData DTO containing transaction details including sales count
-     * @param int $amount Fee amount per transaction in smallest currency unit (cents)
+     * @param  TransactionData  $transactionData  DTO containing transaction details including sales count
+     * @param  int  $amount  Fee amount per transaction in smallest currency unit (cents)
      * @return float Total transaction fees in base currency
      */
     public function calculate(TransactionData $transactionData, int $amount): float

@@ -2,8 +2,8 @@
 
 namespace App\Services\Settlement\Fee\Strategies;
 
-use App\Services\Settlement\Fee\Strategies\interfaces\FeeCalculationStrategy;
 use App\DTO\TransactionData;
+use App\Services\Settlement\Fee\Strategies\interfaces\FeeCalculationStrategy;
 
 /**
  * Strategy for calculating chargeback fees
@@ -17,8 +17,8 @@ class ChargebackFeeStrategy implements FeeCalculationStrategy
      * Formula: (fee amount in base currency) * (number of chargebacks)
      * The fee amount is converted from cents to base currency by dividing by 100
      *
-     * @param TransactionData $transactionData DTO containing transaction details including chargeback count
-     * @param int $amount Fee amount in smallest currency unit (cents)
+     * @param  TransactionData  $transactionData  DTO containing transaction details including chargeback count
+     * @param  int  $amount  Fee amount in smallest currency unit (cents)
      * @return float Total chargeback fee in base currency
      */
     public function calculate(TransactionData $transactionData, int $amount): float

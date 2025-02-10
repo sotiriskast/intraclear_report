@@ -6,7 +6,6 @@ use Illuminate\Database\Eloquent\Model;
 
 class Merchant extends Model
 {
-
     protected $fillable = [
         'account_id',
         'email',
@@ -17,6 +16,7 @@ class Merchant extends Model
     protected $casts = [
         'active' => 'boolean',
     ];
+
     public function scopeActive($query)
     {
         return $query->where('active', true);

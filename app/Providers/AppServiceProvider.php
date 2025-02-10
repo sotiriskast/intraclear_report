@@ -39,7 +39,7 @@ class AppServiceProvider extends ServiceProvider
          * ------------------------------------------------
          */
         $this->app->bind(RoleRepository::class, function () {
-            return new RoleRepository();
+            return new RoleRepository;
         });
 
         $this->app->bind(
@@ -68,7 +68,7 @@ class AppServiceProvider extends ServiceProvider
          * ------------------------------------------------
          */
         $this->app->singleton(DynamicLogger::class, function () {
-            return new DynamicLogger();
+            return new DynamicLogger;
         });
 
         $this->app->bind(

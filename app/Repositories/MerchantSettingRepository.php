@@ -9,7 +9,6 @@ class MerchantSettingRepository
     public function getAll(array $with = [], int $perPage = 10)
     {
         return MerchantSetting::with($with)
-            ->latest()
             ->paginate($perPage);
     }
 
@@ -34,12 +33,14 @@ class MerchantSettingRepository
     {
         $setting = $this->findById($id);
         $setting->update($data);
+
         return $setting;
     }
 
     public function delete(int $id)
     {
         $setting = $this->findById($id);
+
         return $setting->delete();
     }
 

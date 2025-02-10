@@ -20,8 +20,7 @@ class FeeRegistry
      * Registers a new fee configuration in the registry
      * If a configuration with the same key exists, it will be overwritten
      *
-     * @param FeeConfiguration $configuration The fee configuration to register
-     * @return void
+     * @param  FeeConfiguration  $configuration  The fee configuration to register
      */
     public function register(FeeConfiguration $configuration): void
     {
@@ -31,7 +30,7 @@ class FeeRegistry
     /**
      * Retrieves a specific fee configuration by its key
      *
-     * @param string $key The unique identifier for the fee configuration
+     * @param  string  $key  The unique identifier for the fee configuration
      * @return FeeConfiguration|null Returns the fee configuration if found, null otherwise
      */
     public function get(string $key): ?FeeConfiguration

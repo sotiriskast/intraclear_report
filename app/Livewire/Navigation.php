@@ -10,12 +10,14 @@ class Navigation extends Component
 
     public function toggleMenu()
     {
-        $this->isOpen = !$this->isOpen;
+        $this->isOpen = ! $this->isOpen;
     }
+
     public function closeSidebar()
     {
         $this->dispatch('sidebar-close');
     }
+
     public function render()
     {
         return view('navigation-menu');

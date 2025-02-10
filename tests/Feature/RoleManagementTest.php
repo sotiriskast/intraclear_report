@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Livewire\RoleManagement;
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Permission;
@@ -14,7 +13,7 @@ class RoleManagementTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function setUp(): void
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -25,7 +24,7 @@ class RoleManagementTest extends TestCase
     public function test_create_role()
     {
         $permission = Permission::create([
-            'name' => 'test-permission-' . uniqid()
+            'name' => 'test-permission-'.uniqid(),
         ]);
 
         // Test the component
@@ -36,7 +35,7 @@ class RoleManagementTest extends TestCase
 
         // Assert database state
         $this->assertDatabaseHas('roles', [
-            'name' => 'Manager'
+            'name' => 'Manager',
         ]);
 
         // Assert component state

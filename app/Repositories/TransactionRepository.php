@@ -3,21 +3,18 @@
 namespace App\Repositories;
 
 use App\DTO\ChargebackData;
+use App\Repositories\Interfaces\TransactionRepositoryInterface;
 use App\Services\Chargeback\Interfaces\ChargebackProcessorInterface;
 use App\Services\DynamicLogger;
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use App\Repositories\Interfaces\TransactionRepositoryInterface;
-use Carbon\Carbon;
-
 
 /**
  * TransactionRepository handles database operations related to merchant transactions.
  *
  * This repository provides methods for retrieving, calculating, and analyzing
  * transaction data across different currencies and time ranges.
- *
- * @package App\Repositories
  */
 readonly class TransactionRepository implements TransactionRepositoryInterface
 {
@@ -26,15 +23,13 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
     /**
      * Create a new TransactionRepository instance.
      *
-     * @param DynamicLogger $logger Logging service for transaction-related events
+     * @param  DynamicLogger  $logger  Logging service for transaction-related events
      */
     public function __construct(
         private ChargebackProcessorInterface $chargebackProcessor,
-        private DynamicLogger                $logger
+        private DynamicLogger $logger
 
-    )
-    {
-    }
+    ) {}
 
     /**
      * Retrieves merchant transactions based on specified criteria.
@@ -43,13 +38,12 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
      * with optional currency filtering. It joins additional tables to provide comprehensive
      * transaction details.
      *
-     * @param int $merchantId The unique identifier of the merchant
-     * @param array $dateRange Associative array with 'start' and 'end' date keys
-     * @param string|null $currency Optional currency filter
-     *
+     * @param  int  $merchantId  The unique identifier of the merchant
+     * @param  array  $dateRange  Associative array with 'start' and 'end' date keys
+     * @param  string|null  $currency  Optional currency filter
      * @return Collection A collection of transaction records
      */
-    public function getMerchantTransactions(int $merchantId, array $dateRange, string $currency = null): Collection
+    public function getMerchantTransactions(int $merchantId, array $dateRange, ?string $currency = null): Collection
     {
         // First, get all tracked chargeback IDs from our local database for this merchant
         $trackedChargebacks = DB::table('chargeback_trackings')
@@ -73,7 +67,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
 
                 'shop.owner_name as shop_owner_name',
                 'customer_card.card_type',
-                DB::raw('DATE(transactions.added) as transaction_date')
+                DB::raw('DATE(transactions.added) as transaction_date'),
             ])
             ->join('shop', 'transactions.shop_id', '=', 'shop.id')
             ->leftJoin('customer_card', 'transactions.card_id', '=', 'customer_card.card_id')
@@ -84,9 +78,11 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
             $query->where('transactions.currency', $currency);
         }
         $results = $query->get();
-        $this->logger->log('info', "Found transactions", ['count' => $results->count()]);
+        $this->logger->log('info', 'Found transactions', ['count' => $results->count()]);
+
         return $results;
     }
+
     /**
      * Calculates comprehensive transaction totals across different currencies.
      *
@@ -94,9 +90,8 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
      * totals including sales, declined sales, refunds, and their EUR equivalents.
      * It also calculates transaction counts and average exchange rates.
      *
-     * @param mixed $transactions Collection of transaction records
-     * @param array $exchangeRates Lookup of exchange rates by currency and date
-     *
+     * @param  mixed  $transactions  Collection of transaction records
+     * @param  array  $exchangeRates  Lookup of exchange rates by currency and date
      * @return array Associative array of transaction totals per currency
      */
     public function calculateTransactionTotals(mixed $transactions, array $exchangeRates): array
@@ -104,7 +99,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
         $totals = [];
         foreach ($transactions as $transaction) {
             $currency = $transaction->currency;
-            if (!isset($totals[$currency])) {
+            if (! isset($totals[$currency])) {
                 $totals[$currency] = [
                     'total_sales' => 0,
                     'total_sales_eur' => 0,
@@ -126,7 +121,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
                     'declined_chargeback_amount' => 0,
                     'declined_chargeback_amount_eur' => 0,
                     'currency' => $currency,
-                    'exchange_rate' => 0
+                    'exchange_rate' => 0,
                 ];
             }
 
@@ -173,7 +168,6 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
             }
         }
 
-
         // Replace the direct division with a safer calculation
         if ($totals[$currency]['total_sales'] > 0) {
             $totals[$currency]['exchange_rate'] = $totals[$currency]['total_sales_eur'] / $totals[$currency]['total_sales'];
@@ -189,23 +183,24 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
     /**
      * Gets the last known exchange rate for a currency from the provided rates
      *
-     * @param string $currency The currency code
-     * @param array $exchangeRates Array of exchange rates
+     * @param  string  $currency  The currency code
+     * @param  array  $exchangeRates  Array of exchange rates
      * @return float The exchange rate or 1.0 if not found
      */
     private function getLastKnownExchangeRate(string $currency, array $exchangeRates): float
     {
         // Try to find any rate for this currency
         foreach ($exchangeRates as $key => $rate) {
-            if (str_starts_with($key, $currency . '_')) {
+            if (str_starts_with($key, $currency.'_')) {
                 return $rate;
             }
         }
 
         // Default to 1.0 if no rate found
         $this->logger->log('warning', 'No exchange rate found for currency', [
-            'currency' => $currency
+            'currency' => $currency,
         ]);
+
         return 1.0;
     }
 
@@ -215,9 +210,8 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
      * Fetches exchange rates from the scheme_rates table, creating a lookup
      * map with currency, brand, and date as the key.
      *
-     * @param array $dateRange Associative array with 'start' and 'end' date keys
-     * @param array $currencies Array of currency codes to fetch rates for
-     *
+     * @param  array  $dateRange  Associative array with 'start' and 'end' date keys
+     * @param  array  $currencies  Array of currency codes to fetch rates for
      * @return array Associative array of exchange rates
      */
     public function getExchangeRates(array $dateRange, array $currencies)
@@ -228,7 +222,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
                 'from_currency',
                 'brand',
                 'sell as rate',
-                DB::raw('DATE(added) as rate_date')
+                DB::raw('DATE(added) as rate_date'),
             ])
             ->whereIn('from_currency', $currencies)
             ->where('to_currency', 'EUR')
@@ -237,9 +231,10 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
         // Create a lookup array with currency_brand_date as key
         $rateMap = [];
         foreach ($rates as $rate) {
-            $key = $rate->from_currency . '_' . strtoupper($rate->brand) . '_' . $rate->rate_date;
+            $key = $rate->from_currency.'_'.strtoupper($rate->brand).'_'.$rate->rate_date;
             $rateMap[$key] = $rate->rate;
         }
+
         return $rateMap;
     }
 
@@ -249,9 +244,8 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
      * Retrieves the appropriate exchange rate based on transaction currency,
      * card type, and transaction date. Defaults to 1.0 if no rate is found.
      *
-     * @param mixed $transaction Transaction record
-     * @param array $exchangeRates Lookup of exchange rates
-     *
+     * @param  mixed  $transaction  Transaction record
+     * @param  array  $exchangeRates  Lookup of exchange rates
      * @return float Exchange rate for the transaction
      */
     private function getDailyExchangeRate(mixed $transaction, array $exchangeRates): float

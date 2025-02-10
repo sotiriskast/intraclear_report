@@ -6,7 +6,6 @@ use App\Enums\ChargebackStatus;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 
-
 /**
  * Data Transfer Object for Chargeback information
  * Immutable class that represents a chargeback transaction
@@ -26,9 +25,8 @@ readonly class ChargebackData
     /**
      * Creates a ChargebackData instance from a transaction object
      *
-     * @param object $transaction Raw transaction data
-     * @param float $exchangeRate Current exchange rate
-     * @return self
+     * @param  object  $transaction  Raw transaction data
+     * @param  float  $exchangeRate  Current exchange rate
      */
     public static function fromTransaction(object $transaction, float $exchangeRate): self
     {

@@ -6,7 +6,6 @@ use App\DTO\ChargebackData;
 use App\Enums\ChargebackStatus;
 use Carbon\CarbonInterface;
 use Carbon\CarbonPeriod;
-use Illuminate\Support\Collection;
 
 /**
  * Interface for chargeback tracking repository
@@ -30,12 +29,13 @@ interface ChargebackTrackingRepositoryInterface
      * @return array<int, array> Array of pending settlements
      */
     public function getPendingSettlements(int $merchantId): array;
+
     public function getChargebackByTransactionId(int $transaction_id): \stdClass;
 
     /**
      * Marks multiple chargebacks as settled
      *
-     * @param array<int> $chargebackIds IDs of chargebacks to mark as settled
+     * @param  array<int>  $chargebackIds  IDs of chargebacks to mark as settled
      */
     public function markAsSettled(array $chargebackIds, ?CarbonInterface $settledDate = null): void;
 
@@ -43,6 +43,6 @@ interface ChargebackTrackingRepositoryInterface
      * Gets all chargebacks within a specific date range
      */
     public function getChargebacksByDateRange(int $merchantId, CarbonPeriod $dateRange): array;
-    public function findExistingChargeback(string $transactionId): ?array;
 
+    public function findExistingChargeback(string $transactionId): ?array;
 }

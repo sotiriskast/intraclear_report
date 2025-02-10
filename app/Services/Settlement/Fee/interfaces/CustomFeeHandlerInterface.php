@@ -12,14 +12,13 @@ interface CustomFeeHandlerInterface
     /**
      * Retrieves and calculates custom fees for a specific merchant
      *
-     * @param int $merchantId ID of the merchant to calculate custom fees for
-     * @param array $rawTransactionData Array containing transaction details including:
-     *                                  - total_sales_amount
-     *                                  - currency
-     *                                  - exchange_rate
-     *                                  - other transaction-specific data
-     * @param string $startDate Starting date for fee calculation (Y-m-d format)
-     *
+     * @param  int  $merchantId  ID of the merchant to calculate custom fees for
+     * @param  array  $rawTransactionData  Array containing transaction details including:
+     *                                     - total_sales_amount
+     *                                     - currency
+     *                                     - exchange_rate
+     *                                     - other transaction-specific data
+     * @param  string  $startDate  Starting date for fee calculation (Y-m-d format)
      * @return array Array of calculated custom fees, each containing:
      *               - fee_type_id: int
      *               - fee_amount: float

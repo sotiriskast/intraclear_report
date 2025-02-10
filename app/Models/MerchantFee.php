@@ -25,7 +25,6 @@ class MerchantFee extends Model
         'active' => 'boolean',
     ];
 
-
     public function merchant(): BelongsTo
     {
         return $this->belongsTo(Merchant::class);

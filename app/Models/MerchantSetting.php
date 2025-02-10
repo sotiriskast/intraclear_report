@@ -24,12 +24,12 @@ class MerchantSetting extends Model
         'visa_high_risk_fee_applied',
         'setup_fee',
         'setup_fee_charged',
-        'declined_fee'
+        'declined_fee',
     ];
 
     protected $casts = [
         'active' => 'boolean',
-        'setup_fee_charged' => 'boolean'
+        'setup_fee_charged' => 'boolean',
     ];
 
     public function merchant(): BelongsTo

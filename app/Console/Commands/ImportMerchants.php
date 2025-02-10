@@ -4,7 +4,6 @@ namespace App\Console\Commands;
 
 use App\Services\DynamicLogger;
 use App\Services\MerchantSyncService;
-use DB;
 use Illuminate\Console\Command;
 
 class ImportMerchants extends Command
@@ -15,6 +14,7 @@ class ImportMerchants extends Command
      * @var string
      */
     protected $signature = 'intraclear:merchants-import';
+
     /**
      * The console command description.
      *
@@ -23,10 +23,9 @@ class ImportMerchants extends Command
     protected $description = 'Import merchants from processing database';
 
     public function __construct(
-        private DynamicLogger       $logger,
+        private DynamicLogger $logger,
         private MerchantSyncService $merchantSync
-    )
-    {
+    ) {
         parent::__construct();
     }
 

@@ -9,8 +9,9 @@ use App\Enums\ChargebackStatus;
 use App\Models\ChargebackTracking;
 use App\Repositories\Interfaces\ChargebackTrackingRepositoryInterface;
 use App\Services\DynamicLogger;
-use Carbon\{Carbon, CarbonInterface, CarbonPeriod};
-use Illuminate\Support\Collection;
+use Carbon\Carbon;
+use Carbon\CarbonInterface;
+use Carbon\CarbonPeriod;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -20,9 +21,7 @@ readonly class ChargebackTrackingRepository implements ChargebackTrackingReposit
 {
     public function __construct(
         private DynamicLogger $logger
-    )
-    {
-    }
+    ) {}
 
     /**
      * Records a new chargeback transaction
@@ -42,19 +41,19 @@ readonly class ChargebackTrackingRepository implements ChargebackTrackingReposit
                     'exchange_rate' => $data->exchangeRate,
                     'initial_status' => $data->status->value,
                     'current_status' => $data->status->value,
-                    'processing_date' => $data->processedDate
+                    'processing_date' => $data->processedDate,
                 ]);
             });
 
             $this->logger->log('info', 'New chargeback tracked successfully', [
                 'merchant_id' => $merchantId,
-                'transaction_id' => $data->transactionId
+                'transaction_id' => $data->transactionId,
             ]);
         } catch (\Exception $e) {
             $this->logger->log('error', 'Failed to track chargeback', [
                 'merchant_id' => $merchantId,
                 'transaction_id' => $data->transactionId,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
             throw $e;
         }
@@ -74,12 +73,12 @@ readonly class ChargebackTrackingRepository implements ChargebackTrackingReposit
             if ($tracking) {
                 $tracking->update([
                     'current_status' => $newStatus->value,
-                    'status_changed_date' => Carbon::now()
+                    'status_changed_date' => Carbon::now(),
                 ]);
 
                 $this->logger->log('info', 'Chargeback status updated', [
                     'transaction_id' => $transactionId,
-                    'new_status' => $newStatus->value
+                    'new_status' => $newStatus->value,
                 ]);
             }
         });
@@ -130,28 +129,28 @@ readonly class ChargebackTrackingRepository implements ChargebackTrackingReposit
                     'settled' => true,
                     'settled_date' => $settledDate,
                     'current_status' => 'APPROVED',
-                    'status_changed_date' => Carbon::now()
+                    'status_changed_date' => Carbon::now(),
 
                 ]);
             $this->logger->log('info', 'Chargebacks marked as settled', [
                 'chargeback_count' => count($chargebackIds['approved']),
                 'settled_date' => $settledDate->toDateTimeString(),
                 'current_status' => 'APPROVED',
-                'status_changed_date' => Carbon::now()
+                'status_changed_date' => Carbon::now(),
             ]);
             ChargebackTracking::whereIn('id', $chargebackIds['declined'])
                 ->update([
                     'settled' => true,
                     'settled_date' => $settledDate,
                     'current_status' => 'DECLINED',
-                    'status_changed_date' => Carbon::now()
+                    'status_changed_date' => Carbon::now(),
 
                 ]);
             $this->logger->log('info', 'Chargebacks marked as settled', [
                 'chargeback_count' => count($chargebackIds['declined']),
                 'settled_date' => $settledDate->toDateTimeString(),
                 'current_status' => 'DECLINED',
-                'status_changed_date' => Carbon::now()
+                'status_changed_date' => Carbon::now(),
             ]);
 
         });

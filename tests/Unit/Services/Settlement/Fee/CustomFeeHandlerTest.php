@@ -2,19 +2,21 @@
 
 namespace Tests\Unit\Services\Settlement\Fee;
 
-use PHPUnit\Framework\Attributes\Test;
-use Tests\TestCase;
-use Mockery;
-use App\Services\Settlement\Fee\CustomFeeHandler;
-use App\Services\DynamicLogger;
 use App\Models\FeeType;
 use App\Models\MerchantFee;
 use App\Repositories\Interfaces\FeeRepositoryInterface;
+use App\Services\DynamicLogger;
+use App\Services\Settlement\Fee\CustomFeeHandler;
+use Mockery;
+use PHPUnit\Framework\Attributes\Test;
+use Tests\TestCase;
 
 class CustomFeeHandlerTest extends TestCase
 {
     private CustomFeeHandler $handler;
+
     private FeeRepositoryInterface $feeRepository;
+
     private DynamicLogger $logger;
 
     protected function setUp(): void
@@ -48,7 +50,7 @@ class CustomFeeHandlerTest extends TestCase
             'merchant_id' => 1,
             'fee_type_id' => 1,
             'amount' => 250, // 2.50%
-            'active' => true
+            'active' => true,
         ]);
 
         $merchantFee->setRelation('feeType', $feeType);
@@ -65,7 +67,7 @@ class CustomFeeHandlerTest extends TestCase
             'total_sales' => 1000.00,
             'transaction_sales_count' => 1,
             'currency' => 'EUR',
-            'exchange_rate' => 1.0
+            'exchange_rate' => 1.0,
         ];
 
         // Act
@@ -95,7 +97,7 @@ class CustomFeeHandlerTest extends TestCase
             'merchant_id' => 1,
             'fee_type_id' => 2,
             'amount' => 500, // 5.00 EUR
-            'active' => true
+            'active' => true,
         ]);
 
         $merchantFee->setRelation('feeType', $feeType);
@@ -112,7 +114,7 @@ class CustomFeeHandlerTest extends TestCase
             'total_sales' => 1000.00,
             'transaction_sales_count' => 1,
             'currency' => 'EUR',
-            'exchange_rate' => 1.0
+            'exchange_rate' => 1.0,
         ];
 
         // Act

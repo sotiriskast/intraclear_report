@@ -1,8 +1,9 @@
 <?php
+
 namespace App\Repositories;
 
-use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 
 class RoleRepository
 {
@@ -11,11 +12,11 @@ class RoleRepository
         // Create the role
         $role = Role::create([
             'name' => $name,
-            'guard_name' => 'web'
+            'guard_name' => 'web',
         ]);
 
         // Get Permission objects from IDs and sync them
-        if (!empty($permissionIds)) {
+        if (! empty($permissionIds)) {
             $permissions = Permission::whereIn('id', $permissionIds)->get();
             $role->syncPermissions($permissions);
         }
@@ -26,7 +27,7 @@ class RoleRepository
     public function updateRole(Role $role, string $name, array $permissionIds = []): Role
     {
         $role->update([
-            'name' => $name
+            'name' => $name,
         ]);
 
         // Get Permission objects from IDs and sync them

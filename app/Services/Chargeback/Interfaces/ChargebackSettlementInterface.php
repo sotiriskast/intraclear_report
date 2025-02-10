@@ -2,8 +2,6 @@
 
 namespace App\Services\Chargeback\Interfaces;
 
-use Carbon\CarbonPeriod;
-
 /**
  * Interface for handling chargeback settlements
  */

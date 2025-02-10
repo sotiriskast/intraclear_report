@@ -13,23 +13,19 @@ use Illuminate\Support\Facades\DB;
  * - Retrieving merchant data from a payment gateway database
  * - Updating or inserting merchant records in the primary database
  * - Logging synchronization statistics and errors
- *
- * @package App\Services
  */
 class MerchantSyncService
 {
     /**
      * Create a new MerchantSyncService instance.
      *
-     * @param DynamicLogger $logger Logging service for sync-related events
+     * @param  DynamicLogger  $logger  Logging service for sync-related events
      */
     public function __construct(
-        private readonly DynamicLogger    $logger,
+        private readonly DynamicLogger $logger,
         private MerchantSettingRepository $merchantSettingRepository
 
-    )
-    {
-    }
+    ) {}
 
     /**
      * Synchronizes merchant data from the payment gateway to the primary database.
@@ -59,7 +55,7 @@ class MerchantSyncService
             DB::connection('mariadb')->beginTransaction();
             // Process each merchant
             foreach ($sourceData as $merchant) {
-                $isNew = !isset($existingMerchants[$merchant->id]);
+                $isNew = ! isset($existingMerchants[$merchant->id]);
                 $this->upsertMerchant($merchant);
                 $stats[$isNew ? 'new' : 'updated']++;
                 // Only proceed with settings creation for new merchants
@@ -75,7 +71,7 @@ class MerchantSyncService
                     // Create settings only if:
                     // 1. We successfully retrieved the merchant ID
                     // 2. The merchant doesn't already have settings
-                    if ($merchantId && !$this->merchantSettingRepository->isExistingForMerchant($merchantId)) {
+                    if ($merchantId && ! $this->merchantSettingRepository->isExistingForMerchant($merchantId)) {
                         $this->createDefaultSettings($merchantId);
                         $stats['settings_created']++;
                     }
@@ -88,14 +84,15 @@ class MerchantSyncService
                 'updated_merchants' => $stats['updated'],
                 'settings_created' => $stats['settings_created'],
             ]);
+
             return $stats;
         } catch (\Exception $e) {
             // Rollback transaction in case of failure
             DB::connection('mariadb')->rollBack();
-            //@todo Send email for not adding merchant
+            // @todo Send email for not adding merchant
             $this->logger->log('error', 'Merchant sync failed', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
             throw $e;
         }
@@ -104,7 +101,8 @@ class MerchantSyncService
     /**
      * Creates default settings for a new merchant.
      *
-     * @param int $merchantId The ID of the merchant
+     * @param  int  $merchantId  The ID of the merchant
+     *
      * @throws \Exception If settings creation fails
      */
     private function createDefaultSettings(int $merchantId): void
@@ -124,18 +122,18 @@ class MerchantSyncService
                 'mastercard_high_risk_fee_applied' => 15000,
                 'visa_high_risk_fee_applied' => 15000,
                 'setup_fee' => 50000,
-                'setup_fee_charged' => false
+                'setup_fee_charged' => false,
             ];
 
             $this->merchantSettingRepository->create($defaultSettings);
 
             $this->logger->log('info', 'Created default settings for merchant', [
-                'merchant_id' => $merchantId
+                'merchant_id' => $merchantId,
             ]);
         } catch (\Exception $e) {
             $this->logger->log('error', 'Failed to create default settings for merchant', [
                 'merchant_id' => $merchantId,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
             throw $e;
         }
@@ -172,7 +170,7 @@ class MerchantSyncService
                 'corp_name',
                 'email',
                 'phone',
-                'active'
+                'active',
             ])
             ->get();
     }
@@ -183,7 +181,7 @@ class MerchantSyncService
      * If a merchant with the given account ID exists, updates the record.
      * If no such merchant exists, creates a new record.
      *
-     * @param object $merchant Merchant data object from source
+     * @param  object  $merchant  Merchant data object from source
      */
     private function upsertMerchant($merchant): void
     {

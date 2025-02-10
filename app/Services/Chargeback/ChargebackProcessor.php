@@ -38,10 +38,10 @@ readonly class ChargebackProcessor implements ChargebackProcessorInterface
                     'merchant_id' => $merchantId,
                     'transaction_id' => $data->transactionId,
                     'old_status' => $existingChargeback['current_status'],
-                    'new_status' => $data->status->value
+                    'new_status' => $data->status->value,
                 ]);
             }
-        } else if ($data->status === ChargebackStatus::PROCESSING) {
+        } elseif ($data->status === ChargebackStatus::PROCESSING) {
             // Only track new chargebacks that are in PROCESSING status
             $this->chargebackTrackingRepository->trackNewChargeback($merchantId, $data);
 
@@ -49,7 +49,7 @@ readonly class ChargebackProcessor implements ChargebackProcessorInterface
                 'merchant_id' => $merchantId,
                 'transaction_id' => $data->transactionId,
                 'amount' => $data->amount,
-                'currency' => $data->currency
+                'currency' => $data->currency,
             ]);
         }
 

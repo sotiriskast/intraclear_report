@@ -2,10 +2,10 @@
 
 namespace App\Livewire;
 
+use App\Models\FeeType;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
-use App\Models\FeeType;
 
 #[Layout('layouts.app')]
 class FeeTypeManagement extends Component
@@ -13,17 +13,22 @@ class FeeTypeManagement extends Component
     use WithPagination;
 
     public $name;
+
     public $key;
+
     public $frequency_type;
+
     public $is_percentage = false;
+
     public $showCreateModal = false;
+
     public $editFeeTypeId = null;
 
     protected $rules = [
         'name' => 'required|string|max:255',
         'key' => 'required|string|unique:fee_types,key,NULL,id,deleted_at,NULL',
         'frequency_type' => 'required|in:transaction,daily,weekly,monthly,yearly,one_time',
-        'is_percentage' => 'boolean'
+        'is_percentage' => 'boolean',
     ];
 
     public function mount()
@@ -45,7 +50,7 @@ class FeeTypeManagement extends Component
             'name' => $this->name,
             'key' => $this->key,
             'frequency_type' => $this->frequency_type,
-            'is_percentage' => $this->is_percentage
+            'is_percentage' => $this->is_percentage,
         ]);
 
         session()->flash('message', 'Fee Type created successfully.');
@@ -71,7 +76,7 @@ class FeeTypeManagement extends Component
             'name' => 'required|string|max:255',
             'key' => 'required|string|unique:fee_types,key,'.$this->editFeeTypeId.',id,deleted_at,NULL',
             'frequency_type' => 'required|in:transaction,daily,weekly,monthly,yearly,one_time',
-            'is_percentage' => 'boolean'
+            'is_percentage' => 'boolean',
         ]);
 
         $feeType = FeeType::findOrFail($this->editFeeTypeId);
@@ -79,7 +84,7 @@ class FeeTypeManagement extends Component
             'name' => $this->name,
             'key' => $this->key,
             'frequency_type' => $this->frequency_type,
-            'is_percentage' => $this->is_percentage
+            'is_percentage' => $this->is_percentage,
         ]);
 
         session()->flash('message', 'Fee Type updated successfully.');
@@ -102,7 +107,7 @@ class FeeTypeManagement extends Component
             'frequency_type',
             'is_percentage',
             'showCreateModal',
-            'editFeeTypeId'
+            'editFeeTypeId',
         ]);
         $this->frequency_type = 'transaction';
     }
@@ -112,7 +117,7 @@ class FeeTypeManagement extends Component
         $feeTypes = FeeType::withTrashed()->latest()->paginate(10);
 
         return view('livewire.fee-type-management', [
-            'feeTypes' => $feeTypes
+            'feeTypes' => $feeTypes,
         ]);
     }
 }

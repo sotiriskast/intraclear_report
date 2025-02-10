@@ -18,21 +18,19 @@ readonly class FeeService
     /**
      * Initialize the fee service with required dependencies
      *
-     * @param FeeRepositoryInterface $feeRepository Repository for fee persistence
-     * @param DynamicLogger $logger Service for logging operations
-     * @param FeeFrequencyHandlerInterface $frequencyHandler Handles fee application frequency
-     * @param CustomFeeHandlerInterface $customFeeHandler Handles custom fee calculations
-     * @param StandardFeeHandlerInterface $standardFeeHandler Handles standard fee calculations
+     * @param  FeeRepositoryInterface  $feeRepository  Repository for fee persistence
+     * @param  DynamicLogger  $logger  Service for logging operations
+     * @param  FeeFrequencyHandlerInterface  $frequencyHandler  Handles fee application frequency
+     * @param  CustomFeeHandlerInterface  $customFeeHandler  Handles custom fee calculations
+     * @param  StandardFeeHandlerInterface  $standardFeeHandler  Handles standard fee calculations
      */
     public function __construct(
-        private FeeRepositoryInterface       $feeRepository,
-        private DynamicLogger                $logger,
+        private FeeRepositoryInterface $feeRepository,
+        private DynamicLogger $logger,
         private FeeFrequencyHandlerInterface $frequencyHandler,
-        private CustomFeeHandlerInterface    $customFeeHandler,
-        private StandardFeeHandlerInterface  $standardFeeHandler
-    )
-    {
-    }
+        private CustomFeeHandlerInterface $customFeeHandler,
+        private StandardFeeHandlerInterface $standardFeeHandler
+    ) {}
 
     /**
      * Calculate all applicable fees for a merchant within a given date range
@@ -43,10 +41,11 @@ readonly class FeeService
      * 3. Checks if each fee should be applied based on its frequency
      * 4. Logs all applied fees
      *
-     * @param int $merchantId ID of the merchant
-     * @param array $transactionData Transaction data for fee calculation
-     * @param array $dateRange Start and end dates for fee calculation period
+     * @param  int  $merchantId  ID of the merchant
+     * @param  array  $transactionData  Transaction data for fee calculation
+     * @param  array  $dateRange  Start and end dates for fee calculation period
      * @return array Array of calculated fees that should be applied
+     *
      * @throws \Exception If fee calculation fails
      */
     public function calculateFees(int $merchantId, array $transactionData, array $dateRange): array
@@ -89,14 +88,14 @@ readonly class FeeService
                 'merchant_id' => $merchantId,
                 'standard_fees_count' => count($standardFees),
                 'custom_fees_count' => count($customFees),
-                'total_fees' => count($calculatedFees)
+                'total_fees' => count($calculatedFees),
             ]);
 
             return $calculatedFees;
         } catch (\Exception $e) {
             $this->logger->log('error', 'Failed to calculate fees', [
                 'merchant_id' => $merchantId,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
             throw $e;
         }
@@ -111,11 +110,11 @@ readonly class FeeService
      * - Exchange rate used
      * - When the fee was applied
      *
-     * @param int $merchantId ID of the merchant
-     * @param array $fee Fee configuration and details
-     * @param array $transactionData Transaction data used for fee calculation
-     * @param float|int $feeAmount Amount of the fee being applied
-     * @param array $dateRange Period for which the fee is being applied
+     * @param  int  $merchantId  ID of the merchant
+     * @param  array  $fee  Fee configuration and details
+     * @param  array  $transactionData  Transaction data used for fee calculation
+     * @param  float|int  $feeAmount  Amount of the fee being applied
+     * @param  array  $dateRange  Period for which the fee is being applied
      */
     private function logFeeApplication(int $merchantId, array $fee, array $transactionData, float|int $feeAmount, array $dateRange): void
     {

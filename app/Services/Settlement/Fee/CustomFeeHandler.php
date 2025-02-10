@@ -19,15 +19,14 @@ readonly class CustomFeeHandler implements CustomFeeHandlerInterface
     /**
      * Initialize the custom fee handler with required dependencies
      *
-     * @param FeeRepositoryInterface $feeRepository Repository for accessing merchant-specific fees
-     * @param DynamicLogger $logger Service for logging operations and errors
+     * @param  FeeRepositoryInterface  $feeRepository  Repository for accessing merchant-specific fees
+     * @param  DynamicLogger  $logger  Service for logging operations and errors
      */
     public function __construct(
         private FeeRepositoryInterface $feeRepository,
-        private DynamicLogger          $logger
-    )
-    {
-        $this->calculatorFactory = new FeeCalculatorFactory();
+        private DynamicLogger $logger
+    ) {
+        $this->calculatorFactory = new FeeCalculatorFactory;
     }
 
     /**
@@ -39,9 +38,9 @@ readonly class CustomFeeHandler implements CustomFeeHandlerInterface
      * 3. Calculates fee amounts considering currency and exchange rates
      * 4. Formats and returns the calculated fees
      *
-     * @param int $merchantId ID of the merchant
-     * @param array $rawTransactionData Raw transaction data for fee calculation
-     * @param string $startDate Start date for fee application period
+     * @param  int  $merchantId  ID of the merchant
+     * @param  array  $rawTransactionData  Raw transaction data for fee calculation
+     * @param  string  $startDate  Start date for fee application period
      * @return array Array of calculated custom fees
      */
     public function getCustomFees(int $merchantId, array $rawTransactionData, string $startDate): array
@@ -85,7 +84,7 @@ readonly class CustomFeeHandler implements CustomFeeHandlerInterface
                             'exchange_rate' => $exchangeRate,
                             'frequency' => $fee->feeType->frequency_type,
                             'is_percentage' => $fee->feeType->is_percentage,
-                            'transactionData' => $rawTransactionData
+                            'transactionData' => $rawTransactionData,
                         ];
                     }
                 } catch (\Exception $e) {
@@ -93,8 +92,9 @@ readonly class CustomFeeHandler implements CustomFeeHandlerInterface
                     $this->logger->log('error', 'Error processing custom fee', [
                         'merchant_id' => $merchantId,
                         'fee_type_id' => $fee->fee_type_id,
-                        'error' => $e->getMessage()
+                        'error' => $e->getMessage(),
                     ]);
+
                     continue;
                 }
             }
@@ -104,8 +104,9 @@ readonly class CustomFeeHandler implements CustomFeeHandlerInterface
         } catch (\Exception $e) {
             $this->logger->log('error', 'Failed to calculate custom fees', [
                 'merchant_id' => $merchantId,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
+
             return [];
         }
     }
@@ -114,14 +115,14 @@ readonly class CustomFeeHandler implements CustomFeeHandlerInterface
      * Format a fee rate for display
      * Converts internal rate representation to human-readable format
      *
-     * @param int $amount Fee amount in smallest currency unit (e.g., cents)
-     * @param bool $isPercentage Whether the fee is a percentage
+     * @param  int  $amount  Fee amount in smallest currency unit (e.g., cents)
+     * @param  bool  $isPercentage  Whether the fee is a percentage
      * @return string Formatted rate with appropriate suffix (% for percentages)
      */
     private function formatRate(int $amount, bool $isPercentage): string
     {
         return $isPercentage ?
-            number_format($amount / 100, 2) . '%' :
+            number_format($amount / 100, 2).'%' :
             number_format($amount / 100, 2);
     }
 }

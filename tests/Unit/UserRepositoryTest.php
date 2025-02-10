@@ -12,7 +12,7 @@ class UserRepositoryTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function setUp(): void
+    protected function setUp(): void
     {
         parent::setUp();
         $this->adminRole = Role::create(['name' => 'admin']);
@@ -38,7 +38,7 @@ class UserRepositoryTest extends TestCase
         $user = User::factory()->create();
         $repository = app(UserRepository::class);
 
-        $updatedUser = $repository->updateUser($user, 'Jane Doe', 'jane@example.com', null, $this->adminRole->id );
+        $updatedUser = $repository->updateUser($user, 'Jane Doe', 'jane@example.com', null, $this->adminRole->id);
 
         $this->assertEquals('Jane Doe', $updatedUser->name);
         $this->assertEquals('jane@example.com', $updatedUser->email);

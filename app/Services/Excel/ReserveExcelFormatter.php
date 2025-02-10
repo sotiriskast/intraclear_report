@@ -4,10 +4,13 @@ namespace App\Services\Excel;
 
 use App\Models\RollingReserveEntry;
 use App\Services\DynamicLogger;
-use PhpOffice\PhpSpreadsheet\Style\{Fill, Border, Alignment, NumberFormat};
-use Illuminate\Support\Collection;
-use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use Carbon\Carbon;
+use Illuminate\Support\Collection;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 /**
  * Handles Excel formatting for reserve-related sections in settlement reports
@@ -19,38 +22,35 @@ readonly class ReserveExcelFormatter
     /**
      * Initialize the reserve formatter
      *
-     * @param DynamicLogger $logger Service for logging formatting operations
+     * @param  DynamicLogger  $logger  Service for logging formatting operations
      */
     public function __construct(
         private DynamicLogger $logger
-    )
-    {
-    }
+    ) {}
 
     /**
      * Format the generated reserves section of the worksheet
      * Includes reserve amounts, periods, and release dates
      *
-     * @param Worksheet $sheet Active worksheet
-     * @param array $currencyData Currency-specific data containing reserve information
-     * @param int &$currentRow Current row position in worksheet (passed by reference)
-     * @return void
+     * @param  Worksheet  $sheet  Active worksheet
+     * @param  array  $currencyData  Currency-specific data containing reserve information
+     * @param  int  &$currentRow  Current row position in worksheet (passed by reference)
      */
     public function formatGeneratedReserves(
         Worksheet $sheet,
-        array     $currencyData,
-        int       &$currentRow
-    ): void
-    {
+        array $currencyData,
+        int &$currentRow
+    ): void {
         $currentRow += 2;
         // Add section header
         $this->addSectionHeader($sheet, 'Generated Reserve Details', $currentRow);
         $currentRow++;
         $rollingReserve = $currencyData['rolling_reserve'] ?? null;
-        if (!$rollingReserve) {
+        if (! $rollingReserve) {
             $this->logger->log('warning', 'No rolling reserve data found', [
-                'currency_data' => $currencyData
+                'currency_data' => $currencyData,
             ]);
+
             return;
         }
 
@@ -68,13 +68,14 @@ readonly class ReserveExcelFormatter
 
         foreach ($reserves as $reserve) {
             $currentRow++;
-            if (!$reserve instanceof RollingReserveEntry) {
+            if (! $reserve instanceof RollingReserveEntry) {
                 $this->logger->log('warning', 'Invalid reserve entry type', [
-                    'type' => get_class($reserve)
+                    'type' => get_class($reserve),
                 ]);
+
                 continue;
             }
-            $this->addReserveRow($sheet, $reserve, $currentRow);
+            $this->addReserveRow($sheet, $reserve, $currentRow, $currencyData['rolling_reserved_percentage']);
         }
 
         $this->applyFormatting($sheet, $currentRow);
@@ -85,17 +86,15 @@ readonly class ReserveExcelFormatter
      * Format the released reserves section of the worksheet
      * Details reserves that have been released during the settlement period
      *
-     * @param Worksheet $sheet Active worksheet
-     * @param array $currencyData Currency-specific data containing released reserve information
-     * @param int &$currentRow Current row position in worksheet (passed by reference)
-     * @return void
+     * @param  Worksheet  $sheet  Active worksheet
+     * @param  array  $currencyData  Currency-specific data containing released reserve information
+     * @param  int  &$currentRow  Current row position in worksheet (passed by reference)
      */
     public function formatReleasedReserves(
         Worksheet $sheet,
-        array     $currencyData,
-        int       &$currentRow
-    ): void
-    {
+        array $currencyData,
+        int &$currentRow
+    ): void {
         $currentRow += 2;
         $this->addSectionHeader($sheet, 'Released Reserve Details', $currentRow);
         $currentRow++;
@@ -108,10 +107,11 @@ readonly class ReserveExcelFormatter
         $this->addTableHeaders($sheet, $headers, $currentRow);
 
         $currency = $currencyData['currency'] ?? null;
-        if (!$currency) {
+        if (! $currency) {
             $this->logger->log('warning', 'Currency not found in currency data', [
-                'currency_data' => $currencyData
+                'currency_data' => $currencyData,
             ]);
+
             return;
         }
 
@@ -122,16 +122,16 @@ readonly class ReserveExcelFormatter
             }
 
             $currentRow++;
-            $sheet->setCellValue('A' . $currentRow, 'Released Reserve');
-            $sheet->setCellValue('B' . $currentRow,
-                Carbon::parse($reserve['period_start'])->format('d/m/Y') . ' - ' .
+            $sheet->setCellValue('A'.$currentRow, 'Released Reserve');
+            $sheet->setCellValue('B'.$currentRow,
+                Carbon::parse($reserve['period_start'])->format('d/m/Y').' - '.
                 Carbon::parse($reserve['period_end'])->format('d/m/Y')
             );
-            $sheet->setCellValue('C' . $currentRow, Carbon::parse($reserve['released_at'])->format('d/m/Y'));
-            $sheet->setCellValue('D' . $currentRow, $reserve['exchange_rate']);
-            $sheet->setCellValue('E' . $currentRow, $reserve['original_amount']);
-            $sheet->setCellValue('F' . $currentRow, $reserve['reserve_amount_eur']);
-            $sheet->setCellValue('G' . $currentRow, 'Released');
+            $sheet->setCellValue('C'.$currentRow, Carbon::parse($reserve['released_at'])->format('d/m/Y'));
+            $sheet->setCellValue('D'.$currentRow, $reserve['exchange_rate']);
+            $sheet->setCellValue('E'.$currentRow, $reserve['original_amount']);
+            $sheet->setCellValue('F'.$currentRow, $reserve['reserve_amount_eur']);
+            $sheet->setCellValue('G'.$currentRow, 'Released');
 
             $this->formatAmountCells($sheet, $currentRow);
         }
@@ -140,10 +140,9 @@ readonly class ReserveExcelFormatter
     /**
      * Add a formatted section header to the worksheet
      *
-     * @param Worksheet $sheet Active worksheet
-     * @param string $title Header text
-     * @param int &$row Current row position (passed by reference)
-     * @return void
+     * @param  Worksheet  $sheet  Active worksheet
+     * @param  string  $title  Header text
+     * @param  int  &$row  Current row position (passed by reference)
      */
     private function addSectionHeader(Worksheet $sheet, string $title, int &$row): void
     {
@@ -153,16 +152,16 @@ readonly class ReserveExcelFormatter
         $sheet->getStyle("A{$row}")->applyFromArray([
             'font' => [
                 'bold' => true,
-                'color' => ['rgb' => 'FFFFFF']
+                'color' => ['rgb' => 'FFFFFF'],
             ],
             'fill' => [
                 'fillType' => Fill::FILL_SOLID,
-                'color' => ['rgb' => '4472C4']
+                'color' => ['rgb' => '4472C4'],
             ],
             'alignment' => [
                 'horizontal' => Alignment::HORIZONTAL_LEFT,
-                'vertical' => Alignment::VERTICAL_CENTER
-            ]
+                'vertical' => Alignment::VERTICAL_CENTER,
+            ],
         ]);
 
         $sheet->getRowDimension($row)->setRowHeight(20);
@@ -171,10 +170,9 @@ readonly class ReserveExcelFormatter
     /**
      * Add formatted column headers for a table section
      *
-     * @param Worksheet $sheet Active worksheet
-     * @param array $headers Array of header texts
-     * @param int &$row Current row position (passed by reference)
-     * @return void
+     * @param  Worksheet  $sheet  Active worksheet
+     * @param  array  $headers  Array of header texts
+     * @param  int  &$row  Current row position (passed by reference)
      */
     private function addTableHeaders(Worksheet $sheet, array $headers, int &$row): void
     {
@@ -186,8 +184,8 @@ readonly class ReserveExcelFormatter
                 'font' => ['bold' => true],
                 'alignment' => [
                     'horizontal' => Alignment::HORIZONTAL_LEFT,
-                    'vertical' => Alignment::VERTICAL_CENTER
-                ]
+                    'vertical' => Alignment::VERTICAL_CENTER,
+                ],
             ]);
         }
 
@@ -197,15 +195,14 @@ readonly class ReserveExcelFormatter
     /**
      * Add a formatted row for a single reserve entry
      *
-     * @param Worksheet $sheet Active worksheet
-     * @param RollingReserveEntry $reserve Reserve entry to format
-     * @param int $row Current row position
-     * @return void
+     * @param  Worksheet  $sheet  Active worksheet
+     * @param  RollingReserveEntry  $reserve  Reserve entry to format
+     * @param  int  $row  Current row position
      */
-    private function addReserveRow(Worksheet $sheet, \App\Models\RollingReserveEntry $reserve, int $row): void
+    private function addReserveRow(Worksheet $sheet, \App\Models\RollingReserveEntry $reserve, int $row, float $rolling_reserved_percentage = 10): void
     {
         $sheet->setCellValue("A{$row}", 'Rolling Reserve');
-        $sheet->setCellValue("B{$row}", '10%');
+        $sheet->setCellValue("B{$row}", $rolling_reserved_percentage.'%');
         $sheet->setCellValue("C{$row}", Carbon::parse($reserve->period_start)->format('d/m/Y'));
         $sheet->setCellValue("D{$row}", Carbon::parse($reserve->period_end)->format('d/m/Y'));
         $sheet->setCellValue("E{$row}", $reserve->original_amount / 100);
@@ -222,9 +219,8 @@ readonly class ReserveExcelFormatter
      * Apply consistent formatting to the entire reserve section
      * Includes column sizing, borders, and row heights
      *
-     * @param Worksheet $sheet Active worksheet
-     * @param int $lastRow Last row number of the section
-     * @return void
+     * @param  Worksheet  $sheet  Active worksheet
+     * @param  int  $lastRow  Last row number of the section
      */
     private function applyFormatting(Worksheet $sheet, int $lastRow): void
     {
@@ -249,13 +245,12 @@ readonly class ReserveExcelFormatter
      * Format cells containing monetary amounts
      * Applies consistent number formatting with thousands separator and decimals
      *
-     * @param Worksheet $sheet Active worksheet
-     * @param int $row Row containing amount cells
-     * @return void
+     * @param  Worksheet  $sheet  Active worksheet
+     * @param  int  $row  Row containing amount cells
      */
     private function formatAmountCells(Worksheet $sheet, int $row): void
     {
-        $sheet->getStyle('E' . $row . ':F' . $row)
+        $sheet->getStyle('E'.$row.':F'.$row)
             ->getNumberFormat()
             ->setFormatCode(NumberFormat::FORMAT_NUMBER_COMMA_SEPARATED2);
     }
