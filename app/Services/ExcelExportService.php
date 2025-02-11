@@ -2,7 +2,8 @@
 
 namespace App\Services;
 
-use App\Services\Excel\ReserveExcelFormatter;
+use App\Services\Excel\Formatter\ReserveExcelFormatter;
+use App\Services\Excel\Formatter\SummaryExcelFormater;
 use Carbon\Carbon;
 use DB;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
@@ -34,20 +35,23 @@ class ExcelExportService
     /**
      * Initialize the Excel export service
      *
-     * @param  DynamicLogger  $logger  Service for logging export operations
-     * @param  ReserveExcelFormatter  $reserveFormatter  Service for formatting reserve sections
+     * @param DynamicLogger $logger Service for logging export operations
+     * @param ReserveExcelFormatter $reserveFormatter Service for formatting reserve sections
      */
     public function __construct(
-        private readonly DynamicLogger $logger,
-        private readonly ReserveExcelFormatter $reserveFormatter
-    ) {}
+        private readonly DynamicLogger         $logger,
+        private readonly ReserveExcelFormatter $reserveFormatter,
+        private readonly SummaryExcelFormater  $summaryFormatter,
+    )
+    {
+    }
 
     /**
      * Generate a complete settlement report for a merchant
      *
-     * @param  int  $merchantId  ID of the merchant
-     * @param  array  $settlementData  Settlement data containing shop and transaction information
-     * @param  array  $dateRange  Array with 'start' and 'end' dates for the settlement period
+     * @param int $merchantId ID of the merchant
+     * @param array $settlementData Settlement data containing shop and transaction information
+     * @param array $dateRange Array with 'start' and 'end' dates for the settlement period
      * @return string Path to the generated Excel file
      *
      * @throws \Exception If report generation fails
@@ -67,7 +71,7 @@ class ExcelExportService
             return $this->saveReport($merchantId, $dateRange);
 
         } catch (\Exception $e) {
-            $this->logger->log('error', 'Error generating Excel report: '.$e->getMessage(), [
+            $this->logger->log('error', 'Error generating Excel report: ' . $e->getMessage(), [
                 'merchant_id' => $merchantId,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
@@ -80,9 +84,9 @@ class ExcelExportService
     /**
      * Create a worksheet for a specific shop and currency combination
      *
-     * @param  array  $shopData  Shop information including ID and name
-     * @param  array  $currencyData  Transaction and fee data for specific currency
-     * @param  array  $dateRange  Settlement period date range
+     * @param array $shopData Shop information including ID and name
+     * @param array $currencyData Transaction and fee data for specific currency
+     * @param array $dateRange Settlement period date range
      */
     protected function createShopCurrencySheet($shopData, $currencyData, $dateRange)
     {
@@ -104,15 +108,15 @@ class ExcelExportService
     /**
      * Generate a valid worksheet name from shop data and currency
      *
-     * @param  array  $shopData  Shop information
-     * @param  string  $currency  Currency code
+     * @param array $shopData Shop information
+     * @param string $currency Currency code
      * @return string Sanitized worksheet name
      */
     protected function createSheetName(array $shopData, string $currency): string
     {
         $shopName = preg_replace('/[^\w\d]/', '_', $shopData['corp_name']);
 
-        return substr($shopName, 0, 15).'_'.$shopData['shop_id'].'_'.$currency;
+        return substr($shopName, 0, 15) . '_' . $shopData['shop_id'] . '_' . $currency;
     }
 
     /**
@@ -121,7 +125,7 @@ class ExcelExportService
     protected function addCompanyHeader(): void
     {
         $this->currentSheet->setCellValue('A1', 'INTRACLEAR LIMITED');
-        $this->currentSheet->setCellValue('F1', 'Issue date: '.Carbon::now()->format('d/m/Y'));
+        $this->currentSheet->setCellValue('F1', 'Issue date: ' . Carbon::now()->format('d/m/Y'));
         $this->currentSheet->getStyle('A1:F1')
             ->getAlignment()->setWrapText(true);
         $this->currentSheet->getRowDimension(1)->setRowHeight(
@@ -141,9 +145,9 @@ class ExcelExportService
     /**
      * Add merchant details section to worksheet
      *
-     * @param  array  $shopData  Shop information
-     * @param  array  $currencyData  Currency-specific data
-     * @param  array  $dateRange  Settlement period
+     * @param array $shopData Shop information
+     * @param array $currencyData Currency-specific data
+     * @param array $dateRange Settlement period
      */
     protected function addMerchantDetails(array $shopData, array $currencyData, array $dateRange): void
     {
@@ -153,25 +157,26 @@ class ExcelExportService
             ['Company Name', $shopData['corp_name']],
             ['Terminal Id', $shopData['shop_id']],
             ['Processing Currency', $currencyData['currency']],
+            ['Exchange Rate', $currencyData['exchange_rate']],
             ['Settlement Currency', 'EUR'],
             ['Settle Transaction Period',
-                Carbon::parse($dateRange['start'])->format('d/m/Y').'-'.
+                Carbon::parse($dateRange['start'])->format('d/m/Y') . '-' .
                 Carbon::parse($dateRange['end'])->format('d/m/Y'),
             ],
         ];
 
         foreach ($details as $detail) {
-            $this->currentSheet->setCellValue('A'.$this->currentRow, $detail[0]);
+            $this->currentSheet->setCellValue('A' . $this->currentRow, $detail[0]);
 
             $this->currentSheet->setCellValueExplicit(
-                'E'.$this->currentRow,
+                'E' . $this->currentRow,
                 $detail[1],
                 DataType::TYPE_STRING
             );
-            $this->currentSheet->getStyle('E'.$this->currentRow)->getAlignment()
+            $this->currentSheet->getStyle('E' . $this->currentRow)->getAlignment()
                 ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_LEFT);
-            $this->currentSheet->mergeCells('A'.$this->currentRow.':D'.$this->currentRow);
-            $this->currentSheet->mergeCells('E'.$this->currentRow.':G'.$this->currentRow);
+            $this->currentSheet->mergeCells('A' . $this->currentRow . ':D' . $this->currentRow);
+            $this->currentSheet->mergeCells('E' . $this->currentRow . ':G' . $this->currentRow);
             $this->currentRow++;
         }
     }
@@ -180,17 +185,17 @@ class ExcelExportService
      * Add fee and charge details section
      * Includes MDR, transaction fees, declined fees, etc.
      *
-     * @param  array  $currencyData  Currency-specific data including fees
+     * @param array $currencyData Currency-specific data including fees
      */
     protected function addChargeDetails(array $currencyData): void
     {
         $this->addSectionHeader('Charge Details');
 
         $headers = ['Charge Name', 'Rate/Fee', 'Terminal', 'Count', 'Amount',
-            'Total '.$currencyData['currency'], 'Total EUR'];
+            'Total ' . $currencyData['currency'], 'Total EUR'];
         $this->addTableHeaders($headers);
 
-        if (! isset($currencyData['fees']) || ! is_array($currencyData['fees'])) {
+        if (!isset($currencyData['fees']) || !is_array($currencyData['fees'])) {
             $this->logger->log('warning', 'No fees data found or invalid format', [
                 'currency_data' => $currencyData,
             ]);
@@ -212,8 +217,8 @@ class ExcelExportService
         });
         $isFirstFee = true;
         foreach ($sortedFees as $fee) {
-            $this->currentSheet->setCellValue('A'.$this->currentRow, $fee['fee_type']);
-            $this->currentSheet->setCellValue('B'.$this->currentRow, $fee['fee_rate']);
+            $this->currentSheet->setCellValue('A' . $this->currentRow, $fee['fee_type']);
+            $this->currentSheet->setCellValue('B' . $this->currentRow, $fee['fee_rate']);
             // Set the appropriate count based on fee type
             $count = match ($fee['fee_type']) {
                 'Declined Fee' => $fee['transactionData']['transaction_declined_count'] ?? 0,
@@ -222,17 +227,17 @@ class ExcelExportService
                 'Transaction Fee' => $fee['transactionData']['transaction_sales_count'] ?? 0,
                 default => ''
             };
-            $this->currentSheet->setCellValue('D'.$this->currentRow, $count);
+            $this->currentSheet->setCellValue('D' . $this->currentRow, $count);
             if ($isFirstFee) {
-                $this->currentSheet->setCellValue('E'.$this->currentRow, $fee['transactionData']['total_sales'] ?? 0);
+                $this->currentSheet->setCellValue('E' . $this->currentRow, $fee['transactionData']['total_sales'] ?? 0);
                 $isFirstFee = false;
             } else {
-                $this->currentSheet->setCellValue('E'.$this->currentRow, '');
+                $this->currentSheet->setCellValue('E' . $this->currentRow, '');
             }
             // Calculate original currency amount
             $originalAmount = $fee['fee_amount'] / $fee['transactionData']['exchange_rate'];
-            $this->currentSheet->setCellValue('F'.$this->currentRow, $originalAmount);
-            $this->currentSheet->setCellValue('G'.$this->currentRow, $fee['fee_amount']); // EUR amount
+            $this->currentSheet->setCellValue('F' . $this->currentRow, $originalAmount);
+            $this->currentSheet->setCellValue('G' . $this->currentRow, $fee['fee_amount']); // EUR amount
 
             $this->currentRow++;
         }
@@ -241,18 +246,18 @@ class ExcelExportService
         $lastRow = $this->currentRow - 1;
         if ($lastRow > $this->currentRow - 2) {
             $this->currentRow++;
-            $this->currentSheet->setCellValue('A'.$this->currentRow, 'Total');
-            $this->currentSheet->setCellValue('F'.$this->currentRow,
-                '=SUM(F'.($this->currentRow - $sortedFees->count() - 1).':F'.($lastRow).')');
-            $this->currentSheet->setCellValue('G'.$this->currentRow,
-                '=SUM(G'.($this->currentRow - $sortedFees->count() - 1).':G'.($lastRow).')');
+            $this->currentSheet->setCellValue('A' . $this->currentRow, 'Total');
+            $this->currentSheet->setCellValue('F' . $this->currentRow,
+                '=SUM(F' . ($this->currentRow - $sortedFees->count() - 1) . ':F' . ($lastRow) . ')');
+            $this->currentSheet->setCellValue('G' . $this->currentRow,
+                '=SUM(G' . ($this->currentRow - $sortedFees->count() - 1) . ':G' . ($lastRow) . ')');
 
             // Format total row
-            $this->currentSheet->getStyle('A'.$this->currentRow.':G'.$this->currentRow)
+            $this->currentSheet->getStyle('A' . $this->currentRow . ':G' . $this->currentRow)
                 ->getFont()
                 ->setBold(true);
 
-            $this->currentSheet->getStyle('F'.$this->currentRow.':G'.$this->currentRow)
+            $this->currentSheet->getStyle('F' . $this->currentRow . ':G' . $this->currentRow)
                 ->getNumberFormat()
                 ->setFormatCode(\PhpOffice\PhpSpreadsheet\Style\NumberFormat::FORMAT_NUMBER_COMMA_SEPARATED2);
         }
@@ -264,51 +269,51 @@ class ExcelExportService
         $this->addSectionHeader('Refund/Chargeback Details');
         $this->currentRow++;
         // HEADER
-        $this->currentSheet->setCellValue('A'.$this->currentRow, 'Charge Name');
-        $this->currentSheet->mergeCells('A'.$this->currentRow.':E'.$this->currentRow);
-        $this->currentSheet->setCellValue('F'.$this->currentRow, 'Total '.$currencyData['currency']);
-        $this->currentSheet->setCellValue('G'.$this->currentRow, 'Total EUR');
-        $this->currentSheet->getStyle('A'.$this->currentRow)->getFont()->setBold(true);
-        $this->currentSheet->getStyle('F'.$this->currentRow)->getFont()->setBold(true);
-        $this->currentSheet->getStyle('G'.$this->currentRow)->getFont()->setBold(true);
+        $this->currentSheet->setCellValue('A' . $this->currentRow, 'Charge Name');
+        $this->currentSheet->mergeCells('A' . $this->currentRow . ':E' . $this->currentRow);
+        $this->currentSheet->setCellValue('F' . $this->currentRow, 'Total ' . $currencyData['currency']);
+        $this->currentSheet->setCellValue('G' . $this->currentRow, 'Total EUR');
+        $this->currentSheet->getStyle('A' . $this->currentRow)->getFont()->setBold(true);
+        $this->currentSheet->getStyle('F' . $this->currentRow)->getFont()->setBold(true);
+        $this->currentSheet->getStyle('G' . $this->currentRow)->getFont()->setBold(true);
         // END HEADER
         $startRow = $this->currentRow + 1;
         $this->currentRow++;
 
         // Declined Charge back
-        $this->currentSheet->setCellValue('A'.$this->currentRow, 'Return Chargeback');
-        $this->currentSheet->mergeCells('A'.$this->currentRow.':E'.$this->currentRow);
-        $this->currentSheet->setCellValue('F'.$this->currentRow, $currencyData['total_declined_chargeback_amount']);
-        $this->currentSheet->setCellValue('G'.$this->currentRow, $currencyData['total_declined_chargeback_amount_eur']);
+        $this->currentSheet->setCellValue('A' . $this->currentRow, 'Return Chargeback');
+        $this->currentSheet->mergeCells('A' . $this->currentRow . ':E' . $this->currentRow);
+        $this->currentSheet->setCellValue('F' . $this->currentRow, $currencyData['total_declined_chargeback_amount']);
+        $this->currentSheet->setCellValue('G' . $this->currentRow, $currencyData['total_declined_chargeback_amount_eur']);
         $this->currentRow++;
         // Refund Ammount
-        $this->currentSheet->setCellValue('A'.$this->currentRow, 'Refund Amount');
-        $this->currentSheet->mergeCells('A'.$this->currentRow.':E'.$this->currentRow);
-        $this->currentSheet->setCellValue('F'.$this->currentRow, $currencyData['total_refunds_amount']);
-        $this->currentSheet->setCellValue('G'.$this->currentRow, $currencyData['total_refunds_amount_eur']);
+        $this->currentSheet->setCellValue('A' . $this->currentRow, 'Refund Amount');
+        $this->currentSheet->mergeCells('A' . $this->currentRow . ':E' . $this->currentRow);
+        $this->currentSheet->setCellValue('F' . $this->currentRow, $currencyData['total_refunds_amount']);
+        $this->currentSheet->setCellValue('G' . $this->currentRow, $currencyData['total_refunds_amount_eur']);
         $this->currentRow++;
         // Chargeback
-        $this->currentSheet->setCellValue('A'.$this->currentRow, 'Chargeback');
-        $this->currentSheet->mergeCells('A'.$this->currentRow.':E'.$this->currentRow);
-        $this->currentSheet->setCellValue('F'.$this->currentRow, $currencyData['total_approved_chargeback_amount'] + $currencyData['total_processing_chargeback_amount']);
-        $this->currentSheet->setCellValue('G'.$this->currentRow, $currencyData['total_approved_chargeback_amount_eur'] + $currencyData['total_processing_chargeback_amount_eur']);
+        $this->currentSheet->setCellValue('A' . $this->currentRow, 'Chargeback');
+        $this->currentSheet->mergeCells('A' . $this->currentRow . ':E' . $this->currentRow);
+        $this->currentSheet->setCellValue('F' . $this->currentRow, $currencyData['total_approved_chargeback_amount'] + $currencyData['total_processing_chargeback_amount']);
+        $this->currentSheet->setCellValue('G' . $this->currentRow, $currencyData['total_approved_chargeback_amount_eur'] + $currencyData['total_processing_chargeback_amount_eur']);
         $this->currentRow += 2;
         // Total Calculation
-        $this->currentSheet->setCellValue('A'.$this->currentRow, 'Total Refund Amount');
-        $this->currentSheet->mergeCells('A'.$this->currentRow.':E'.$this->currentRow);
-        $this->currentSheet->getStyle('A'.$this->currentRow)->getFont()->setBold(true);
-        $this->currentSheet->getStyle('F'.$this->currentRow)->getFont()->setBold(true);
-        $this->currentSheet->getStyle('G'.$this->currentRow)->getFont()->setBold(true);
+        $this->currentSheet->setCellValue('A' . $this->currentRow, 'Total Refund Amount');
+        $this->currentSheet->mergeCells('A' . $this->currentRow . ':E' . $this->currentRow);
+        $this->currentSheet->getStyle('A' . $this->currentRow)->getFont()->setBold(true);
+        $this->currentSheet->getStyle('F' . $this->currentRow)->getFont()->setBold(true);
+        $this->currentSheet->getStyle('G' . $this->currentRow)->getFont()->setBold(true);
 
         // Add formulas for total calculation
         // Formula: Processing + Approved - Declined
         $this->currentSheet->setCellValue(
-            'F'.$this->currentRow,
-            "=F{$startRow}+F".($startRow + 1).'-F'.($startRow + 2)
+            'F' . $this->currentRow,
+            "=F{$startRow}+F" . ($startRow + 1) . '-F' . ($startRow + 2)
         );
         $this->currentSheet->setCellValue(
-            'G'.$this->currentRow,
-            "=G{$startRow}+G".($startRow + 1).'-G'.($startRow + 2)
+            'G' . $this->currentRow,
+            "=G{$startRow}+G" . ($startRow + 1) . '-G' . ($startRow + 2)
         );
 
     }
@@ -316,7 +321,7 @@ class ExcelExportService
     /**
      * Add table Rolling Reserve with consistent formatting
      *
-     * @param  array  $currencyData  Currency-specific data including Rolling Reserve
+     * @param array $currencyData Currency-specific data including Rolling Reserve
      */
     protected function addGeneratedReserveDetails(array $currencyData): void
     {
@@ -348,76 +353,22 @@ class ExcelExportService
      */
     protected function addSummarySection(array $currencyData): void
     {
-        $this->currentRow += 2;
-        $this->addSectionHeader('Summary');
-
-        // Helper function to safely get total from either array or model
-        $getTotal = function ($data, $key) {
-            if (empty($data)) {
-                return 0;
-            }
-
-            // If it's a single model
-            if ($data instanceof \Illuminate\Database\Eloquent\Model) {
-                return $data->{$key} ?? 0;
-            }
-
-            // If it's a collection
-            if ($data instanceof \Illuminate\Database\Eloquent\Collection) {
-                return $data->sum($key);
-            }
-
-            // If it's an array
-            if (is_array($data)) {
-                return array_sum(array_column($data, $key));
-            }
-
-            return 0;
-        };
-
-        $summaryItems = [
-            [
-                'Total Processing Amount',
-                $currencyData['total_sales_amount'] ?? 0,
-                $currencyData['total_sales_amount_eur'] ?? 0,
-            ],
-            [
-                'Total Fees',
-                '',
-                $getTotal($currencyData['fees'] ?? [], 'amount'),
-            ],
-            [
-                'Total Rolling Reserve',
-                '',
-                $getTotal($currencyData['rolling_reserve'] ?? [], 'reserve_amount_eur'),
-            ],
-            [
-                'Released Reserve',
-                '',
-                $getTotal($currencyData['releaseable_reserve'] ?? [], 'reserve_amount_eur'),
-            ],
-        ];
-
-        foreach ($summaryItems as $item) {
-            $this->currentRow++;
-            $this->currentSheet->setCellValue('A'.$this->currentRow, $item[0]);
-            if ($item[1] !== '') {
-                $this->currentSheet->setCellValue('E'.$this->currentRow, $item[1]);
-            }
-            $this->currentSheet->setCellValue('G'.$this->currentRow, $item[2]);
-        }
+        $this->summaryFormatter->formatTotalSummary(
+            $this->currentSheet,
+            $currencyData,
+            $this->currentRow);
     }
 
     /**
      * Add section header with consistent styling
      *
-     * @param  string  $title  Header title text
+     * @param string $title Header title text
      */
     protected function addSectionHeader(string $title): void
     {
-        $this->currentSheet->setCellValue('A'.$this->currentRow, $title);
-        $this->currentSheet->mergeCells('A'.$this->currentRow.':G'.$this->currentRow);
-        $this->currentSheet->getStyle('A'.$this->currentRow)->applyFromArray([
+        $this->currentSheet->setCellValue('A' . $this->currentRow, $title);
+        $this->currentSheet->mergeCells('A' . $this->currentRow . ':G' . $this->currentRow);
+        $this->currentSheet->getStyle('A' . $this->currentRow)->applyFromArray([
             'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
             'fill' => [
                 'fillType' => Fill::FILL_SOLID,
@@ -429,15 +380,15 @@ class ExcelExportService
     /**
      * Add table headers with consistent formatting
      *
-     * @param  array  $headers  Array of header texts
+     * @param array $headers Array of header texts
      */
     protected function addTableHeaders(array $headers): void
     {
         $this->currentRow++;
         foreach ($headers as $index => $header) {
             $column = chr(65 + $index);
-            $this->currentSheet->setCellValue($column.$this->currentRow, $header);
-            $this->currentSheet->getStyle($column.$this->currentRow)->getFont()->setBold(true);
+            $this->currentSheet->setCellValue($column . $this->currentRow, $header);
+            $this->currentSheet->getStyle($column . $this->currentRow)->getFont()->setBold(true);
         }
         $this->currentRow++;
     }
@@ -457,18 +408,18 @@ class ExcelExportService
         $this->currentSheet->getStyle('E:G')->getNumberFormat()
             ->setFormatCode(NumberFormat::FORMAT_NUMBER_COMMA_SEPARATED2);
 
-        $this->currentSheet->getStyle('A1:G'.$this->currentRow)
+        $this->currentSheet->getStyle('A1:G' . $this->currentRow)
             ->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
 
-        $this->currentSheet->getStyle('A1:G'.$this->currentRow)
+        $this->currentSheet->getStyle('A1:G' . $this->currentRow)
             ->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
     }
 
     /**
      * Save the generated report to disk
      *
-     * @param  int  $merchantId  Merchant ID for filename
-     * @param  array  $dateRange  Date range for filename
+     * @param int $merchantId Merchant ID for filename
+     * @param array $dateRange Date range for filename
      * @return string Path to saved file
      *
      * @throws \Exception If saving fails
@@ -503,12 +454,12 @@ class ExcelExportService
             $fullPath = storage_path("app/{$relativePath}");
 
             // Ensure directory exists
-            if (! file_exists($fullPath)) {
+            if (!file_exists($fullPath)) {
                 mkdir($fullPath, 0755, true);
             }
 
             // Complete file path
-            $filePath = $fullPath.'/'.$fileName;
+            $filePath = $fullPath . '/' . $fileName;
 
             // Save the Excel file
             $writer = new Xlsx($this->spreadsheet);

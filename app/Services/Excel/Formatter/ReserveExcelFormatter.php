@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Excel;
+namespace App\Services\Excel\Formatter;
 
 use App\Models\RollingReserveEntry;
 use App\Services\DynamicLogger;

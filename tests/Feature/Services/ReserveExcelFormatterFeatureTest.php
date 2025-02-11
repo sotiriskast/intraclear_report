@@ -4,7 +4,7 @@ namespace Tests\Feature\Services;
 
 use App\Models\Merchant;
 use App\Models\RollingReserveEntry;
-use App\Services\Excel\ReserveExcelFormatter;
+use App\Services\Excel\Formatter\ReserveExcelFormatter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;

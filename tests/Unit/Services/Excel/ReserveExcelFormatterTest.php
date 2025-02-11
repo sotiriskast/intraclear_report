@@ -4,7 +4,7 @@ namespace Tests\Unit\Services\Excel;
 
 use App\Models\RollingReserveEntry;
 use App\Services\DynamicLogger;
-use App\Services\Excel\ReserveExcelFormatter;
+use App\Services\Excel\Formatter\ReserveExcelFormatter;
 use Illuminate\Database\Eloquent\Collection;
 use Mockery;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
