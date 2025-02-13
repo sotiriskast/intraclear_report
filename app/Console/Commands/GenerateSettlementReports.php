@@ -2,8 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Models\UserNotificationRecipient;
-use App\Notifications\SettlementReportGenerated;
+use App\Mail\SettlementReportGenerated;
 use App\Services\DynamicLogger;
 use App\Services\ExcelExportService;
 use App\Services\Settlement\SettlementService;
@@ -12,8 +11,23 @@ use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use DB;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Mail;
 
+/**
+ * Console command for generating settlement reports
+ *
+ * This command handles:
+ * - Generating settlement reports for merchants
+ * - Processing transactions for specified date ranges
+ * - Creating Excel reports per merchant/currency
+ * - Bundling reports into ZIP archives
+ * - Sending email notifications
+ *
+ * @property SettlementService $settlementService Service for generating settlement data
+ * @property ExcelExportService $excelService Service for creating Excel reports
+ * @property ZipExportService $zipService Service for creating ZIP archives
+ * @property DynamicLogger $logger Service for logging operations
+ */
 class GenerateSettlementReports extends Command
 {
     /**
@@ -24,8 +38,7 @@ class GenerateSettlementReports extends Command
     protected $signature = 'intraclear:settlement-generate
                           {--merchant-id= : Specific merchant ID}
                           {--start-date= : Start date (Y-m-d)}
-                          {--end-date= : End date (Y-m-d)}
-                          {--currency= : Specific currency}';
+                          {--end-date= : End date (Y-m-d)}';
 
     /**
      * The console command description.
@@ -45,7 +58,9 @@ class GenerateSettlementReports extends Command
     }
 
     /**
-     * Execute the console command.
+     * Execute the command
+     *
+     * @throws \Exception If report generation fails
      */
     public function handle()
     {
@@ -120,24 +135,34 @@ class GenerateSettlementReports extends Command
                 // Store ZIP reference in database
                 $this->storeZipReference($zipPath, $dateRange, $generatedFiles);
                 // Send notifications to user's configured recipients
-                try {
-                    foreach ($merchants as $merchant) {
-                        $recipients = UserNotificationRecipient::getActiveRecipients($merchant->id);
-
-                        if (!empty($recipients)) {
-                            Notification::route('mail', $recipients)
-                                ->notify(new SettlementReportGenerated($zipPath, $dateRange));
-
-                            $this->info("Notifications sent for merchant: {$merchant->account_id}");
-                        }
-                    }
-                } catch (\Exception $e) {
-                    $this->warn("Notification failed: {$e->getMessage()}");
-                    $this->logger->log('warning', 'Settlement report notification failed', [
-                        'error' => $e->getMessage(),
-                        'trace' => $e->getTraceAsString(),
-                    ]);
+                $recipients = collect(config('settlement.report_recipients', []))
+                    ->filter()
+                    ->values();
+                if ($recipients->isEmpty()) {
+                    $this->warn('No recipients configured for settlement report notifications');
+                    return;
                 }
+                $this->info('Sending emails to: ' . $recipients->join(', '));
+                $this->logger->log('info',"Sending emails to" . $recipients->join(', '));
+                // Send email to each recipient
+                $recipients->each(function($recipient) use ($zipPath, $dateRange, $generatedFiles) {
+                    try {
+                        Mail::to($recipient)->send(new SettlementReportGenerated(
+                            zipPath: $zipPath,
+                            dateRange: $dateRange,
+                            fileCount: count($generatedFiles)
+                        ));
+
+                        $this->info("Email sent successfully to: {$recipient}");
+                    } catch (\Throwable $e) {
+
+                        $this->logger->log('error',"Settlement report email failed", [
+                            'recipient' => $recipient,
+                            'error' => $e->getMessage(),
+                            'zipPath' => $zipPath
+                        ]);
+                    }
+                });
             }
 
             $this->info('All reports generated successfully');
@@ -153,7 +178,13 @@ class GenerateSettlementReports extends Command
             throw $e;
         }
     }
-
+    /**
+     * Store reference to generated ZIP archive
+     *
+     * @param string $zipPath Path to the ZIP file
+     * @param array $dateRange Date range for the settlement period
+     * @param array $reports Array of report file paths included in the ZIP
+     */
     protected function storeZipReference(string $zipPath, array $dateRange, array $reports): void
     {
         DB::connection('mariadb')
@@ -168,6 +199,11 @@ class GenerateSettlementReports extends Command
             ]);
     }
 
+    /**
+     * Get list of merchants to process
+     *
+     * @return array Array of merchant objects with id, account_id, and name
+     */
     protected function getMerchants(): array
     {
         $query = DB::connection('mariadb')
@@ -181,7 +217,13 @@ class GenerateSettlementReports extends Command
 
         return $query->get()->toArray();
     }
-
+    /**
+     * Get merchant's shop data for the given date range
+     *
+     * @param int $merchantId Merchant's account ID
+     * @param array $dateRange Date range for the settlement period
+     * @return array Array of shop data including shop_id and corp_name
+     */
     protected function getMerchantShopData(int $merchantId, array $dateRange): array
     {
         return DB::connection('payment_gateway_mysql')
@@ -208,6 +250,14 @@ class GenerateSettlementReports extends Command
             ->toArray();
     }
 
+    /**
+     * Get currencies used in transactions for a specific shop
+     *
+     * @param int $merchantId Merchant's account ID
+     * @param int $shopId Shop ID
+     * @param array $dateRange Date range for the settlement period
+     * @return array Array of currency codes
+     */
     protected function getShopCurrencies(int $merchantId, int $shopId, array $dateRange): array
     {
         return DB::connection('payment_gateway_mysql')
@@ -219,7 +269,13 @@ class GenerateSettlementReports extends Command
             ->pluck('currency')
             ->toArray();
     }
-
+    /**
+     * Store reference to generated report in database
+     *
+     * @param int $merchantId Internal merchant ID
+     * @param string $filePath Path to the generated report
+     * @param array $dateRange Date range for the settlement period
+     */
     protected function storeReportReference(int $merchantId, string $filePath, array $dateRange): void
     {
         DB::connection('mariadb')

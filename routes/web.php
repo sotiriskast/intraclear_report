@@ -35,10 +35,19 @@ Route::middleware(['auth:web', 'verified',
         Route::get('/settlements/generate', [SettlementController::class, 'showGenerateForm'])->name('settlements.generate-form');
         Route::post('/settlements/generate', [SettlementController::class, 'generate'])->name('settlements.generate');
         Route::get('/settlements/download/{id}', [SettlementController::class, 'download'])->name('settlements.download');
-        Route::get('/settlements/download-batch/{ids}', [SettlementController::class, 'downloadBatch'])->name('settlements.download-batch');
 
-
-        Route::resource('notification-recipients', UserNotificationRecipientController::class)->only(['index', 'destroy']);
-        Route::post('notification-recipients/{recipient}/toggle', [UserNotificationRecipientController::class, 'toggleActive'])->name('notification-recipients.toggle');
+        Route::get('/settlements/archives', [SettlementController::class, 'archives'])->name('settlements.archives');
+        Route::get('/settlements/archives/{id}/download', [SettlementController::class, 'downloadZip'])->name('settlements.archives.download');
+        // routes/web.php
+        Route::get('/mail/preview', function () {
+            return new App\Mail\SettlementReportGenerated(
+                zipPath: 'test.zip',
+                dateRange: [
+                    'start' => '2024-02-01',
+                    'end' => '2024-02-28'
+                ],
+                fileCount: 10
+            );
+        });
     });
 });

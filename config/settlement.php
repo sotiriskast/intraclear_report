@@ -2,7 +2,7 @@
 
 return [
     'report_recipients' => [
-        'finance@example.com',
-        'accounting@example.com'
+        env('SETTLEMENT_REPORT_EMAIL_1'),
+        env('SETTLEMENT_REPORT_EMAIL_2'),
     ],
 ];

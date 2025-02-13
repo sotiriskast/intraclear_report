@@ -4,17 +4,11 @@
             <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
                 <div class="p-6">
                     <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-2xl font-bold">Settlement Reports</h2>
-                        <div class="space-x-4">
-                            <a href="{{ route('settlements.archives') }}"
-                               class="inline-flex items-center px-4 py-2 bg-gray-600 border border-transparent rounded-md font-semibold text-white hover:bg-gray-700">
-                                View Archives
-                            </a>
-                            <a href="{{ route('settlements.generate-form') }}"
-                               class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-md font-semibold text-white hover:bg-blue-700">
-                                Generate New Report
-                            </a>
-                        </div>
+                        <h2 class="text-2xl font-bold">Settlement Archives</h2>
+                        <a href="{{ route('settlements.index') }}"
+                           class="inline-flex items-center px-4 py-2 bg-gray-600 border border-transparent rounded-md font-semibold text-white hover:bg-gray-700">
+                            Back to Reports
+                        </a>
                     </div>
 
                     @if (session('success'))
@@ -23,18 +17,21 @@
                         </div>
                     @endif
 
+                    @if (session('error'))
+                        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4">
+                            {{ session('error') }}
+                        </div>
+                    @endif
+
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead>
                             <tr>
                                 <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Merchant
-                                </th>
-                                <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Account ID
-                                </th>
-                                <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Period
+                                </th>
+                                <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Report Count
                                 </th>
                                 <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Generated At
@@ -45,27 +42,25 @@
                             </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
-                            @forelse ($reports as $report)
+                            @forelse ($archives as $archive)
                                 <tr>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                        {{ $report->merchant_name }}
-                                    </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {{ $report->account_id }}
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {{ \Carbon\Carbon::parse($report->start_date)->format('Y-m-d') }}
+                                        {{ \Carbon\Carbon::parse($archive->start_date)->format('Y-m-d') }}
                                         to
-                                        {{ \Carbon\Carbon::parse($report->end_date)->format('Y-m-d') }}
+                                        {{ \Carbon\Carbon::parse($archive->end_date)->format('Y-m-d') }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {{ \Carbon\Carbon::parse($report->created_at)->format('Y-m-d H:i:s') }}
+                                        {{ $archive->report_count }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        @if(Storage::exists($report->report_path))
-                                            <a href="{{ route('settlements.download', $report->id) }}"
+                                        {{ \Carbon\Carbon::parse($archive->created_at)->format('Y-m-d H:i:s') }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+
+                                        @if(Storage::exists($archive->zip_path))
+                                            <a href="{{ route('settlements.archives.download', $archive->id) }}"
                                                class="text-blue-600 hover:text-blue-900">
-                                                Download
+                                                Download ZIP
                                             </a>
                                         @else
                                             <span class="text-red-600">File not found</span>
@@ -74,17 +69,18 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="5" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
-                                        No reports found
+                                    <td colspan="4" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
+                                        No archives found
                                     </td>
                                 </tr>
+
                             @endforelse
                             </tbody>
                         </table>
                     </div>
 
                     <div class="mt-4">
-                        {{ $reports->links() }}
+                        {{ $archives->links() }}
                     </div>
                 </div>
             </div>

@@ -13,6 +13,10 @@ class GenerateSettlementReportsJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    protected $startDate;
+    protected $endDate;
+    protected $merchantId;
+    protected $currency;
     /**
      * The number of times the job may be attempted.
      *
@@ -27,6 +31,14 @@ class GenerateSettlementReportsJob implements ShouldQueue
      */
     public $backoff = 60;
 
+    public function __construct($startDate, $endDate, $merchantId = null, $currency = null)
+    {
+        $this->startDate = $startDate;
+        $this->endDate = $endDate;
+        $this->merchantId = $merchantId;
+        $this->currency = $currency;
+    }
+
     /**
      * The number of seconds the job can run before timing out.
      *
@@ -36,10 +48,20 @@ class GenerateSettlementReportsJob implements ShouldQueue
 
     public function handle()
     {
-        Artisan::call('intraclear:settlement-generate', [
-            '--start-date' => '2024-11-28',
-            '--end-date' => '2024-12-04'
-        ]);
+        $command = 'intraclear:settlement-generate';
+        $parameters = [];
+        if ($this->startDate) {
+            $parameters['--start-date'] = $this->startDate;
+        }
+        if ($this->endDate) {
+            $parameters['--end-date'] = $this->endDate;
+        }
+
+        if ($this->merchantId) {
+            $parameters['--merchant-id'] = $this->merchantId;
+        }
+        Artisan::call($command, $parameters);
+
 
     }
 }

@@ -58,11 +58,6 @@ class NavigationService
                 'label' => 'Users',
                 'icon' => 'users',
                 'children' => [
-                    'notification-recipients' => [
-                        'route' => 'notification-recipients.index',
-                        'label' => 'Notifications email',
-                        'permission' => null, // Permission check will be dynamic
-                    ],
                     'user_management' => [
                         'route' => 'admin.users',
                         'label' => 'User Management',

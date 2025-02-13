@@ -6,6 +6,7 @@ use App\Services\Excel\Formatter\ReserveExcelFormatter;
 use App\Services\Excel\Formatter\SummaryExcelFormater;
 use Carbon\Carbon;
 use DB;
+use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
@@ -432,41 +433,30 @@ class ExcelExportService
                 ->where('account_id', $merchantId)
                 ->first();
 
-            // Create directory structure: reports/YYYY-MM-DD/merchant_name_accountId/
-            $dateFolder = Carbon::now()->format('Y-m-d');
-            $safeMerchantName = Str::slug($merchant->name ?? 'merchant');
-
-            $relativePath = sprintf(
-                'reports/%s/%s_%d',
-                $dateFolder,
-                $safeMerchantName,
-                $merchant->account_id // Using account_id for better identification
-            );
-
-            // Create filename with settlement period
-            $fileName = sprintf(
-                'settlement_report_%s_to_%s.xlsx',
-                Carbon::parse($dateRange['start'])->format('Y-m-d'),
-                Carbon::parse($dateRange['end'])->format('Y-m-d')
-            );
-
-            // Create full storage path
-            $fullPath = storage_path("app/{$relativePath}");
-
-            // Ensure directory exists
-            if (!file_exists($fullPath)) {
-                mkdir($fullPath, 0755, true);
+            if (!$merchant) {
+                throw new \Exception("Merchant not found");
             }
 
-            // Complete file path
-            $filePath = $fullPath . '/' . $fileName;
+            // Generate the storage path
+            $relativePath = $this->generateReportPath($merchant, $dateRange);
 
-            // Save the Excel file
+            // Save the Excel file using Laravel's Storage
             $writer = new Xlsx($this->spreadsheet);
-            $writer->save($filePath);
 
-            // Return relative path for database storage
-            return "{$relativePath}/{$fileName}";
+            // Save to memory first
+            ob_start();
+            $writer->save('php://output');
+            $content = ob_get_clean();
+
+            // Store using Laravel's Storage
+            Storage::put($relativePath, $content);
+
+            $this->logger->log('info', 'Settlement report saved successfully', [
+                'merchant_id' => $merchantId,
+                'path' => $relativePath
+            ]);
+
+            return $relativePath;
         } catch (\Exception $e) {
             $this->logger->log('error', 'Failed to save settlement report', [
                 'merchant_id' => $merchantId,
@@ -476,5 +466,23 @@ class ExcelExportService
             ]);
             throw $e;
         }
+    }
+
+    /**
+     * Generate standardized path for reports
+     */
+    private function generateReportPath($merchant, array $dateRange): string
+    {
+        $dateFolder = Carbon::now()->format('Y-m-d');
+        $safeMerchantName = Str::slug($merchant->name ?? 'merchant');
+
+        return sprintf(
+            'reports/%s/%s_%d/settlement_report_%s_to_%s.xlsx',
+            $dateFolder,
+            $safeMerchantName,
+            $merchant->account_id,
+            Carbon::parse($dateRange['start'])->format('Y-m-d'),
+            Carbon::parse($dateRange['end'])->format('Y-m-d')
+        );
     }
 }
