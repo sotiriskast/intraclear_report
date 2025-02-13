@@ -2,7 +2,9 @@
 
 namespace App\Providers;
 
+use App\Models\UserNotificationRecipient;
 use App\Policies\RolePolicy;
+use App\Policies\UserNotificationRecipientPolicy;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 use Spatie\Permission\Models\Role;
 
@@ -15,6 +17,8 @@ class AuthServiceProvider extends ServiceProvider
      */
     protected $policies = [
         Role::class => RolePolicy::class,
+        UserNotificationRecipient::class => UserNotificationRecipientPolicy::class,
+
     ];
 
     /**

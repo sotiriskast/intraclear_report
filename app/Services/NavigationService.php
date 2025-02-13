@@ -16,6 +16,18 @@ class NavigationService
                 'icon' => 'dashboard',
                 'permission' => null, // Always visible
             ],
+            'reports' => [
+                'label' => 'Reports',
+                'icon' => 'merchant',
+                'children' => [
+                    'settlement_report' => [
+                        'route' => 'settlements.index',
+                        'label' => 'Settlements',
+                        'permission' => null,
+                    ],
+                ],
+            ],
+
             'merchant' => [
                 'label' => 'Merchants',
                 'icon' => 'merchant',
@@ -46,6 +58,11 @@ class NavigationService
                 'label' => 'Users',
                 'icon' => 'users',
                 'children' => [
+                    'notification-recipients' => [
+                        'route' => 'notification-recipients.index',
+                        'label' => 'Notifications email',
+                        'permission' => null, // Permission check will be dynamic
+                    ],
                     'user_management' => [
                         'route' => 'admin.users',
                         'label' => 'User Management',

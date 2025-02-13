@@ -24,6 +24,7 @@ use App\Services\Settlement\Fee\FeeService;
 use App\Services\Settlement\Fee\StandardFeeHandler;
 use App\Services\Settlement\Reserve\RollingReserveHandler;
 use App\Services\Settlement\SettlementService;
+use App\Services\ZipExportService;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -123,7 +124,8 @@ class AppServiceProvider extends ServiceProvider
             return new GenerateSettlementReports(
                 $app->make(SettlementService::class),
                 $app->make(ExcelExportService::class),
-                $app->make(DynamicLogger::class)
+                $app->make(ZipExportService::class),
+                $app->make(DynamicLogger::class),
             );
         });
 

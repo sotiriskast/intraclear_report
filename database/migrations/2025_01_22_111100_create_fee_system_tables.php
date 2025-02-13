@@ -145,6 +145,14 @@ return new class extends Migration
             $table->index(['current_status', 'settled']);
             $table->index('processing_date');
         });
+        Schema::create('settlement_report_archives', function (Blueprint $table) {
+            $table->id();
+            $table->string('zip_path');
+            $table->date('start_date');
+            $table->date('end_date');
+            $table->integer('report_count');
+            $table->timestamps();
+        });
     }
 
     /**
@@ -160,6 +168,6 @@ return new class extends Migration
         Schema::dropIfExists('fee_types');
         Schema::dropIfExists('settlement_reports');
         Schema::dropIfExists('chargeback_tracking');
-
+        Schema::dropIfExists('settlement_report_archives');
     }
 };

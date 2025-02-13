@@ -2,13 +2,17 @@
 
 namespace App\Console\Commands;
 
+use App\Models\UserNotificationRecipient;
+use App\Notifications\SettlementReportGenerated;
 use App\Services\DynamicLogger;
 use App\Services\ExcelExportService;
 use App\Services\Settlement\SettlementService;
+use App\Services\ZipExportService;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use DB;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Notification;
 
 class GenerateSettlementReports extends Command
 {
@@ -31,9 +35,10 @@ class GenerateSettlementReports extends Command
     protected $description = 'Generate settlement reports for merchants';
 
     public function __construct(
-        private SettlementService $settlementService,
-        private ExcelExportService $excelService,
-        private DynamicLogger $logger
+        private readonly SettlementService  $settlementService,
+        private readonly ExcelExportService $excelService,
+        private readonly ZipExportService   $zipService,
+        private readonly DynamicLogger      $logger,
     ) {
         parent::__construct();
 
@@ -61,7 +66,7 @@ class GenerateSettlementReports extends Command
 
             // Get merchants to process with both internal ID and account_id
             $merchants = $this->getMerchants();
-
+            $generatedFiles=[];
             foreach ($merchants as $merchant) {
                 $this->info("Processing merchant ID: {$merchant->account_id}");
 
@@ -103,9 +108,35 @@ class GenerateSettlementReports extends Command
                     );
 
                     $this->info("Report generated: {$filePath}");
-
+                    $generatedFiles[] = $filePath;
                     // Store reference using internal merchant ID
                     $this->storeReportReference($merchant->id, $filePath, $dateRange);
+                }
+            }
+            // Always create ZIP if files were generated
+            if (!empty($generatedFiles)) {
+                $zipPath = $this->zipService->createZip($generatedFiles, $dateRange);
+                $this->info("ZIP file created: {$zipPath}");
+                // Store ZIP reference in database
+                $this->storeZipReference($zipPath, $dateRange, $generatedFiles);
+                // Send notifications to user's configured recipients
+                try {
+                    foreach ($merchants as $merchant) {
+                        $recipients = UserNotificationRecipient::getActiveRecipients($merchant->id);
+
+                        if (!empty($recipients)) {
+                            Notification::route('mail', $recipients)
+                                ->notify(new SettlementReportGenerated($zipPath, $dateRange));
+
+                            $this->info("Notifications sent for merchant: {$merchant->account_id}");
+                        }
+                    }
+                } catch (\Exception $e) {
+                    $this->warn("Notification failed: {$e->getMessage()}");
+                    $this->logger->log('warning', 'Settlement report notification failed', [
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString(),
+                    ]);
                 }
             }
 
@@ -121,6 +152,20 @@ class GenerateSettlementReports extends Command
             ]);
             throw $e;
         }
+    }
+
+    protected function storeZipReference(string $zipPath, array $dateRange, array $reports): void
+    {
+        DB::connection('mariadb')
+            ->table('settlement_report_archives')
+            ->insert([
+                'zip_path' => $zipPath,
+                'start_date' => $dateRange['start'],
+                'end_date' => $dateRange['end'],
+                'report_count' => count($reports),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
     }
 
     protected function getMerchants(): array
