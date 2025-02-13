@@ -8,14 +8,33 @@ use App\Repositories\Interfaces\RollingReserveRepositoryInterface;
 use App\Services\DynamicLogger;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
-
+/**
+ * Repository for managing rolling reserves and their entries
+ *
+ * This repository handles:
+ * - Rolling reserve settings management
+ * - Reserve fund releases
+ * - Reserve entry creation and tracking
+ * - Release date calculations
+ *
+ * @implements RollingReserveRepositoryInterface
+ * @property DynamicLogger $logger Logger service
+ * @property MerchantRepository $merchantRepository Repository for merchant operations
+ */
 class RollingReserveRepository implements RollingReserveRepositoryInterface
 {
     public function __construct(
         private DynamicLogger $logger,
         private MerchantRepository $merchantRepository,
     ) {}
-
+    /**
+     * Get merchant's reserve settings for a currency
+     *
+     * @param int $merchantId Merchant's account ID
+     * @param string $currency Currency code
+     * @param string|null $date Specific date to check settings
+     * @return MerchantRollingReserve|null
+     */
     public function getMerchantReserveSettings(int $merchantId, string $currency, ?string $date = null)
     {
         $merchantId = $this->merchantRepository->getMerchantIdByAccountId($merchantId);
@@ -33,7 +52,14 @@ class RollingReserveRepository implements RollingReserveRepositoryInterface
 
         return $query->first();
     }
-
+    /**
+     * Get funds eligible for release
+     *
+     * @param int $merchantId Merchant ID
+     * @param string|CarbonInterface $date Date to check for releaseable funds
+     * @return Collection<RollingReserveEntry> Collection of releaseable entries
+     * @throws \Exception If retrieval fails
+     */
     public function getReleaseableFunds(
         int $merchantId,
         string|CarbonInterface $date
@@ -63,7 +89,13 @@ class RollingReserveRepository implements RollingReserveRepositoryInterface
             throw $e;
         }
     }
-
+    /**
+     * Mark reserve entries as released
+     *
+     * @param array $entryIds Array of entry IDs to mark as released
+     * @return int Number of entries updated
+     * @throws \Exception If update fails
+     */
     public function markReserveAsReleased(array $entryIds): int
     {
         try {
@@ -89,7 +121,13 @@ class RollingReserveRepository implements RollingReserveRepositoryInterface
             throw $e;
         }
     }
-
+    /**
+     * Create a new reserve entry
+     *
+     * @param array $data Reserve entry data
+     * @return RollingReserveEntry Created entry
+     * @throws \Exception If creation fails
+     */
     public function createReserveEntry(array $data): RollingReserveEntry
     {
         try {

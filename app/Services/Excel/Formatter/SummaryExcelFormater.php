@@ -7,7 +7,17 @@ use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 
-
+/**
+ * Formatter service for Excel summary sections
+ *
+ * This service handles:
+ * - Formatting summary sections in Excel reports
+ * - Creating standardized layouts
+ * - Applying consistent styling
+ * - Calculating and displaying totals
+ *
+ * @property SummaryCalculator $calculator Service for calculating summary values
+ */
 readonly class SummaryExcelFormater
 {
     public function __construct(
@@ -16,6 +26,13 @@ readonly class SummaryExcelFormater
     {
     }
 
+    /**
+     * Format the total summary section in the worksheet
+     *
+     * @param Worksheet $sheet Active worksheet
+     * @param array $currencyData Currency-specific data
+     * @param int &$currentRow Current row position (passed by reference)
+     */
     public function formatTotalSummary(Worksheet $sheet, array $currencyData, int &$currentRow): void
     {
         $currentRow += 2;
@@ -36,6 +53,13 @@ readonly class SummaryExcelFormater
 
         $this->formatSummarySection($sheet, $currentRow - count($summaryItems), $currentRow);
     }
+    /**
+     * Add section header with consistent styling
+     *
+     * @param string $title Header title
+     * @param int &$currentRow Current row position
+     * @param Worksheet $currentSheet Active worksheet
+     */
     private function addSectionHeader(string $title, &$currentRow, $currentSheet): void
     {
         $currentSheet->setCellValue('A' . $currentRow, $title);
@@ -48,7 +72,12 @@ readonly class SummaryExcelFormater
             ],
         ]);
     }
-
+    /**
+     * Get summary items with calculated values
+     *
+     * @param array $currencyData Currency-specific data
+     * @return array Array of summary items with labels and values
+     */
     private function getSummaryItems(array $currencyData): array
     {
         $currency = $currencyData['currency'] ?? '';
