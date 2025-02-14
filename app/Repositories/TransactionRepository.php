@@ -110,8 +110,6 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
                     'total_refunds' => 0,
                     'total_refunds_eur' => 0,
                     'transaction_refunds_count' => 0,
-                    'total_chargeback_amount' => 0,
-                    'total_chargeback_amount_eur' => 0,
                     'total_chargeback_count' => 0,
                     'processing_chargeback_count' => 0,
                     'processing_chargeback_amount' => 0,
@@ -120,6 +118,11 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
                     'approved_chargeback_amount_eur' => 0,
                     'declined_chargeback_amount' => 0,
                     'declined_chargeback_amount_eur' => 0,
+                    'total_payout_count' => 0,
+                    'approved_payout_amount' => 0,
+                    'approved_payout_amount_eur' => 0,
+                    'declined_payout_amount' => 0,
+                    'declined_payout_amount_eur' => 0,
                     'currency' => $currency,
                     'exchange_rate' => 0,
                 ];
@@ -153,7 +156,24 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
                     $totals[$currency]['declined_chargeback_amount_eur'] += ($amount * $effectiveRate);
                 }
                 $totals[$currency]['total_chargeback_count']++;
-            } elseif ($transactionType === 'SALE' && $transactionStatus === 'APPROVED') {
+            }
+            elseif ($transactionType === 'PAYOUT') {
+                // Handle chargebacks based on status
+                if ($transactionStatus === 'PROCESSING') {
+                    $totals[$currency]['processing_payout_count']++;
+                    $totals[$currency]['processing_payout_amount'] += $amount;
+                    $totals[$currency]['processing_payout_amount_eur'] += ($amount * $effectiveRate);
+
+                } elseif ($transactionStatus === 'APPROVED') {
+                    $totals[$currency]['approved_payout_amount'] += $amount;
+                    $totals[$currency]['approved_payout_amount_eur'] += ($amount * $effectiveRate);
+                } else {
+                    $totals[$currency]['declined_payout_amount'] += $amount;
+                    $totals[$currency]['declined_payout_amount_eur'] += ($amount * $effectiveRate);
+                }
+                $totals[$currency]['total_payout_count']++;
+            }
+            elseif ($transactionType === 'SALE' && $transactionStatus === 'APPROVED') {
                 $totals[$currency]['total_sales'] += $amount;
                 $totals[$currency]['total_sales_eur'] += ($amount * $effectiveRate);
                 $totals[$currency]['transaction_sales_count']++;

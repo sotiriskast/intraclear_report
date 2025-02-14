@@ -5,64 +5,65 @@ namespace App\DTO;
 readonly class TransactionData
 {
     public const TOTAL_SALES_EUR = 'total_sales_eur';
-
     public const TOTAL_SALES = 'total_sales';
-
     public const TRANSACTION_SALES_COUNT = 'transaction_sales_count';
-
     public const TOTAL_DECLINED_SALES = 'total_declined_sales';
-
     public const TOTAL_DECLINED_SALES_EUR = 'total_declined_sales_eur';
-
     public const TRANSACTION_DECLINED_COUNT = 'transaction_declined_count';
-
     public const TOTAL_REFUNDS = 'total_refunds';
-
     public const TOTAL_REFUNDS_EUR = 'total_refunds_eur';
-
     public const TRANSACTION_REFUNDS_COUNT = 'transaction_refunds_count';
-
     public const TOTAL_CHARGEBACK_COUNT = 'total_chargeback_count';
-
     public const PROCESSING_CHARGEBACK_COUNT = 'processing_chargeback_count';
-
     public const PROCESSING_CHARGEBACK_AMOUNT = 'processing_chargeback_amount';
-
     public const PROCESSING_CHARGEBACK_AMOUNT_EUR = 'processing_chargeback_amount_eur';
-
     public const APPROVED_CHARGEBACK_COUNT = 'approved_chargeback_count';
-
     public const APPROVED_CHARGEBACK_AMOUNT = 'approved_chargeback_amount';
-
     public const DECLINED_CHARGEBACK_COUNT = 'declined_chargeback_count';
-
     public const DECLINED_CHARGEBACK_AMOUNT = 'declined_chargeback_amount';
-
+    public const TOTAL_PAYOUT_COUNT = 'total_payout_count';
+    public const PROCESSING_PAYOUT_AMOUNT = 'total_payout_amount';
+    public const PROCESSING_PAYOUT_AMOUNT_EUR = 'total_payout_amount_eur';
+    public const PROCESSING_PAYOUT_COUNT = 'total_payout_count';
+    public const APPROVED_PAYOUT_AMOUNT = 'approved_payout_amount';
+    public const APPROVED_PAYOUT_AMOUNT_EUR = 'approved_payout_amount_eur';
+    public const DECLINED_PAYOUT_AMOUNT = 'declined_payout_amount';
+    public const DECLINED_PAYOUT_AMOUNT_EUR = 'declined_payout_amount_eur';
     public const CURRENCY = 'currency';
-
     public const EXCHANGE_RATE = 'exchange_rate';
 
     public function __construct(
-        public float $totalSalesEur = 0,
-        public float $totalSales = 0,
-        public int $transactionSalesCount = 0,
-        public float $totalDeclinedSales = 0,
-        public float $totalDeclinedSalesEur = 0,
-        public int $transactionDeclinedCount = 0,
-        public float $totalRefunds = 0,
-        public float $totalRefundsEur = 0,
-        public int $transactionRefundsCount = 0,
-        public int $totalChargebackCount = 0,
-        public int $processingChargebackCount = 0,
-        public float $processingChargebackAmount = 0,
-        public float $processingChargebackAmountEur = 0,
-        public int $approvedChargebackCount = 0,
-        public float $approvedChargebackAmount = 0,
-        public int $declinedChargebackCount = 0,
-        public float $declinedChargebackAmount = 0,
+        public float  $totalSalesEur = 0,
+        public float  $totalSales = 0,
+        public int    $transactionSalesCount = 0,
+        public float  $totalDeclinedSales = 0,
+        public float  $totalDeclinedSalesEur = 0,
+        public int    $transactionDeclinedCount = 0,
+        public float  $totalRefunds = 0,
+        public float  $totalRefundsEur = 0,
+        public int    $transactionRefundsCount = 0,
+        public int    $totalChargebackCount = 0,
+        public int    $processingChargebackCount = 0,
+        public float  $processingChargebackAmount = 0,
+        public float  $processingChargebackAmountEur = 0,
+        public int    $approvedChargebackCount = 0,
+        public float  $approvedChargebackAmount = 0,
+        public int    $declinedChargebackCount = 0,
+        public float  $declinedChargebackAmount = 0,
+        public int    $totalPayoutCount = 0,
+        public int    $processingPayoutCount = 0,
+        public float  $processingPayoutAmount = 0,
+        public float  $processingPayoutAmountEur = 0,
+        public float  $approvedPayoutAmount = 0,
+        public float  $approvedPayoutAmountEur = 0,
+        public float  $declinedPayoutAmount = 0,
+        public float  $declinedPayoutAmountEur = 0,
+
         public string $currency = 'EUR',
-        public float $exchangeRate = 1.0
-    ) {}
+        public float  $exchangeRate = 1.0
+    )
+    {
+    }
 
     public static function initialize(string $currency): self
     {
@@ -89,6 +90,14 @@ readonly class TransactionData
             approvedChargebackAmount: $data[self::APPROVED_CHARGEBACK_AMOUNT] ?? 0,
             declinedChargebackCount: $data[self::DECLINED_CHARGEBACK_COUNT] ?? 0,
             declinedChargebackAmount: $data[self::DECLINED_CHARGEBACK_AMOUNT] ?? 0,
+            totalPayoutCount: $data[self::TOTAL_PAYOUT_COUNT] ?? 0,
+            processingPayoutCount: $data[self::PROCESSING_PAYOUT_COUNT] ?? 0,
+            processingPayoutAmount: $data[self::PROCESSING_PAYOUT_AMOUNT] ?? 0,
+            processingPayoutAmountEur: $data[self::PROCESSING_PAYOUT_AMOUNT_EUR] ?? 0,
+            approvedPayoutAmount: $data[self::APPROVED_PAYOUT_AMOUNT] ?? 0,
+            approvedPayoutAmountEur: $data[self::APPROVED_PAYOUT_AMOUNT_EUR] ?? 0,
+            declinedPayoutAmount: $data[self::DECLINED_PAYOUT_AMOUNT] ?? 0,
+            declinedPayoutAmountEur: $data[self::DECLINED_PAYOUT_AMOUNT_EUR] ?? 0,
             currency: $data[self::CURRENCY] ?? 'EUR',
             exchangeRate: $data[self::EXCHANGE_RATE] ?? 1.0
         );
@@ -110,9 +119,7 @@ readonly class TransactionData
             self::PROCESSING_CHARGEBACK_COUNT => $this->processingChargebackCount,
             self::PROCESSING_CHARGEBACK_AMOUNT => $this->processingChargebackAmount,
             self::PROCESSING_CHARGEBACK_AMOUNT_EUR => $this->processingChargebackAmountEur,
-            self::APPROVED_CHARGEBACK_COUNT => $this->approvedChargebackCount,
             self::APPROVED_CHARGEBACK_AMOUNT => $this->approvedChargebackAmount,
-            self::DECLINED_CHARGEBACK_COUNT => $this->declinedChargebackCount,
             self::DECLINED_CHARGEBACK_AMOUNT => $this->declinedChargebackAmount,
             self::CURRENCY => $this->currency,
             self::EXCHANGE_RATE => $this->exchangeRate,

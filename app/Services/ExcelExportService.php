@@ -226,6 +226,7 @@ class ExcelExportService
                 'Refund Fee' => $fee['transactionData']['transaction_refunds_count'] ?? 0,
                 'Chargeback Fee' => $fee['transactionData']['total_chargeback_count'] ?? 0,
                 'Transaction Fee' => $fee['transactionData']['transaction_sales_count'] ?? 0,
+                'Payout Fee' => $fee['transactionData']['total_payout_count'] ?? 0, // Add this line
                 default => ''
             };
             $this->currentSheet->setCellValue('D' . $this->currentRow, $count);

@@ -6,6 +6,7 @@ use App\Services\Settlement\Fee\Strategies\ChargebackFeeStrategy;
 use App\Services\Settlement\Fee\Strategies\DeclinedFeeStrategy;
 use App\Services\Settlement\Fee\Strategies\FixedFeeStrategy;
 use App\Services\Settlement\Fee\Strategies\interfaces\FeeCalculationStrategy;
+use App\Services\Settlement\Fee\Strategies\PayoutFeeStrategy;
 use App\Services\Settlement\Fee\Strategies\PercentageFeeStrategy;
 use App\Services\Settlement\Fee\Strategies\RefundFeeStrategy;
 use App\Services\Settlement\Fee\Strategies\TransactionBasedFeeStrategy;
@@ -40,6 +41,7 @@ class FeeCalculatorFactory
 
         return match ($key) {
             'transaction_fee' => new TransactionBasedFeeStrategy,
+            'payout_fee' => new PayoutFeeStrategy,
             'refund_fee' => new RefundFeeStrategy,
             'chargeback_fee' => new ChargebackFeeStrategy,
             'declined_fee' => new DeclinedFeeStrategy,
