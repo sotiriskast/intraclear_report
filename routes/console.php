@@ -8,5 +8,5 @@ Schedule::command('intraclear:settlement-generate')
     ->weekly()
     ->tuesdays()
     ->timezone('Europe/Athens')
-    ->at('00:00')
+    ->at('07:00')
     ->appendOutputTo(storage_path('logs/settlement-reports.log'));
