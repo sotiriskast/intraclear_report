@@ -2,20 +2,32 @@
     <x-slot name="header">
         <div class="flex justify-between items-center">
             <h2 class="text-2xl font-bold text-gray-800">
-                {{ __('Merchants') }}
+                {{ __('Settlement Reports') }}
             </h2>
 
         </div>
     </x-slot>
 
     <div class="py-6">
+
         <div class="max-w-7xl mx-auto">
+            <div class="space-x-4">
+                <a href="{{ route('settlements.archives') }}"
+                   class="inline-flex items-center px-4 py-2 bg-gray-600 border border-transparent rounded-md font-semibold text-white hover:bg-gray-700">
+                    View Archives
+                </a>
+                <a href="{{ route('settlements.generate-form') }}"
+                   class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-md font-semibold text-white hover:bg-blue-700">
+                    Generate New Report
+                </a>
+            </div>
+            <!-- Search -->
             <div class="bg-white shadow w-full max-w-md ml-auto my-4">
                 <div class="relative">
                     <x-input
                         type="text"
                         wire:model.live.debounce.300ms="search"
-                        placeholder="Search merchants"
+                        placeholder="Search reports..."
                         class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5
                         bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400
                         focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
@@ -27,66 +39,65 @@
                     </div>
                 </div>
             </div>
-            <!-- Merchants List -->
+
+            <!-- Reports List -->
             <div class="bg-white rounded-lg shadow">
                 <!-- Mobile/Tablet View - Card Layout -->
                 <div class="block lg:hidden">
-                    @forelse($merchants as $merchant)
+                    @forelse($reports as $report)
                         <div class="border-b last:border-b-0 px-4 py-4 hover:bg-gray-50">
                             <div class="flex justify-between items-center mb-2">
                                 <div>
-                                    <p class="text-sm font-medium text-gray-900">{{ $merchant->name }}</p>
-                                    <p class="text-xs text-gray-500">ID: {{ $merchant->account_id }}</p>
+                                    <p class="text-sm font-medium text-gray-900">{{ $report->merchant_name }}</p>
+                                    <p class="text-xs text-gray-500">ID: {{ $report->account_id }}</p>
                                 </div>
-                                <div class="flex space-x-2">
-                                    <a href="{{ route('merchant.view', $merchant->id) }}"
-                                       class="text-blue-600 hover:text-blue-800">
-                                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                        </svg>
-                                    </a>
+                                <div>
+                                    @if(Storage::exists($report->report_path))
+                                        <a href="{{ route('settlements.download', $report->id) }}"
+                                           class="text-blue-600 hover:text-blue-800">
+                                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                            </svg>
+                                        </a>
+                                    @else
+                                        <span class="text-red-600 text-sm">File not found</span>
+                                    @endif
                                 </div>
                             </div>
 
                             <div class="mt-2 space-y-1">
                                 <p class="text-xs text-gray-700">
-                                    Email: {{ $merchant->email ?? 'N/A' }}
+                                    Period: {{ \Carbon\Carbon::parse($report->start_date)->format('Y-m-d') }}
+                                    to {{ \Carbon\Carbon::parse($report->end_date)->format('Y-m-d') }}
                                 </p>
                                 <p class="text-xs text-gray-700">
-                                    Phone: {{ $merchant->phone ?? 'N/A' }}
-                                </p>
-                                <p class="text-xs text-gray-700">
-                                    Status:
-                                    <span class="{{ $merchant->active ? 'text-green-800' : 'text-red-800' }}">
-                                        {{ $merchant->active ? 'Active' : 'Inactive' }}
-                                    </span>
+                                    Generated: {{ \Carbon\Carbon::parse($report->created_at)->format('Y-m-d H:i:s') }}
                                 </p>
                             </div>
                         </div>
                     @empty
                         <div class="text-center py-4 text-gray-500">
-                            No merchants found.
+                            No reports found.
                         </div>
                     @endforelse
                 </div>
 
                 <!-- Desktop View - Traditional Table -->
                 <div class="hidden lg:block overflow-x-auto max-h-[600px]">
-                    <table class="min-w-full divide-y divide-gray-200 ">
-                        <thead class="bg-gray-50  sticky top-0 z-10">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50 sticky top-0 z-10">
                         <tr>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Name
+                                Merchant
                             </th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Merchant ID
+                                Account ID
                             </th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Email
+                                Period
                             </th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Status
+                                Generated At
                             </th>
                             <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Actions
@@ -94,44 +105,47 @@
                         </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
-                        @forelse($merchants as $merchant)
+                        @forelse($reports as $report)
                             <tr class="hover:bg-gray-50">
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="text-sm font-medium text-gray-900">
-                                        {{ $merchant->name }}
+                                        {{ $report->merchant_name }}
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="text-sm text-gray-500">
-                                        {{ $merchant->account_id }}
+                                        {{ $report->account_id }}
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="text-sm text-gray-900">
-                                        {{ $merchant->email ?? 'N/A' }}
+                                        {{ \Carbon\Carbon::parse($report->start_date)->format('Y-m-d') }}
+                                        to
+                                        {{ \Carbon\Carbon::parse($report->end_date)->format('Y-m-d') }}
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <span class="{{ $merchant->active ? 'text-green-800 bg-green-100' : 'text-red-800 bg-red-100' }} inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium">
-                                        {{ $merchant->active ? 'Active' : 'Inactive' }}
-                                    </span>
+                                    <div class="text-sm text-gray-900">
+                                        {{ \Carbon\Carbon::parse($report->created_at)->format('Y-m-d H:i:s') }}
+                                    </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                    <div class="flex justify-end gap-2">
-                                        <a href="{{ route('merchant.view', $merchant->id) }}"
+                                    @if(Storage::exists($report->report_path))
+                                        <a href="{{ route('settlements.download', $report->id) }}"
                                            class="text-blue-600 hover:text-blue-800">
-                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                            <svg class="h-5 w-5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                                             </svg>
                                         </a>
-                                    </div>
+                                    @else
+                                        <span class="text-red-600">File not found</span>
+                                    @endif
                                 </td>
                             </tr>
                         @empty
                             <tr>
                                 <td colspan="5" class="text-center py-4 text-gray-500">
-                                    No merchants found.
+                                    No reports found.
                                 </td>
                             </tr>
                         @endforelse
@@ -141,7 +155,7 @@
 
                 <!-- Pagination -->
                 <div class="px-6 py-4 border-t border-gray-200">
-                    {{ $merchants->links() }}
+                    {{ $reports->links() }}
                 </div>
             </div>
         </div>
