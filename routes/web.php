@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\UserNotificationRecipientController;
 use App\Http\Controllers\SettlementController;
 use App\Livewire\FeeTypeManagement;
 use App\Livewire\MerchantFeeManagement;
@@ -38,16 +37,5 @@ Route::middleware(['auth:web', 'verified',
 
         Route::get('/settlements/archives', [SettlementController::class, 'archives'])->name('settlements.archives');
         Route::get('/settlements/archives/{id}/download', [SettlementController::class, 'downloadZip'])->name('settlements.archives.download');
-        // routes/web.php
-        Route::get('/mail/preview', function () {
-            return new App\Mail\SettlementReportGenerated(
-                zipPath: 'test.zip',
-                dateRange: [
-                    'start' => '2024-02-01',
-                    'end' => '2024-02-28'
-                ],
-                fileCount: 10
-            );
-        });
     });
 });

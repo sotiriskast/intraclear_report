@@ -441,16 +441,19 @@ class ExcelExportService
             // Generate the storage path
             $relativePath = $this->generateReportPath($merchant, $dateRange);
 
-            // Save the Excel file using Laravel's Storage
+            // Save the Excel file directly to memory stream
             $writer = new Xlsx($this->spreadsheet);
+            $tempStream = fopen('php://temp', 'r+');
+            $writer->save($tempStream);
 
-            // Save to memory first
-            ob_start();
-            $writer->save('php://output');
-            $content = ob_get_clean();
+            // Reset stream pointer
+            rewind($tempStream);
 
-            // Store using Laravel's Storage
-            Storage::put($relativePath, $content);
+            // Store using Laravel's Storage with stream
+            Storage::put($relativePath, $tempStream);
+
+            // Close the stream
+            fclose($tempStream);
 
             $this->logger->log('info', 'Settlement report saved successfully', [
                 'merchant_id' => $merchantId,

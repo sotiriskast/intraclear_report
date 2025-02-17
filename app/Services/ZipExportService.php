@@ -35,10 +35,12 @@ class ZipExportService
     public function createZip(array $filePaths, array $dateRange): string
     {
         try {
-            // Create a temporary file for the ZIP
-            $tempFile = tempnam(sys_get_temp_dir(), 'settlement_zip_');
+            // Create a temporary stream for the ZIP
+            $tempStream = fopen('php://temp', 'r+');
 
             $zip = new ZipArchive();
+            $tempFile = tempnam(sys_get_temp_dir(), 'settlement_zip_');
+
             if ($zip->open($tempFile, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
                 throw new \Exception("Cannot create ZIP file");
             }
@@ -61,16 +63,18 @@ class ZipExportService
 
             $zip->close();
 
+            // Read the ZIP file into the stream
+            $zipContent = file_get_contents($tempFile);
+
             // Generate storage path for ZIP
             $relativePath = $this->generateZipPath($dateRange);
 
-            // Store the ZIP file using Laravel's Storage
-            Storage::put($relativePath, file_get_contents($tempFile));
+            // Store the ZIP file in S3
+            Storage::put($relativePath, $zipContent);
 
             // Clean up temp file
             unlink($tempFile);
 
-            // Log successful ZIP creation
             $this->logger->log('info', 'Settlement reports ZIP created', [
                 'zip_path' => $relativePath,
                 'file_count' => count($filePaths),
