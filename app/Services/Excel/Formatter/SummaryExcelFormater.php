@@ -53,6 +53,7 @@ readonly class SummaryExcelFormater
 
         $this->formatSummarySection($sheet, $currentRow - count($summaryItems), $currentRow);
     }
+
     /**
      * Add section header with consistent styling
      *
@@ -72,6 +73,7 @@ readonly class SummaryExcelFormater
             ],
         ]);
     }
+
     /**
      * Get summary items with calculated values
      *
@@ -113,7 +115,7 @@ readonly class SummaryExcelFormater
                 $this->calculator->getReleasedReserve($currencyData),
                 $this->calculator->getReleasedReserveEur($currencyData)
             ],
-            ["Statement Total {$currency}",
+            ["Statement Total ",
                 $this->calculator->getStatementTotal($currencyData),
                 $this->calculator->getStatementTotalEur($currencyData)
             ],
@@ -126,7 +128,8 @@ readonly class SummaryExcelFormater
                 $this->calculator->getFxFee($currencyData),
                 $this->calculator->getFxFeeEur($currencyData)
             ],
-            ['Total Amount Paid (EUR)', null,
+            ['', null, null],
+            ['Total Amount Paid',
                 $this->calculator->getTotalAmountPaid($currencyData),
                 $this->calculator->getTotalAmountPaidEur($currencyData)
             ],

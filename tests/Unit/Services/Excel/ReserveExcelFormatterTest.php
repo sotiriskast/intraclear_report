@@ -55,6 +55,7 @@ class ReserveExcelFormatterTest extends TestCase
         $currencyData = [
             'rolling_reserve' => $reserve,
             'currency' => 'USD',
+            'rolling_reserved_percentage' => 100,
         ];
 
         // Act
@@ -64,8 +65,8 @@ class ReserveExcelFormatterTest extends TestCase
         $this->assertEquals('Generated Reserve Details', $this->worksheet->getCell('A3')->getValue());
         $this->assertEquals('Type', $this->worksheet->getCell('A5')->getValue());
         $this->assertEquals('Rolling Reserve', $this->worksheet->getCell('A6')->getValue());
-        $this->assertEquals(100.00, (float) $this->worksheet->getCell('E6')->getValue());
-        $this->assertEquals(85.00, (float) $this->worksheet->getCell('F6')->getValue());
+        $this->assertEquals(100.00, (float)$this->worksheet->getCell('E6')->getValue());
+        $this->assertEquals(85.00, (float)$this->worksheet->getCell('F6')->getValue());
     }
 
     #[Test]
@@ -103,6 +104,7 @@ class ReserveExcelFormatterTest extends TestCase
         $currencyData = [
             'rolling_reserve' => $reserves,
             'currency' => 'USD',
+            'rolling_reserved_percentage' => 100,
         ];
 
         // Act
@@ -112,11 +114,11 @@ class ReserveExcelFormatterTest extends TestCase
         $this->assertEquals('Generated Reserve Details', $this->worksheet->getCell('A3')->getValue());
         $this->assertEquals('Type', $this->worksheet->getCell('A5')->getValue());
         $this->assertEquals('Rolling Reserve', $this->worksheet->getCell('A6')->getValue());
-        $this->assertEquals(100.00, (float) $this->worksheet->getCell('E6')->getValue());
-        $this->assertEquals(85.00, (float) $this->worksheet->getCell('F6')->getValue());
+        $this->assertEquals(100.00, (float)$this->worksheet->getCell('E6')->getValue());
+        $this->assertEquals(85.00, (float)$this->worksheet->getCell('F6')->getValue());
         $this->assertEquals('Rolling Reserve', $this->worksheet->getCell('A7')->getValue());
-        $this->assertEquals(200.00, (float) $this->worksheet->getCell('E7')->getValue());
-        $this->assertEquals(170.00, (float) $this->worksheet->getCell('F7')->getValue());
+        $this->assertEquals(200.00, (float)$this->worksheet->getCell('E7')->getValue());
+        $this->assertEquals(170.00, (float)$this->worksheet->getCell('F7')->getValue());
     }
 
     #[Test]

@@ -39,6 +39,7 @@ class ReserveExcelFormatterFeatureTest extends TestCase
         $currencyData = [
             'currency' => 'USD',
             'rolling_reserve' => $reserve,
+            'rolling_reserved_percentage' => 100,
         ];
 
         $formatter = app(ReserveExcelFormatter::class);
