@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Livewire;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +21,7 @@ class SettlementReportsList extends Component
 
     public function render()
     {
+
         $reports = DB::connection('mariadb')
             ->table('settlement_reports')
             ->select([
@@ -38,7 +40,6 @@ class SettlementReportsList extends Component
             })
             ->orderBy('settlement_reports.created_at', 'desc')
             ->paginate(15);
-
         return view('livewire.settlement-reports-list', [
             'reports' => $reports
         ]);

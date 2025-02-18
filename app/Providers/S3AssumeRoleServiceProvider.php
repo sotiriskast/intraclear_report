@@ -6,6 +6,7 @@ use Aws\Exception\AwsException;
 use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Cache;
 use League\Flysystem\AwsS3V3\AwsS3V3Adapter;
 use League\Flysystem\Filesystem;
 use Aws\S3\S3Client;
@@ -27,7 +28,7 @@ class S3AssumeRoleServiceProvider extends ServiceProvider
     {
         Storage::extend('s3-assume-role', function ($app, $config) {
             try {
-                // First, create STS client with default credentials
+                // Create STS client once
                 $stsClient = new StsClient([
                     'region' => env('AWS_DEFAULT_REGION'),
                     'version' => 'latest',
@@ -37,22 +38,26 @@ class S3AssumeRoleServiceProvider extends ServiceProvider
                     ],
                 ]);
 
-                // Try to assume role directly first to test
                 try {
-                    $result = $stsClient->assumeRole([
-                        'RoleArn' => env('AWS_ROLE_ARN'),
-                        'RoleSessionName' => 'test-session'
-                    ]);
-                    // Create S3 client with temporary credentials
+                    $credentials = $this->getTemporaryCredentials($stsClient);
+
                     $s3Client = new S3Client([
                         'region' => env('AWS_DEFAULT_REGION'),
                         'version' => 'latest',
                         'credentials' => [
-                            'key' => $result['Credentials']['AccessKeyId'],
-                            'secret' => $result['Credentials']['SecretAccessKey'],
-                            'token' => $result['Credentials']['SessionToken']
+                            'key' => $credentials['key'],
+                            'secret' => $credentials['secret'],
+                            'token' => $credentials['token']
                         ],
-                        'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false)
+                        'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
+                        'http' => [
+                            'connect_timeout' => 5,
+                            'timeout' => 10
+                        ],
+                        'retries' => [
+                            'mode' => 'adaptive',
+                            'max_attempts' => 3
+                        ]
                     ]);
 
                 } catch (AwsException $e) {
@@ -82,6 +87,23 @@ class S3AssumeRoleServiceProvider extends ServiceProvider
                 \Log::error('General S3 Setup Error: ' . $e->getMessage());
                 throw $e;
             }
+        });
+    }
+    private function getTemporaryCredentials(StsClient $stsClient)
+    {
+        return Cache::remember('aws_temporary_credentials', 55 * 60, function () use ($stsClient) {
+            $result = $stsClient->assumeRole([
+                'RoleArn' => env('AWS_ROLE_ARN'),
+                'RoleSessionName' => 'session-' . time(),
+                'DurationSeconds' => 3600 // 1 hour
+            ]);
+
+            return [
+                'key' => $result['Credentials']['AccessKeyId'],
+                'secret' => $result['Credentials']['SecretAccessKey'],
+                'token' => $result['Credentials']['SessionToken'],
+                'expires' => $result['Credentials']['Expiration']
+            ];
         });
     }
 }

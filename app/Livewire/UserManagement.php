@@ -7,6 +7,7 @@ use App\Repositories\RoleRepository;
 use App\Repositories\UserRepository;
 use App\Services\DynamicLogger;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Lazy;
 use Livewire\Attributes\On;
 use Livewire\Component;
 // Add this import
@@ -18,7 +19,7 @@ use Spatie\Permission\Models\Role;
  *
  * Handles creation, editing, updating, and deletion of users.
  */
-#[Layout('layouts.app')]
+#[Layout('layouts.app')]#[Lazy]
 class UserManagement extends Component
 {
     use WithPagination;

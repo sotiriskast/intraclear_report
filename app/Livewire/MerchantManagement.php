@@ -4,9 +4,10 @@ namespace App\Livewire;
 
 use App\Models\Merchant;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithPagination;
-
+#[Lazy]
 #[Layout('layouts.app')]
 class MerchantManagement extends Component
 {

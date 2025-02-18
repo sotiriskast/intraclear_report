@@ -23,7 +23,7 @@ class NavigationService
                     'settlement_report' => [
                         'route' => 'settlements.index',
                         'label' => 'Settlements',
-                        'permission' => null,
+                        'permission' => 'manage-settlements',
                     ],
                 ],
             ],

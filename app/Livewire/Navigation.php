@@ -2,8 +2,9 @@
 
 namespace App\Livewire;
 
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
-
+#[Lazy]
 class Navigation extends Component
 {
     public $isOpen = false;

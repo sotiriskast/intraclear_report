@@ -21,6 +21,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'manage-merchants',
             'manage-merchants-fees',
             'manage-fees',
+            'manage-settlements',
 
             // Add more granular permissions
         ];
@@ -34,6 +35,8 @@ class RolesAndPermissionsSeeder extends Seeder
         $adminRole->givePermissionTo([
             'manage-fees',
             'manage-merchants',
+            'manage-settlements',
+            'manage-merchants-fees'
         ]);
 
         // Create Super Admin Role

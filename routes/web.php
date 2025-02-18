@@ -21,21 +21,45 @@ Route::middleware(['auth:web', 'verified',
         Route::get('/dashboard', function () {
             return view('dashboard');
         })->name('admin.dashboard');
-        Route::get('/users', UserManagement::class)->name('admin.users')->middleware(['can:manage-users']);
-        Route::get('/roles', RoleManagement::class)->name('admin.roles')->middleware(['can:manage-roles']);
-        Route::get('/merchants', MerchantManagement::class)->name('admin.merchants')->middleware(['can:manage-merchants']);
-        Route::get('/merchants/{merchant}/view', MerchantView::class)->name('merchant.view')->middleware(['can:manage-merchants']);
-        Route::get('/merchants/{merchant}/fees', MerchantSpecificFees::class)->name('merchant.fees')->middleware(['can:manage-merchants-fees']);
-        Route::get('/merchant-fees', MerchantFeeManagement::class)->name('admin.merchant-fees')->middleware(['can:manage-merchants-fees']);
-        Route::get('/fee-types', FeeTypeManagement::class)->name('admin.fee-types')->middleware(['can:manage-fees']);
-        Route::get('/merchant-settings', MerchantSettingsManagement::class)->name('admin.merchant-settings')->middleware(['can:manage-merchants-fees']);
 
-        Route::get('/settlements', [SettlementController::class, 'index'])->name('settlements.index');
-        Route::get('/settlements/generate', [SettlementController::class, 'showGenerateForm'])->name('settlements.generate-form');
-        Route::post('/settlements/generate', [SettlementController::class, 'generate'])->name('settlements.generate');
-        Route::get('/settlements/download/{id}', [SettlementController::class, 'download'])->name('settlements.download');
+        Route::middleware(['can:manage-users'])->group(function () {
+            Route::get('/users', UserManagement::class)->name('admin.users');
+        });
 
-        Route::get('/settlements/archives', [SettlementController::class, 'archives'])->name('settlements.archives');
-        Route::get('/settlements/archives/{id}/download', [SettlementController::class, 'downloadZip'])->name('settlements.archives.download');
+        Route::middleware(['can:manage-roles'])->group(function () {
+            Route::get('/roles', RoleManagement::class)->name('admin.roles');
+        });
+
+        // Merchant Management
+        Route::middleware(['can:manage-merchants'])->group(function () {
+            Route::get('/merchants', MerchantManagement::class)->name('admin.merchants');
+            Route::get('/merchants/{merchant}/view', MerchantView::class)->name('merchant.view');
+        });
+
+        // Merchant Fees and Settings
+        Route::middleware(['can:manage-merchants-fees'])->group(function () {
+            Route::get('/merchants/{merchant}/fees', MerchantSpecificFees::class)->name('merchant.fees');
+            Route::get('/merchant-fees', MerchantFeeManagement::class)->name('admin.merchant-fees');
+            Route::get('/merchant-settings', MerchantSettingsManagement::class)->name('admin.merchant-settings');
+        });
+
+        Route::middleware(['can:manage-fees'])->group(function () {
+            Route::get('/fee-types', FeeTypeManagement::class)->name('admin.fee-types');
+        });
+
+        //Settlement Report
+        Route::middleware(['can:manage-settlements'])->group(function () {
+            Route::controller(SettlementController::class)->group(function () {
+                Route::get('/settlements', 'index')->name('settlements.index');
+                Route::get('/settlements/generate', 'showGenerateForm')->name('settlements.generate-form');
+                Route::post('/settlements/generate', 'generate')->name('settlements.generate');
+                Route::get('/settlements/download/{id}', 'download')->name('settlements.download');
+
+                Route::prefix('settlements/archives')->group(function () {
+                    Route::get('/', 'archives')->name('settlements.archives');
+                    Route::get('/{id}/download', 'downloadZip')->name('settlements.archives.download');
+                });
+            });
+        });
     });
 });

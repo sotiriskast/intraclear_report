@@ -4,9 +4,11 @@ namespace App\Livewire;
 
 use App\Models\FeeType;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithPagination;
 
+#[Lazy]
 #[Layout('layouts.app')]
 class FeeTypeManagement extends Component
 {

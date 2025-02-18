@@ -6,9 +6,10 @@ use App\Models\FeeType;
 use App\Models\Merchant;
 use App\Models\MerchantFee;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithPagination;
-
+#[Lazy]
 #[Layout('layouts.app')]
 class MerchantFeeManagement extends Component
 {

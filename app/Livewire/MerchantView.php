@@ -4,8 +4,9 @@ namespace App\Livewire;
 
 use App\Models\Merchant;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
-
+#[Lazy]
 #[Layout('layouts.app')]
 class MerchantView extends Component
 {

@@ -6,9 +6,10 @@ use App\Models\MerchantSetting;
 use App\Repositories\MerchantRepository;
 use App\Repositories\MerchantSettingRepository;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithPagination;
-
+#[Lazy]
 #[Layout('layouts.app')]
 class MerchantSettingsManagement extends Component
 {
