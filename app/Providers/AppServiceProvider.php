@@ -2,7 +2,6 @@
 
 namespace App\Providers;
 
-use App\Console\Commands\GenerateMerchantApiKey;
 use App\Console\Commands\GenerateSettlementReports;
 use App\Console\Commands\ImportMerchants;
 use App\Repositories\ChargebackTrackingRepository;
@@ -12,7 +11,6 @@ use App\Repositories\Interfaces\TransactionRepositoryInterface;
 use App\Repositories\RoleRepository;
 use App\Repositories\RollingReserveRepository;
 use App\Repositories\TransactionRepository;
-use App\Services\Api\ApiKeyService;
 use App\Services\DynamicLogger;
 use App\Services\ExcelExportService;
 use App\Services\MerchantSyncService;
@@ -129,11 +127,6 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(ExcelExportService::class),
                 $app->make(ZipExportService::class),
                 $app->make(DynamicLogger::class),
-            );
-        });
-        $this->app->singleton(GenerateMerchantApiKey::class, function ($app) {
-            return new GenerateMerchantApiKey(
-                $app->make(ApiKeyService::class),
             );
         });
         $this->app->singleton(ImportMerchants::class, function ($app) {
