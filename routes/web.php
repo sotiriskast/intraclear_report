@@ -42,6 +42,17 @@ Route::middleware(['auth:web', 'verified',
             Route::get('/merchant-fees', MerchantFeeManagement::class)->name('admin.merchant-fees');
             Route::get('/merchant-settings', MerchantSettingsManagement::class)->name('admin.merchant-settings');
         });
+        // for API key management
+        Route::middleware(['can:manage-merchants-api-keys'])->group(function () {
+            Route::get('/merchants/{merchant}/api', [App\Http\Controllers\Admin\ApiKeyController::class, 'show'])
+                ->name('merchant.api');
+
+            Route::post('/merchants/{merchant}/api/generate', [App\Http\Controllers\Admin\ApiKeyController::class, 'generate'])
+                ->name('merchant.api.generate');
+
+            Route::delete('/merchants/{merchant}/api/revoke', [App\Http\Controllers\Admin\ApiKeyController::class, 'revokeAllTokens'])
+                ->name('merchant.api.revoke');
+        });
 
         Route::middleware(['can:manage-fees'])->group(function () {
             Route::get('/fee-types', FeeTypeManagement::class)->name('admin.fee-types');

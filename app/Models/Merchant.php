@@ -37,5 +37,43 @@ class Merchant extends Model
     {
         return $this->hasMany(RollingReserveEntry::class);
     }
+    /**
+     * Get the name of the unique identifier for the user.
+     *
+     * @return string
+     */
+    public function getAuthIdentifierName()
+    {
+        return 'id';
+    }
 
+    /**
+     * Get the unique identifier for the user.
+     *
+     * @return mixed
+     */
+    public function getAuthIdentifier()
+    {
+        return $this->{$this->getAuthIdentifierName()};
+    }
+
+    /**
+     * Get the password for the user.
+     *
+     * @return string
+     */
+    public function getAuthPassword()
+    {
+        return $this->api_key;
+    }
+
+    /**
+     * Get the remember token for the user.
+     *
+     * @return string|null
+     */
+    public function getRememberToken()
+    {
+        return null; // Not using remember tokens for API
+    }
 }
