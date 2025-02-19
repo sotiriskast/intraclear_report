@@ -8,4 +8,5 @@ return [
     App\Providers\MiddlewareProvider::class,
     App\Providers\S3AssumeRoleServiceProvider::class,
     App\Providers\TelescopeServiceProvider::class,
+    App\Providers\RouteServiceProvider::class,
 ];

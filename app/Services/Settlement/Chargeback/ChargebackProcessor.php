@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace App\Services\Chargeback;
+namespace App\Services\Settlement\Chargeback;
 
 use App\DTO\ChargebackData;
 use App\Enums\ChargebackStatus;
 use App\Repositories\Interfaces\ChargebackTrackingRepositoryInterface;
 use App\Repositories\MerchantRepository;
-use App\Services\Chargeback\Interfaces\ChargebackProcessorInterface;
 use App\Services\DynamicLogger;
+use App\Services\Settlement\Chargeback\Interfaces\ChargebackProcessorInterface;
 
 /**
  * Service for processing individual chargeback transactions

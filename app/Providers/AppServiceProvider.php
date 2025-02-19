@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Console\Commands\GenerateMerchantApiKey;
 use App\Console\Commands\GenerateSettlementReports;
 use App\Console\Commands\ImportMerchants;
 use App\Repositories\ChargebackTrackingRepository;
@@ -11,13 +12,14 @@ use App\Repositories\Interfaces\TransactionRepositoryInterface;
 use App\Repositories\RoleRepository;
 use App\Repositories\RollingReserveRepository;
 use App\Repositories\TransactionRepository;
-use App\Services\Chargeback\ChargebackProcessor;
-use App\Services\Chargeback\ChargebackSettlementProcessor;
-use App\Services\Chargeback\Interfaces\ChargebackProcessorInterface;
-use App\Services\Chargeback\Interfaces\ChargebackSettlementInterface;
+use App\Services\Api\ApiKeyService;
 use App\Services\DynamicLogger;
 use App\Services\ExcelExportService;
 use App\Services\MerchantSyncService;
+use App\Services\Settlement\Chargeback\ChargebackProcessor;
+use App\Services\Settlement\Chargeback\ChargebackSettlementProcessor;
+use App\Services\Settlement\Chargeback\Interfaces\ChargebackProcessorInterface;
+use App\Services\Settlement\Chargeback\Interfaces\ChargebackSettlementInterface;
 use App\Services\Settlement\Fee\CustomFeeHandler;
 use App\Services\Settlement\Fee\FeeFrequencyHandler;
 use App\Services\Settlement\Fee\FeeService;
@@ -102,6 +104,7 @@ class AppServiceProvider extends ServiceProvider
          * Singleton Services
          * ------------------------------------------------
          */
+
         $this->app->singleton(ExcelExportService::class);
 
         // Replace the simple singleton with a proper binding for SettlementService
@@ -128,7 +131,11 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(DynamicLogger::class),
             );
         });
-
+        $this->app->singleton(GenerateMerchantApiKey::class, function ($app) {
+            return new GenerateMerchantApiKey(
+                $app->make(ApiKeyService::class),
+            );
+        });
         $this->app->singleton(ImportMerchants::class, function ($app) {
             return new ImportMerchants(
                 $app->make(DynamicLogger::class),

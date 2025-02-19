@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Chargeback\Interfaces;
+namespace App\Services\Settlement\Chargeback\Interfaces;
 
 use App\DTO\ChargebackData;
 use App\Enums\ChargebackStatus;

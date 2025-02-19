@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Chargeback\Interfaces;
+namespace App\Services\Settlement\Chargeback\Interfaces;
 
 /**
  * Interface for handling chargeback settlements

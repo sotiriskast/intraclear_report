@@ -116,8 +116,4 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
-    public function notificationRecipients(): HasMany
-    {
-        return $this->hasMany(UserNotificationRecipient::class);
-    }
 }

@@ -4,8 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration
-{
+return new class extends Migration {
     /**
      * Run the migrations.
      */
@@ -18,6 +17,7 @@ return new class extends Migration
             $table->string('email')->nullable();
             $table->string('phone')->nullable();
             $table->boolean('active')->default(true);
+            $table->string('api_key')->nullable();
             $table->timestamps();
         });
 
@@ -169,5 +169,6 @@ return new class extends Migration
         Schema::dropIfExists('settlement_reports');
         Schema::dropIfExists('chargeback_tracking');
         Schema::dropIfExists('settlement_report_archives');
+        Schema::dropIfExists('api_key');
     }
 };

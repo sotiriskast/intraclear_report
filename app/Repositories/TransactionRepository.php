@@ -4,8 +4,8 @@ namespace App\Repositories;
 
 use App\DTO\ChargebackData;
 use App\Repositories\Interfaces\TransactionRepositoryInterface;
-use App\Services\Chargeback\Interfaces\ChargebackProcessorInterface;
 use App\Services\DynamicLogger;
+use App\Services\Settlement\Chargeback\Interfaces\ChargebackProcessorInterface;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;

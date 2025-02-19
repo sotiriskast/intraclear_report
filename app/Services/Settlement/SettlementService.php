@@ -3,8 +3,8 @@
 namespace App\Services\Settlement;
 
 use App\Repositories\Interfaces\TransactionRepositoryInterface;
-use App\Services\Chargeback\Interfaces\ChargebackSettlementInterface;
 use App\Services\DynamicLogger;
+use App\Services\Settlement\Chargeback\Interfaces\ChargebackSettlementInterface;
 use App\Services\Settlement\Fee\FeeService;
 use App\Services\Settlement\Reserve\RollingReserveHandler;
 
