@@ -22,6 +22,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'manage-merchants-fees',
             'manage-fees',
             'manage-settlements',
+            'manage-merchants-api-keys'
 
             // Add more granular permissions
         ];

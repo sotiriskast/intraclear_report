@@ -79,5 +79,20 @@ return [
         'encrypt_cookies' => Illuminate\Cookie\Middleware\EncryptCookies::class,
         'validate_csrf_token' => Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class,
     ],
-
+    'rate_limits' => [
+        'auth' => [
+            'attempts' => 10,
+            'decay_minutes' => 60,
+        ],
+        'api' => [
+            'standard' => [
+                'attempts' => 60,
+                'decay_minutes' => 1,
+            ],
+            'restricted' => [
+                'attempts' => 30,
+                'decay_minutes' => 1,
+            ],
+        ],
+    ],
 ];

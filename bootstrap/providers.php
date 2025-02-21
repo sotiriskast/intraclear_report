@@ -9,4 +9,5 @@ return [
     App\Providers\S3AssumeRoleServiceProvider::class,
     App\Providers\TelescopeServiceProvider::class,
     App\Providers\RouteServiceProvider::class,
+    App\Providers\ApiServiceProvider::class,
 ];

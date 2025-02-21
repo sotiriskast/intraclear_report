@@ -15,6 +15,12 @@
                     <x-button wire:click="manageFees" class="bg-blue-600 hover:bg-blue-700">
                         {{ __('Manage Fees') }}
                     </x-button>
+                    <!-- Add this button -->
+                    @can('manage-merchants-api-keys')
+                        <x-button wire:click="manageApi" class="bg-indigo-600 hover:bg-indigo-700">
+                            {{ __('Manage API') }}
+                        </x-button>
+                    @endcan
                 </div>
                 <div class="border-t border-gray-200">
                     <dl>
