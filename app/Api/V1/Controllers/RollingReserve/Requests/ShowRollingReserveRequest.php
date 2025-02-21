@@ -16,4 +16,10 @@ class ShowRollingReserveRequest extends FormRequest
             'id' => 'required|integer|exists:rolling_reserve_entries,id'
         ];
     }
+
+    protected function prepareForValidation(): void
+    {
+        // Get the id from the route parameter and merge it into the request
+        $this->merge(['id' => $this->route('id')]);
+    }
 }

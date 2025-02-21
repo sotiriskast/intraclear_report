@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Api\V1\Services\RollingReserve;
 
 use App\Api\V1\Filters\RollingReserve\RollingReserveFilter;
@@ -13,7 +14,9 @@ readonly class RollingReserveApiService
     public function __construct(
         private RollingReserveRepositoryInterface $repository,
         private DynamicLogger                     $logger
-    ) {}
+    )
+    {
+    }
 
     public function listReserves(int $merchantId, array $filters = [], int $perPage = 15): ApiResponse
     {
@@ -52,6 +55,7 @@ readonly class RollingReserveApiService
             return ApiResponse::failure('An unexpected error occurred');
         }
     }
+
     public function getReserveSummary(int $merchantId, ?string $currency = null): ApiResponse
     {
         try {
@@ -63,6 +67,39 @@ readonly class RollingReserveApiService
                 'error' => $e->getMessage()
             ]);
             return ApiResponse::failure('Failed to retrieve reserve summary');
+        }
+    }
+
+    public function getReserve(int $merchantId, int $reserveId): ApiResponse
+    {
+        try {
+            $query = $this->repository->getRollingReserves($merchantId);
+            $reserve = $query->where('id', $reserveId)->first();
+
+            if (!$reserve) {
+                $this->logger->log('warning', 'Reserve not found', [
+                    'merchant_id' => $merchantId,
+                    'reserve_id' => $reserveId
+                ]);
+                return ApiResponse::failure('Reserve not found');
+            }
+
+            return ApiResponse::success($reserve);
+
+        } catch (QueryException $e) {
+            $this->logger->log('error', 'Database error while retrieving rolling reserve', [
+                'merchant_id' => $merchantId,
+                'reserve_id' => $reserveId,
+                'error' => $e->getMessage()
+            ]);
+            return ApiResponse::failure('Database error occurred');
+        } catch (\Exception $e) {
+            $this->logger->log('error', 'Failed to retrieve rolling reserve', [
+                'merchant_id' => $merchantId,
+                'reserve_id' => $reserveId,
+                'error' => $e->getMessage()
+            ]);
+            return ApiResponse::failure('An unexpected error occurred');
         }
     }
 }

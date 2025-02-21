@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use App\Console\Commands\GenerateSettlementReports;
 use App\Console\Commands\ImportMerchants;
+use App\Exceptions\ApiExceptionHandler;
+use App\Exceptions\Handler;
 use App\Repositories\ChargebackTrackingRepository;
 use App\Repositories\FeeRepository;
 use App\Repositories\Interfaces\ChargebackTrackingRepositoryInterface;
@@ -25,6 +27,7 @@ use App\Services\Settlement\Fee\StandardFeeHandler;
 use App\Services\Settlement\Reserve\RollingReserveHandler;
 use App\Services\Settlement\SettlementService;
 use App\Services\ZipExportService;
+use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -150,6 +153,15 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(StandardFeeHandler::class),
             );
         });
+
+        $this->app->singleton(ApiExceptionHandler::class, function ($app) {
+            return new ApiExceptionHandler($app->make(DynamicLogger::class));
+        });
+
+        $this->app->singleton(
+            ExceptionHandler::class,
+            Handler::class
+        );
     }
 
     /**

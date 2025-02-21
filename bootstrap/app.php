@@ -34,7 +34,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        $exceptions->render(function (AuthenticationException $e, $request) {
+/*        $exceptions->render(function (AuthenticationException $e, $request) {
             if ($request->is('api/*')) {
                 return response()->json([
                     'success' => false,
@@ -68,5 +68,5 @@ return Application::configure(basePath: dirname(__DIR__))
                     'error' => class_basename($e)
                 ], 500);
             }
-        });
+        });*/
     })->create();
