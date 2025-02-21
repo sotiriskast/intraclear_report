@@ -1,38 +1,48 @@
 <?php
 
-use App\Http\Controllers\Api\MerchantApiAuthController;
-use App\Http\Controllers\Api\RollingReserveController;
-use Illuminate\Cache\RateLimiting\Limit;
-use Illuminate\Support\Facades\Route;
+use App\Api\V1\Controllers\Auth\MerchantApiAuthController;
+use App\Api\V1\Controllers\RollingReserve\RollingReserveController;
 
+/*
+|--------------------------------------------------------------------------
+| API Routes
+|--------------------------------------------------------------------------
+|
+| All API routes are prefixed with '/api' by default in RouteServiceProvider
+| Version prefix adds '/v1' making the full prefix '/api/v1'
+|
+*/
 
-// API Version Prefix
-// API Version Prefix
 Route::prefix('v1')->group(function () {
-    // Authentication
-    Route::post('/auth/login', [MerchantApiAuthController::class, 'login'])
-        ->name('api.auth.login')
-        ->middleware('throttle:10,60'); // Limit login attempts
+    // Public routes
+    Route::middleware('throttle:10,60')->group(function () {
+        Route::post('/auth/login', [MerchantApiAuthController::class, 'login'])
+            ->name('api.v1.auth.login');
+    });
 
-    // Protected merchant routes
-    Route::middleware(['auth:sanctum', 'ability:merchant:read'])->group(function () {
-        // Authentication
+    // Protected routes
+    Route::middleware([
+        'auth:sanctum',
+        'ability:merchant:read',
+        'merchant.active',
+    ])->group(function () {
         Route::post('/auth/logout', [MerchantApiAuthController::class, 'logout'])
-            ->name('api.auth.logout');
+            ->name('api.v1.auth.logout');
 
-        // Rolling Reserves
         Route::prefix('rolling-reserves')->group(function () {
             Route::get('/', [RollingReserveController::class, 'index'])
-                ->name('api.rolling-reserves.index')
-                ->middleware('throttle:60,1'); // Rate limit for list endpoint
+                ->middleware('throttle:60,1')
+                ->name('api.v1.rolling-reserves.index');
 
             Route::get('/summary', [RollingReserveController::class, 'summary'])
-                ->name('api.rolling-reserves.summary')
-                ->middleware('throttle:30,1');
+                ->middleware('throttle:30,1')
+                ->name('api.v1.rolling-reserves.summary');
 
             Route::get('/{id}', [RollingReserveController::class, 'show'])
-                ->name('api.rolling-reserves.show')
-                ->middleware('throttle:30,1');
+                ->middleware('throttle:30,1')
+                ->whereNumber('id')
+                ->name('api.v1.rolling-reserves.show');
         });
     });
 });
+

@@ -1,6 +1,8 @@
 <?php
 
 namespace App\Repositories\Interfaces;
+use Illuminate\Database\Eloquent\Builder;
+
 /**
  * Interface for Rolling Reserve repository operations
  *
@@ -31,4 +33,7 @@ interface RollingReserveRepositoryInterface
      * Create a new reserve entry
      */
     public function markReserveAsReleased(array $entryIds);
+    public function getRollingReserves(int $merchantId): Builder;
+    public function getReserveSummary(int $merchantId, ?string $currency = null): array;
+
 }

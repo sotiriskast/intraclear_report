@@ -7,7 +7,9 @@ use App\Models\RollingReserveEntry;
 use App\Repositories\Interfaces\RollingReserveRepositoryInterface;
 use App\Services\DynamicLogger;
 use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+
 /**
  * Repository for managing rolling reserves and their entries
  *
@@ -24,9 +26,12 @@ use Illuminate\Database\Eloquent\Collection;
 class RollingReserveRepository implements RollingReserveRepositoryInterface
 {
     public function __construct(
-        private DynamicLogger $logger,
+        private DynamicLogger      $logger,
         private MerchantRepository $merchantRepository,
-    ) {}
+    )
+    {
+    }
+
     /**
      * Get merchant's reserve settings for a currency
      *
@@ -52,6 +57,7 @@ class RollingReserveRepository implements RollingReserveRepositoryInterface
 
         return $query->first();
     }
+
     /**
      * Get funds eligible for release
      *
@@ -61,9 +67,10 @@ class RollingReserveRepository implements RollingReserveRepositoryInterface
      * @throws \Exception If retrieval fails
      */
     public function getReleaseableFunds(
-        int $merchantId,
+        int                    $merchantId,
         string|CarbonInterface $date
-    ): Collection {
+    ): Collection
+    {
         try {
             $query = RollingReserveEntry::query()
                 ->where('merchant_id', $merchantId)
@@ -89,6 +96,7 @@ class RollingReserveRepository implements RollingReserveRepositoryInterface
             throw $e;
         }
     }
+
     /**
      * Mark reserve entries as released
      *
@@ -121,6 +129,7 @@ class RollingReserveRepository implements RollingReserveRepositoryInterface
             throw $e;
         }
     }
+
     /**
      * Create a new reserve entry
      *
@@ -140,7 +149,7 @@ class RollingReserveRepository implements RollingReserveRepositoryInterface
             if ($existing) {
                 $this->logger->log('info', 'Reserve entry already exists for this period', [
                     'merchant_id' => $data['merchant_id'],
-                    'period' => $data['period_start'].' to '.$data['period_end'],
+                    'period' => $data['period_start'] . ' to ' . $data['period_end'],
                 ]);
 
                 return $existing;
@@ -155,4 +164,60 @@ class RollingReserveRepository implements RollingReserveRepositoryInterface
             throw $e;
         }
     }
+
+    // Add the missing method
+    public function getRollingReserves(int $merchantId): Builder
+    {
+        return RollingReserveEntry::query()
+            ->where('merchant_id', $merchantId)
+            ->orderBy('created_at', 'desc');
+    }
+
+    // Add method for summary
+    public function getReserveSummary(int $merchantId, ?string $currency = null): array
+    {
+        $query = RollingReserveEntry::query()
+            ->where('merchant_id', $merchantId);
+
+        if ($currency) {
+            $query->where('original_currency', $currency);
+        }
+
+        // Get pending reserves
+        $pending = clone $query;
+        $pendingReserves = $pending->where('status', 'pending')
+            ->selectRaw('original_currency, SUM(original_amount) as total_amount')
+            ->groupBy('original_currency')
+            ->get()
+            ->keyBy('original_currency')
+            ->map(fn($item) => round($item->total_amount / 100, 2))
+            ->toArray();
+
+        // Get upcoming releases (next 30 days)
+        $releaseableDate = now()->addDays(30);
+        $upcoming = clone $query;
+        $upcomingReleases = $upcoming
+            ->where('status', 'pending')
+            ->where('release_due_date', '<=', $releaseableDate)
+            ->selectRaw('original_currency, SUM(original_amount) as total_amount')
+            ->groupBy('original_currency')
+            ->get()
+            ->keyBy('original_currency')
+            ->map(fn($item) => round($item->total_amount / 100, 2))
+            ->toArray();
+
+        // Get counts
+        $counts = $query->selectRaw('status, COUNT(*) as count')
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->toArray();
+
+        return [
+            'pending_reserves' => $pendingReserves,
+            'pending_count' => $counts['pending'] ?? 0,
+            'released_count' => $counts['released'] ?? 0,
+            'upcoming_releases' => $upcomingReleases
+        ];
+    }
+
 }
