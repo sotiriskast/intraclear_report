@@ -4,21 +4,16 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\RollingReserveResource;
-use App\Models\RollingReserveEntry;
-use App\Repositories\MerchantRepository;
 use App\Services\DynamicLogger;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Validator;
 
 class RollingReserveController extends Controller
 {
     public function __construct(
         private readonly DynamicLogger $logger,
-        private readonly MerchantRepository $merchantRepository
-
     ) {}
 
     /**

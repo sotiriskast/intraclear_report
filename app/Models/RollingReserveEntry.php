@@ -38,7 +38,7 @@ class RollingReserveEntry extends Model
         'updated_at' => 'datetime',
         'original_amount' => 'integer',
         'reserve_amount_eur' => 'integer',
-        'exchange_rate' => 'decimal',
+        'exchange_rate' => 'float',
     ];
 
     public function merchant(): BelongsTo
