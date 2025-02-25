@@ -3,6 +3,7 @@
 namespace App\Services\Settlement\Fee;
 
 use App\Repositories\Interfaces\FeeRepositoryInterface;
+use App\Repositories\MerchantRepository;
 use App\Services\DynamicLogger;
 use App\Services\Settlement\Fee\interfaces\CustomFeeHandlerInterface;
 use App\Services\Settlement\Fee\interfaces\FeeFrequencyHandlerInterface;
@@ -29,7 +30,8 @@ readonly class FeeService
         private DynamicLogger $logger,
         private FeeFrequencyHandlerInterface $frequencyHandler,
         private CustomFeeHandlerInterface $customFeeHandler,
-        private StandardFeeHandlerInterface $standardFeeHandler
+        private StandardFeeHandlerInterface $standardFeeHandler,
+        private MerchantRepository $merchantRepository,
     ) {}
 
     /**
@@ -64,7 +66,7 @@ readonly class FeeService
                     $dateRange
                 )) {
                     $calculatedFees[] = $fee;
-                    $this->logFeeApplication($merchantId, $fee, $transactionData, $fee['fee_amount'], $dateRange);
+                    $this->logFeeApplication($this->merchantRepository->getMerchantIdByAccountId($merchantId), $fee, $transactionData, $fee['fee_amount'], $dateRange);
                 }
             }
 
@@ -79,13 +81,14 @@ readonly class FeeService
                     $dateRange
                 )) {
                     $calculatedFees[] = $fee;
-                    $this->logFeeApplication($merchantId, $fee, $transactionData, $fee['fee_amount'], $dateRange);
+                    $this->logFeeApplication($this->merchantRepository->getMerchantIdByAccountId($merchantId), $fee, $transactionData, $fee['fee_amount'], $dateRange);
                 }
             }
 
             // Log summary of fee calculation
             $this->logger->log('info', 'Fee calculation completed', [
-                'merchant_id' => $merchantId,
+                'merchant_id' => $this->merchantRepository->getMerchantIdByAccountId($merchantId),
+                'merchant_account_id' => $merchantId,
                 'standard_fees_count' => count($standardFees),
                 'custom_fees_count' => count($customFees),
                 'total_fees' => count($calculatedFees),
@@ -121,7 +124,7 @@ readonly class FeeService
         $this->feeRepository->logFeeApplication([
             'merchant_id' => $merchantId,
             'fee_type_id' => $fee['fee_type_id'],
-            'base_amount' => $transactionData['total_sales_amount'] ?? 0,
+            'base_amount' => $transactionData['total_sales'] ?? 0,
             'base_currency' => $transactionData['currency'] ?? 'EUR',
             'fee_amount_eur' => $feeAmount,
             'exchange_rate' => $transactionData['exchange_rate'] ?? 1.0,

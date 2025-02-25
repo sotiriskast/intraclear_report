@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class FeeType extends Model
@@ -16,8 +17,12 @@ class FeeType extends Model
         'is_percentage',
     ];
 
-    public function merchantFees()
+    public function merchantFees(): HasMany
     {
         return $this->hasMany(MerchantFee::class);
+    }
+    public function feeHistory(): HasMany
+    {
+        return $this->hasMany(FeeHistory::class);
     }
 }

@@ -112,6 +112,7 @@ return new class extends Migration {
             $table->timestamps();
 
             $table->foreign('fee_type_id')->references('id')->on('fee_types');
+            $table->foreign('merchant_id')->references('id')->on('merchants');
         });
         Schema::create('settlement_reports', function (Blueprint $table) {
             $table->id();
