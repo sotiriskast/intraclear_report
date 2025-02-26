@@ -859,91 +859,81 @@ paths:
     post:
       tags:
         - Documents
-      summary: Create New Document
+      summary: Create or Sign Document
       description: >
-        Creates a new document in the system (such as a payment request).
+        This endpoint can be used to either create a new document or sign an existing document.<br>
+        <br>
+        **For Creating New Documents**:
 
         **IMPORTANT PREREQUISITE**: Before using this endpoint, you should first understand
         the required fields by calling the form/withMethods endpoint for the specific document type.
 
-        This endpoint accepts a payload containing the document type, ID, GUID, and all required
-        fields for the specific document type. The response includes the document ID, status,
-        fields, and available methods (like Sign, Edit, Delete).
-      operationId: createDocument
+        To create a new document, provide the document type, ID "0", GUID "NEW", and fields array with all required fields.
+        <br><br>
+        **For Signing Existing Documents**:
+
+        To sign a document, provide the document type, existing document ID, method GUID for the signing action,
+        and signatures array containing authentication credentials (like passwords or OTP codes).
+      operationId: documentAction
       parameters:
         - $ref: '#/components/parameters/XSidHeader'
       requestBody:
-        description: Document creation request
+        description: Document action request
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - documenttype
-                - id
-                - guid
-                - fields
-              properties:
-                documenttype:
-                  type: string
-                  description: Type of document to create
-                  enum:
-                    - Outgoing_SEPAPAY_FReq
-                    - Outgoing_SEPA_INST_FReq
-                    - Outgoing_Payment_FReq
-                  example: "Outgoing_SEPAPAY_FReq"
-                id:
-                  type: string
-                  description: ID of the document (use "0" for new documents)
-                  example: "0"
-                guid:
-                  type: string
-                  description: GUID of the document (use "NEW" for new documents)
-                  example: "NEW"
-                fields:
-                  type: array
-                  description: Array of document fields
-                  items:
-                    type: object
-                    required:
-                      - key
-                      - value
-                    properties:
-                      key:
-                        type: string
-                        description: Field key/name
-                      value:
-                        type: string
-                        description: Field value
-                  example:
-                    - key: "debitaccountid"
-                      value: "9606"
-                    - key: "amount"
-                      value: "15"
-                    - key: "currencyid"
-                      value: "2"
-                    - key: "extaccountnumber"
-                      value: "ES3115632626353262482979"
-                    - key: "benefname"
-                      value: "Test Recipient"
-                    - key: "benefcountry"
-                      value: "57"
-                    - key: "benefaddress"
-                      value: "Test Address"
-                    - key: "extbankswift"
-                      value: "NTSBESM1XXX"
-                    - key: "extbankname"
-                      value: "N26 BANK GMBH, SUCURSAL EN ESPANA"
-                    - key: "extbenefbankcountry"
-                      value: "205"
-                    - key: "extbankaddress"
-                      value: "CALLE DE MANZANARES 4"
-                    - key: "info"
-                      value: "Payment details"
+              oneOf:
+                - $ref: '#/components/schemas/CreateDocumentRequest'
+                - $ref: '#/components/schemas/SignDocumentRequest'
+              discriminator:
+                propertyName: guid
+                mapping:
+                  NEW: '#/components/schemas/CreateDocumentRequest'
+            examples:
+              createDocument:
+                summary: Create new document
+                value: {
+                  "documenttype": "Outgoing_SEPAPAY_FReq",
+                  "id": "0",
+                  "guid": "NEW",
+                  "fields": [
+                    {"key": "debitaccountid", "value": "9606"},
+                    {"key": "amount", "value": "15"},
+                    {"key": "currencyid", "value": "2"},
+                    {"key": "extaccountnumber", "value": "ES3115632626353262482979"},
+                    {"key": "benefname", "value": "Test Recipient"},
+                    {"key": "benefcountry", "value": "57"},
+                    {"key": "benefaddress", "value": "Test Address"},
+                    {"key": "extbankswift", "value": "NTSBESM1XXX"},
+                    {"key": "extbankname", "value": "N26 BANK GMBH, SUCURSAL EN ESPANA"},
+                    {"key": "extbenefbankcountry", "value": "205"},
+                    {"key": "extbankaddress", "value": "CALLE DE MANZANARES 4"},
+                    {"key": "info", "value": "Payment details"}
+                  ]
+                }
+              signDocument:
+                summary: Sign existing document
+                value: {
+                  "documenttype": "Outgoing_SEPAPAY_FReq",
+                  "id": "102369",
+                  "guid": "{5040EB5D-5C04-4B6C-B80C-5A5BFFE61DB3}",
+                  "signatures": [
+                    {
+                      "num": "1",
+                      "type": "PAYPASSWORD",
+                      "value": "password123"
+                    },
+                    {
+                      "num": "2",
+                      "type": "PAYPASSWORD",
+                      "value": "SecondAuth123!"
+                    }
+                  ]
+                }
       responses:
         '200':
-          description: Document created successfully
+          description: Document action completed successfully
           content:
             application/json:
               schema:
@@ -960,10 +950,11 @@ paths:
                       type: object
                   message:
                     type: string
-                    description: Message about next steps (e.g., signature required)
+                    description: Message about next steps or action result
                     example: "Use your payment or OTP password to sign the document"
                   additionalinfo:
                     type: object
+                    nullable: true
                     description: Additional information about the document
                     properties:
                       documenttype:
@@ -977,11 +968,11 @@ paths:
                         example: "{5040EB5D-5C04-4B6C-B80C-5A5BFFE61DB3}"
                   objectid:
                     type: string
-                    description: ID of the created document
+                    description: ID of the document
                     example: "102366"
                   object:
                     type: object
-                    description: The created document object
+                    description: The document object
                     properties:
                       id:
                         type: string
@@ -1162,6 +1153,60 @@ paths:
                 $ref: '#/components/schemas/Error'
         '404':
           description: No matching SWIFT/BIC codes found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+        - sessionAuth: []
+  /cfsapi/document/{documentId}/string_for_qr_sign:
+    servers:
+      - url: https://intra-web-dev.azurewebsites.net
+        description: Development web server
+    get:
+      tags:
+        - Documents
+      summary: Get QR Sign String
+      description: >
+        Retrieves a formatted string representation of a document that can be used for QR code generation.
+        This is typically used for generating QR codes that facilitate document signing processes.
+        The string contains document details with field separators.
+      operationId: getQrSignString
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          description: ID of the document to generate QR string for
+          schema:
+            type: string
+            example: "102366"
+        - $ref: '#/components/parameters/XSidHeader'
+      responses:
+        '200':
+          description: QR sign string retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: string
+                    description: Formatted string with document details for QR code generation
+                    example: "ID:102366\u001cFrom account:20101.0110\u001cAmount:15.00\u001cPayment fee:5.00\u001cTotal Amount with rates:20.00\u001cAccount(IBAN):ES3115632626353262482979\u001cBeneficiary Name:teest"
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized or session expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Document not found
           content:
             application/json:
               schema:
@@ -1577,38 +1622,104 @@ components:
           type: object
           description: Additional field values/properties
           example: {}
-    DocumentMethod:
+    CreateDocumentRequest:
       type: object
+      required:
+        - documenttype
+        - id
+        - guid
+        - fields
       properties:
-        caption:
-          type: string
-          description: Method display name
-          example: "Sign"
-        guid:
-          type: string
-          description: Method GUID
-          example: "{5040EB5D-5C04-4B6C-B80C-5A5BFFE61DB3}"
-        uid:
-          type: string
-          description: Method UID
-          example: "30"
         documenttype:
           type: string
-          description: Document type this method applies to
+          description: Type of document to create
+          enum:
+            - Outgoing_SEPAPAY_FReq
+            - Outgoing_SEPA_INST_FReq
+            - Outgoing_Payment_FReq
           example: "Outgoing_SEPAPAY_FReq"
-        isdefault:
+        id:
           type: string
-          description: Whether this is the default method (1=yes, 0=no)
-          example: "1"
-        signaturerequired:
+          description: ID of the document (use "0" for new documents)
+          example: "0"
+        guid:
           type: string
-          description: Whether signature is required (1=yes, 0=no)
-          example: "1"
-        signatures:
+          description: GUID of the document (use "NEW" for new documents)
+          example: "NEW"
+        fields:
           type: array
-          description: Required signatures if any
+          description: Array of document fields
           items:
             type: object
+            required:
+              - key
+              - value
+            properties:
+              key:
+                type: string
+                description: Field key/name
+              value:
+                type: string
+                description: Field value
+          example:
+            - key: "debitaccountid"
+              value: "9606"
+            - key: "amount"
+              value: "15"
+            - key: "currencyid"
+              value: "2"
+            - key: "extaccountnumber"
+              value: "ES3115632626353262482979"
+            - key: "benefname"
+              value: "Test Recipient"
+            - key: "benefcountry"
+              value: "57"
+            - key: "benefaddress"
+              value: "Test Address"
+            - key: "extbankswift"
+              value: "NTSBESM1XXX"
+            - key: "extbankname"
+              value: "N26 BANK GMBH, SUCURSAL EN ESPANA"
+            - key: "extbenefbankcountry"
+              value: "205"
+            - key: "extbankaddress"
+              value: "CALLE DE MANZANARES 4"
+            - key: "info"
+              value: "Payment details"
+
+    SignDocumentRequest:
+      type: object
+      required:
+        - documenttype
+        - id
+        - guid
+        - signatures
+      properties:
+        documenttype:
+          type: string
+          description: Type of document
+          enum:
+            - Outgoing_SEPAPAY_FReq
+            - Outgoing_SEPA_INST_FReq
+            - Outgoing_Payment_FReq
+          example: "Outgoing_SEPAPAY_FReq"
+        id:
+          type: string
+          description: ID of the existing document
+          example: "102369"
+        guid:
+          type: string
+          description: GUID of the sign method to execute
+          example: "{5040EB5D-5C04-4B6C-B80C-5A5BFFE61DB3}"
+        signatures:
+          type: array
+          description: Array of signatures for authentication
+          items:
+            type: object
+            required:
+              - num
+              - type
+              - value
             properties:
               num:
                 type: string
@@ -1618,20 +1729,11 @@ components:
                 type: string
                 description: Signature type
                 example: "PAYPASSWORD"
-        redirect:
-          type: boolean
-          description: Whether method requires redirect
-          example: true
-        objectid:
-          type: string
-          description: Document ID
-          example: "102366"
-  securitySchemes:
-    sessionAuth:
-      type: apiKey
-      in: header
-      name: x-sid
-      description: Session ID for authentication
+              value:
+                type: string
+                description: Signature value (password, OTP, etc.)
+                example: "password123"
+
 
 security:
   - sessionAuth: []
