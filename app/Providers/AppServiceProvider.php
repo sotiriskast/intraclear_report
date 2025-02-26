@@ -28,6 +28,7 @@ use App\Services\Settlement\Reserve\RollingReserveHandler;
 use App\Services\Settlement\SettlementService;
 use App\Services\ZipExportService;
 use Illuminate\Contracts\Debug\ExceptionHandler;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -169,6 +170,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        if (env('APP_USE_HTTPS')=='dev') {
+            URL::forceScheme('https');
+        }
     }
 }

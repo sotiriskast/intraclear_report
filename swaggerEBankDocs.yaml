@@ -1,0 +1,1637 @@
+openapi: 3.0.9
+info:
+  title: Intracler - SEPA
+  description: |
+    API for Intracler SEPA services and payment operations.
+    Supports various document types including:
+    - Outgoing_SEPAPAY_FReq
+    - Outgoing_SEPA_INST_FReq
+    - Outgoing_Payment_FReq
+  version: 1.0.0
+servers:
+  - url: https://intra-api-server-dev.azurewebsites.net
+    description: Development API server (Auth endpoints)
+  - url: https://intra-web-dev.azurewebsites.net
+    description: Development web server (Document endpoints)
+paths:
+  /auth/api/client/auth:
+    servers:
+      - url: https://intra-api-server-dev.azurewebsites.net
+        description: Development API server
+    post:
+      tags:
+        - Authentication
+      summary: User Login
+      description: Authenticate a user and obtain an access token. Required before accessing other endpoints.
+      operationId: loginUser
+      requestBody:
+        description: Login credentials
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - login
+                - password
+              properties:
+                login:
+                  type: string
+                  description: User email or username
+                  example: user@example.com
+                password:
+                  type: string
+                  description: User password
+                  format: password
+                  example: "********"
+      responses:
+        '200':
+          description: Successful authentication
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: JWT authentication token
+                  session_id:
+                    type: string
+                    description: Session ID for subsequent requests
+                    example: "#lhgay6R0aQjtIXcV7IoCIl219AiYAIu7kGCoJeeZcg5S7N8o2C"
+                  refresh_token:
+                    type: string
+                    description: Token to refresh the session
+                  clients:
+                    type: array
+                    description: List of available clients
+                    items:
+                      type: object
+                  first_auth_type:
+                    type: string
+                    description: Type of the first authentication step
+                    example: "Password"
+                  second_auth_type:
+                    type: string
+                    description: Type of the second authentication step (if required)
+                  message:
+                    type: string
+                    description: Additional message information
+                  server_utc_time:
+                    type: string
+                    description: Server UTC timestamp
+        '400':
+          description: Bad request - Invalid credentials format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /core/api/templates/list:
+    servers:
+      - url: https://intra-api-server-dev.azurewebsites.net
+        description: Development API server
+    get:
+      tags:
+        - Templates
+      summary: Get Template List
+      description: Retrieve a list of available templates with pagination
+      operationId: getTemplateList
+      parameters:
+        - name: x-sid
+          in: header
+          required: true
+          description: Session ID for authentication
+          schema:
+            type: string
+            example: "#OlcnoVlfL2AVV9XKo0rmj4DrhWQo1pwIQY1RnjAEL4wOb5iAbB"
+        - name: rowsToFetch
+          in: query
+          required: false
+          description: Number of rows to fetch per page
+          schema:
+            type: integer
+            default: 20
+            example: 20
+        - name: startPage
+          in: query
+          required: false
+          description: Starting page number (0-based)
+          schema:
+            type: integer
+            default: 0
+            example: 0
+
+
+      responses:
+        '200':
+          description: List of templates retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    description: List of template items
+                    items:
+                      $ref: '#/components/schemas/TemplateItem'
+                  totalitems:
+                    type: string
+                    description: Total number of items available
+                    example: "1"
+                  totalItemsCountIsTrimmed:
+                    type: boolean
+                    description: Whether the total count is trimmed
+                    example: false
+              examples:
+                success:
+                  summary: Successful templates response
+                  value: {
+                    "items": [
+                      {
+                        "id": "102365",
+                        "info": "payment",
+                        "amount": 100.0,
+                        "currency": "EUR",
+                        "name": "test",
+                        "description": "European payment,  100",
+                        "labelfrom": "Coworking 365, payment account",
+                        "labelname": "ANother test",
+                        "templatedata": "<?xml version=\"1.0\"?>\n<document><debitaccountid>9606</debitaccountid><amount>100</amount><currencyid>2</currencyid><extaccountnumber>ES3115632626353262482979</extaccountnumber><benefname>ANother test</benefname><benefcountry>57</benefcountry><benefaddress>test</benefaddress><benefdateofbirth>20250206</benefdateofbirth><benefnationality>3</benefnationality><extbankswift>NTSBESM1XXX</extbankswift><extbankname>N26 BANK GMBH, SUCURSAL EN ESPANA</extbankname><extbenefbankcountry>205</extbenefbankcountry><extbankaddress>CALLE DE MANZANARES 4</extbankaddress><info>payment</info><email>s.kastanas@intraclear.com</email><paymentattachmenttype></paymentattachmenttype><filestoragecarrier>[{\"documentId\":\"102363\",\"fileName\":\"Go In Action.pdf\",\"bytesSize\":6075788,\"uploadDateTime\":\"2025-02-26T06:58:24.166Z\",\"documentType\":\"1\",\"documentNote\":\"\"}]</filestoragecarrier><documenttype>Outgoing_SEPAPAY_FReq</documenttype><id>0</id></document>",
+                        "templatedata_json": {
+                          "debitaccountid": 9606.0,
+                          "amount": 100.0,
+                          "currencyid": 2.0,
+                          "tariffamount": null,
+                          "totalamount": null,
+                          "myaccount": null,
+                          "creditaccountid": null,
+                          "info": "payment",
+                          "id": 0.0,
+                          "documenttype": "Outgoing_SEPAPAY_FReq"
+                        },
+                        "candelete": false,
+                        "canedit": false
+                      }
+                    ],
+                    "totalitems": "1",
+                    "totalItemsCountIsTrimmed": false
+                  }
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized or session expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No templates found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+        - sessionAuth: []
+
+  /cfsapi/document/{documentType}/{documentId}/{documentStatus}/form/withMethods:
+    servers:
+      - url: https://intra-web-dev.azurewebsites.net
+        description: Development web server
+    get:
+      tags:
+        - Documents
+      summary: Get Document data
+      description: Retrieve a document form with its associated methods
+      operationId: getDocumentFormWithMethods
+      parameters:
+        - name: documentType
+          in: path
+          required: true
+          description: Type of document to retrieve
+          schema:
+            type: string
+            enum:
+              - Outgoing_SEPAPAY_FReq
+              - Outgoing_SEPA_INST_FReq
+              - Outgoing_Payment_FReq
+            example: Outgoing_SEPAPAY_FReq
+        - name: documentId
+          in: path
+          required: true
+          description: ID of the document
+          schema:
+            type: string
+            example: "0"
+        - name: documentStatus
+          in: path
+          required: true
+          description: Status of the document
+          schema:
+            type: string
+            enum: [NEW, DRAFT, PENDING, COMPLETED]
+            example: NEW
+        - $ref: '#/components/parameters/XSidHeader'
+      responses:
+        '200':
+          description: Document form with methods retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  documenttype:
+                    type: string
+                    description: Type of document
+                    example: "Outgoing_SEPAPAY_FReq"
+                  appcaption:
+                    type: string
+                    description: Caption of the application
+                    example: "European payment"
+                  guid:
+                    type: string
+                    description: Document GUID
+                    example: "NEW"
+                  uid:
+                    type: integer
+                    description: Document UID
+                    example: 0
+                  caption:
+                    type: string
+                    description: Document caption
+                    example: "Create"
+                  signatures:
+                    type: array
+                    description: Document signatures
+                    items:
+                      type: object
+                  showform:
+                    type: boolean
+                    description: Whether to show the form
+                    example: true
+                  isdefault:
+                    type: boolean
+                    description: Whether this is the default form
+                    example: false
+                  groups:
+                    type: array
+                    description: Form field groups
+                    items:
+                      $ref: '#/components/schemas/DocumentGroup'
+                  methods:
+                    type: array
+                    description: Available methods for the document
+                    items:
+                      type: object
+              examples:
+                success:
+                  summary: Successful response example
+                  value: {
+                    "documenttype": "Outgoing_SEPAPAY_FReq",
+                    "appcaption": "European payment",
+                    "guid": "NEW",
+                    "uid": 0,
+                    "caption": "Create",
+                    "signatures": [],
+                    "showform": true,
+                    "isdefault": false,
+                    "groups": [
+                      {
+                        "id": "8135",
+                        "caption": "General",
+                        "fields": [
+                          {
+                            "id": "4453",
+                            "name": "debitaccountid",
+                            "caption": "From account",
+                            "type": "drop-down box",
+                            "required": true,
+                            "options": [
+                              {"key": "9551", "value": "20101.0098 AWAC, payment account"}
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized or session expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Document is not available for user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+        - sessionAuth: []
+  /cfsapi/document/{documentType}/{documentId}/{documentStatus}/calculate:
+    servers:
+      - url: https://intra-web-dev.azurewebsites.net
+        description: Development web server
+    get:
+      tags:
+        - Documents
+      summary: Calculate Document Fields
+      description: >
+        Validates and calculates document field values based on input parameters.
+
+        **IMPORTANT PREREQUISITE**: Before using this endpoint, you must first call:
+        ```
+        GET /cfsapi/document/{documentType}/{documentId}/{documentStatus}/form/withMethods
+        ```
+
+        This call retrieves the complete form structure with all required fields and their validation rules.
+        The required parameters vary significantly depending on the payment type:
+        <br>
+        **Standard SEPA Payment (Outgoing_SEPAPAY_FReq)**
+        <br>
+        - debitaccountid: Source account ID<br>
+        - amount: Payment amount<br>
+        - currencyid: Currency ID (usually 2 for EUR)<br>
+        - extaccountnumber: Beneficiary IBAN<br>
+        - benefname: Beneficiary name<br>
+        - benefcountry: Beneficiary country ID<br>
+        - benefaddress: Beneficiary address<br>
+        - extbankswift: Bank SWIFT/BIC code<br>
+        - extbankname: Bank name<br>
+        - extbenefbankcountry: Bank country ID<br>
+        - extbankaddress: Bank address<br>
+        - info: Payment information<br>
+        <br>
+        **SEPA Instant Payment (Outgoing_SEPA_INST_FReq)**<br>
+        Same fields as standard SEPA but processed immediately
+
+        **International Payment (Outgoing_Payment_FReq)**<br>
+        - debitaccountid: Source account ID<br>
+        - instructedamount: Amount in the original currency<br>
+        - instructedcurrencyid: Currency ID of the original amount<br>
+        - extaccountnumber: Beneficiary account number (IBAN or other)<br>
+        - benefname: Beneficiary name<br>
+        - benefcountry: Beneficiary country ID (more countries available than SEPA)<br>
+        - benefaddress: Beneficiary address<br>
+        - extbankswift: Bank SWIFT/BIC code<br>
+        - extbankname: Bank name<br>
+        - extbenefbankcountry: Bank country ID (more countries available than SEPA)<br>
+        - extbankaddress: Bank address<br>
+        - info: Payment information<br>
+        - chargestype: Charges type (usually 1 for OUR)<br>
+        - intbank: Whether to use an intermediary bank (0=no, 1=yes)<br>
+        <br>
+        When intbank=1, additional fields required:<br>
+        - intbankswift: Intermediary bank SWIFT<br>
+        - intbankname: Intermediary bank name<br>
+        - intbankcountry: Intermediary bank country ID<br>
+        - intbankaddress: Intermediary bank address<br>
+        <br>
+        Always check the response from /form/withMethods to determine the exact fields required
+        and their validation rules for each payment type.
+
+      operationId: calculateDocumentFields
+      parameters:
+        - $ref: '#/components/parameters/XSidHeader'
+        - name: documentType
+          in: path
+          required: true
+          description: Type of document to calculate
+          schema:
+            type: string
+            enum:
+              - Outgoing_SEPAPAY_FReq
+              - Outgoing_SEPA_INST_FReq
+              - Outgoing_Payment_FReq
+              - EP_TRANSFER
+            example: Outgoing_SEPAPAY_FReq
+        - name: documentId
+          in: path
+          required: true
+          description: ID of the document
+          schema:
+            type: string
+            example: "0"
+        - name: documentStatus
+          in: path
+          required: true
+          description: Status of the document
+          schema:
+            type: string
+            enum: [NEW, DRAFT, PENDING, COMPLETED]
+            example: NEW
+        - name: changedFieldName
+          in: query
+          required: false
+          description: Name of the field that was changed
+          schema:
+            type: string
+            example: "extbenefbankcountry"
+        # Common parameters for all document types
+        - name: debitaccountid
+          in: query
+          required: false
+          description: ID of the debit account
+          schema:
+            type: string
+            example: "9606"
+        - name: create_template
+          in: query
+          required: false
+          description: Whether to create a template (0=no, 1=yes)
+          schema:
+            type: string
+            default: "0"
+        - name: currencyid
+          in: query
+          required: false
+          description: ID of the currency
+          schema:
+            type: string
+            example: "2"
+        - name: amount
+          in: query
+          required: false
+          description: Transaction amount
+          schema:
+            type: string
+            example: ""
+        - name: email
+          in: query
+          required: false
+          description: Email address for notifications
+          schema:
+            type: string
+            example: ""
+        - name: extaccountnumber
+          in: query
+          required: false
+          description: External account number (IBAN)
+          schema:
+            type: string
+            example: ""
+        - name: benefname
+          in: query
+          required: false
+          description: Beneficiary name
+          schema:
+            type: string
+            example: ""
+        - name: benefcountry
+          in: query
+          required: false
+          description: Beneficiary country ID
+          schema:
+            type: string
+            example: "0"
+        - name: benefaddress
+          in: query
+          required: false
+          description: Beneficiary address
+          schema:
+            type: string
+            example: ""
+        - name: extbankswift
+          in: query
+          required: false
+          description: External bank SWIFT/BIC code
+          schema:
+            type: string
+            example: ""
+        - name: extbankname
+          in: query
+          required: false
+          description: External bank name
+          schema:
+            type: string
+            example: ""
+        - name: extbenefbankcountry
+          in: query
+          required: false
+          description: External bank country ID
+          schema:
+            type: string
+            example: "0"
+        - name: extbankaddress
+          in: query
+          required: false
+          description: External bank address
+          schema:
+            type: string
+            example: ""
+        - name: info
+          in: query
+          required: false
+          description: Payment information/description
+          schema:
+            type: string
+            example: ""
+        - name: paymentattachmenttype
+          in: query
+          required: false
+          description: Payment attachment type
+          schema:
+            type: string
+            example: ""
+        - name: filestoragecarrier
+          in: query
+          required: false
+          description: File storage information (JSON string)
+          schema:
+            type: string
+            example: ""
+        # Parameters specific to Outgoing_SEPAPAY_FReq
+        - name: benefdateofbirth
+          in: query
+          required: false
+          description: Beneficiary date of birth (YYYYMMDD)
+          schema:
+            type: string
+            example: ""
+        - name: benefnationality
+          in: query
+          required: false
+          description: Beneficiary nationality ID
+          schema:
+            type: string
+            example: "0"
+        # Parameters specific to Outgoing_Payment_FReq
+        - name: instructedamount
+          in: query
+          required: false
+          description: Instructed amount (for international payments)
+          schema:
+            type: string
+            example: ""
+        - name: instructedcurrencyid
+          in: query
+          required: false
+          description: Instructed currency ID (for international payments)
+          schema:
+            type: string
+            example: "2"
+        - name: rate
+          in: query
+          required: false
+          description: Exchange rate (for international payments)
+          schema:
+            type: string
+            example: ""
+        - name: chargestype
+          in: query
+          required: false
+          description: Charges type (for international payments)
+          schema:
+            type: string
+            example: "1"
+        - name: registrationnumber
+          in: query
+          required: false
+          description: Registration number
+          schema:
+            type: string
+            example: ""
+        - name: intbank
+          in: query
+          required: false
+          description: Intermediary bank flag (for international payments)
+          schema:
+            type: string
+            example: "0"
+
+      responses:
+        '200':
+          description: Document calculation results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  values:
+                    type: array
+                    description: Calculated and updated field values
+                    items:
+                      $ref: '#/components/schemas/CalculatedFieldValue'
+                  warnings:
+                    type: array
+                    description: Warnings that occurred during validation
+                    items:
+                      type: object
+                      properties:
+                        field:
+                          type: string
+                          description: Field with the warning
+                          example: "extaccountnumber"
+                        value:
+                          type: string
+                          description: Warning message
+                          example: "ATTENTION! IBAN specified, but checksum is incorrect."
+                  result:
+                    type: string
+                    description: Result code (0=success, other values indicate errors)
+                    example: "0"
+                  fieldErrors:
+                    type: array
+                    description: List of field-specific errors
+                    items:
+                      type: object
+                  message:
+                    type: string
+                    description: Overall message for the calculation
+                    example: ""
+                  additionalinfo:
+                    type: string
+                    nullable: true
+                    description: Additional information
+                  objectid:
+                    type: string
+                    description: Object ID
+                    example: ""
+                  object:
+                    type: object
+                    nullable: true
+                    description: The object data
+                  withTemplate:
+                    type: boolean
+                    description: Whether a template was created
+                    example: false
+                  templateId:
+                    type: integer
+                    description: Template ID if created
+                    example: 0
+                  templateName:
+                    type: string
+                    description: Template name if created
+                    example: ""
+              examples:
+                sepapay:
+                  summary: SEPA Payment calculation response
+                  value: {
+                    "values": [
+                      {"field": "thedate", "value": "20250226", "options": {}, "values": {}},
+                      {"field": "thedate forsoap", "value": "20250226", "options": {}, "values": {}},
+                      {"field": "balance", "value": "21,379.00 EUR", "options": {}, "values": {}},
+                      {"field": "manualentry", "value": "1", "options": {}, "values": {}},
+                      {"field": "tariffamount", "value": "0.0000", "options": {}, "values": {}},
+                      {"field": "totalamount", "value": "0.0000", "options": {}, "values": {}},
+                      {"field": "errormessagesign", "value": "", "options": {}, "values": {}},
+                      {"field": "extaccountnumber", "value": "", "options": {}, "values": {}},
+                      {"field": "benefname", "value": "", "options": {}, "values": {}},
+                      {"field": "benefcountry", "value": "0", "options": {}, "values": {}},
+                      {"field": "benefaddress", "value": "", "options": {}, "values": {}},
+                      {"field": "extbankswift", "value": "", "options": {}, "values": {}},
+                      {"field": "extbankname", "value": "", "options": {}, "values": {}},
+                      {"field": "extbenefbankcountry", "value": "0", "options": {}, "values": {}},
+                      {"field": "extbankaddress", "value": "", "options": {}, "values": {}},
+                      {"field": "sepatransfer", "value": "0", "options": {}, "values": {}},
+                      {"field": "info", "value": "", "options": {}, "values": {}},
+                      {"field": "calculate_warning", "value": "", "options": {}, "values": {}}
+                    ],
+                    "warnings": []
+                  }
+                internationalPayment:
+                  summary: International Payment calculation response
+                  value: {
+                    "values": [
+                      {"field": "thedate", "value": "20250226", "options": {}, "values": {}},
+                      {"field": "thedate forsoap", "value": "20250226", "options": {}, "values": {}},
+                      {"field": "balance", "value": "21,379.00 EUR", "options": {}, "values": {}},
+                      {"field": "manualentry", "value": "1", "options": {}, "values": {}},
+                      {"field": "rate", "value": "0", "options": {"visible": "0"}, "values": {}},
+                      {"field": "amount", "value": "0.0000", "options": {"visible": "0"}, "values": {}},
+                      {"field": "tariffamount", "value": "0.0000", "options": {}, "values": {}},
+                      {"field": "totalamount", "value": "0.0000", "options": {}, "values": {}},
+                      {"field": "calculatedrate", "value": null, "options": {}, "values": {}},
+                      {"field": "calculatedwriteoffamount", "value": null, "options": {}, "values": {}},
+                      {"field": "writeoffamount", "value": null, "options": {}, "values": {}},
+                      {"field": "errormessagesign", "value": "", "options": {}, "values": {}},
+                      {"field": "extaccountnumber", "value": "", "options": {}, "values": {}},
+                      {"field": "benefname", "value": "", "options": {}, "values": {}},
+                      {"field": "benefcountry", "value": "0", "options": {}, "values": {}},
+                      {"field": "benefaddress", "value": "", "options": {}, "values": {}},
+                      {"field": "extbankswift", "value": "", "options": {}, "values": {}},
+                      {"field": "extbankname", "value": "", "options": {}, "values": {}},
+                      {"field": "extbenefbankcountry", "value": "0", "options": {}, "values": {}},
+                      {"field": "extbankaddress", "value": "", "options": {}, "values": {}},
+                      {"field": "sepatransfer", "value": "0", "options": {}, "values": {}},
+                      {"field": "intbank", "value": "0", "options": {}, "values": {}},
+                      {"field": "intbankswift", "value": "", "options": {}, "values": {}},
+                      {"field": "intbankname", "value": "", "options": {}, "values": {}},
+                      {"field": "intbankcountry", "value": "0", "options": {}, "values": {}},
+                      {"field": "intbankaddress", "value": "", "options": {}, "values": {}},
+                      {"field": "info", "value": "", "options": {}, "values": {}},
+                      {"field": "calculate_warning", "value": "", "options": {}, "values": {}}
+                    ],
+                    "warnings": []
+                  }
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized or session expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+        - sessionAuth: []
+  /cfsapi/document/{documentType}/form/accounts:
+    servers:
+      - url: https://intra-web-dev.azurewebsites.net
+        description: Development web server
+    get:
+      tags:
+        - Documents
+      summary: Get Available Accounts
+      description: Retrieve a list of available accounts for a specific document type
+      operationId: getDocumentAccounts
+      parameters:
+        - name: documentType
+          in: path
+          required: true
+          description: Type of document
+          schema:
+            type: string
+            enum:
+              - Outgoing_SEPAPAY_FReq
+              - EP_TRANSFER
+              - Outgoing_SEPA_INST_FReq
+              - Outgoing_Payment_FReq
+            example: Outgoing_SEPAPAY_FReq
+        - $ref: '#/components/parameters/XSidHeader'
+      responses:
+        '200':
+          description: List of available accounts retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    description: List of account items
+                    items:
+                      $ref: '#/components/schemas/AccountItem'
+              examples:
+                success:
+                  summary: Successful accounts response
+                  value: {
+                    "items": [
+                      {
+                        "accountid": "9606",
+                        "currencyid": "2",
+                        "iban": "CY93912000020000000201010110",
+                        "description": "Coworking 365, payment account",
+                        "designation": "20101.0110",
+                        "alias": "Payment Account",
+                        "currcodechr": "EUR",
+                        "balance": "21379.00",
+                        "status": "Active"
+                      },
+                      {
+                        "accountid": "9690",
+                        "currencyid": "2",
+                        "iban": "CY54912000020000000201010133",
+                        "description": "Coworking 365, payment account",
+                        "designation": "20101.0133",
+                        "alias": "Payment Account",
+                        "currcodechr": "EUR",
+                        "balance": "-17.56",
+                        "status": "Active"
+                      }
+                    ]
+                  }
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized or session expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No accounts found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+        - sessionAuth: []
+  /cfsapi/document:
+    servers:
+      - url: https://intra-web-dev.azurewebsites.net
+        description: Development web server
+    post:
+      tags:
+        - Documents
+      summary: Create New Document
+      description: >
+        Creates a new document in the system (such as a payment request).
+
+        **IMPORTANT PREREQUISITE**: Before using this endpoint, you should first understand
+        the required fields by calling the form/withMethods endpoint for the specific document type.
+
+        This endpoint accepts a payload containing the document type, ID, GUID, and all required
+        fields for the specific document type. The response includes the document ID, status,
+        fields, and available methods (like Sign, Edit, Delete).
+      operationId: createDocument
+      parameters:
+        - $ref: '#/components/parameters/XSidHeader'
+      requestBody:
+        description: Document creation request
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - documenttype
+                - id
+                - guid
+                - fields
+              properties:
+                documenttype:
+                  type: string
+                  description: Type of document to create
+                  enum:
+                    - Outgoing_SEPAPAY_FReq
+                    - Outgoing_SEPA_INST_FReq
+                    - Outgoing_Payment_FReq
+                  example: "Outgoing_SEPAPAY_FReq"
+                id:
+                  type: string
+                  description: ID of the document (use "0" for new documents)
+                  example: "0"
+                guid:
+                  type: string
+                  description: GUID of the document (use "NEW" for new documents)
+                  example: "NEW"
+                fields:
+                  type: array
+                  description: Array of document fields
+                  items:
+                    type: object
+                    required:
+                      - key
+                      - value
+                    properties:
+                      key:
+                        type: string
+                        description: Field key/name
+                      value:
+                        type: string
+                        description: Field value
+                  example:
+                    - key: "debitaccountid"
+                      value: "9606"
+                    - key: "amount"
+                      value: "15"
+                    - key: "currencyid"
+                      value: "2"
+                    - key: "extaccountnumber"
+                      value: "ES3115632626353262482979"
+                    - key: "benefname"
+                      value: "Test Recipient"
+                    - key: "benefcountry"
+                      value: "57"
+                    - key: "benefaddress"
+                      value: "Test Address"
+                    - key: "extbankswift"
+                      value: "NTSBESM1XXX"
+                    - key: "extbankname"
+                      value: "N26 BANK GMBH, SUCURSAL EN ESPANA"
+                    - key: "extbenefbankcountry"
+                      value: "205"
+                    - key: "extbankaddress"
+                      value: "CALLE DE MANZANARES 4"
+                    - key: "info"
+                      value: "Payment details"
+      responses:
+        '200':
+          description: Document created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: string
+                    description: Result code (1=success, other values indicate errors)
+                    example: "1"
+                  fieldErrors:
+                    type: array
+                    description: Field-specific errors if any
+                    items:
+                      type: object
+                  message:
+                    type: string
+                    description: Message about next steps (e.g., signature required)
+                    example: "Use your payment or OTP password to sign the document"
+                  additionalinfo:
+                    type: object
+                    description: Additional information about the document
+                    properties:
+                      documenttype:
+                        type: string
+                        example: "Outgoing_SEPAPAY_FReq"
+                      objectid:
+                        type: string
+                        example: "102366"
+                      methodGUID:
+                        type: string
+                        example: "{5040EB5D-5C04-4B6C-B80C-5A5BFFE61DB3}"
+                  objectid:
+                    type: string
+                    description: ID of the created document
+                    example: "102366"
+                  object:
+                    type: object
+                    description: The created document object
+                    properties:
+                      id:
+                        type: string
+                        example: "102366"
+                      documenttype:
+                        type: string
+                        example: "Outgoing_SEPAPAY_FReq"
+                      status:
+                        type: object
+                        properties:
+                          guid:
+                            type: string
+                            example: "{A3CEFC626-1745-44C2-9EAE-FC809DEE6C22}"
+                          uid:
+                            type: string
+                            example: "0"
+                          name:
+                            type: string
+                            example: "Draft"
+                      fields:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            key:
+                              type: string
+                              example: "amount"
+                            value:
+                              type: string
+                              example: "15.00"
+                            name:
+                              type: string
+                              nullable: true
+                              example: null
+                      methods:
+                        type: array
+                        description: Available methods for the document
+                        items:
+                          $ref: '#/components/schemas/DocumentMethod'
+                  withTemplate:
+                    type: boolean
+                    description: Whether a template was created
+                    example: false
+                  templateId:
+                    type: integer
+                    description: Template ID if created
+                    example: 0
+                  templateName:
+                    type: string
+                    description: Template name if created
+                    example: ""
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+        - sessionAuth: []
+  /cfsapi/swift/list/{swiftCode}:
+    servers:
+      - url: https://intra-web-dev.azurewebsites.net
+        description: Development web server
+    get:
+      tags:
+        - Reference Data
+      summary: Lookup SWIFT/BIC Codes
+      description: Search for bank information by SWIFT/BIC code (full or partial)
+      operationId: lookupSwiftBic
+      parameters:
+        - name: swiftCode
+          in: path
+          required: true
+          description: Full or partial SWIFT/BIC code to search for
+          schema:
+            type: string
+            example: "ntsbesm1xxx"
+        - name: issepa
+          in: query
+          required: false
+          description: Filter results to SEPA-compatible banks only (1=yes, 0=no)
+          schema:
+            type: string
+            enum: ["0", "1"]
+            default: "1"
+        - name: x-sid
+          in: header
+          required: true
+          description: Session ID for authentication
+          schema:
+            type: string
+            example: "#OlcnoVlfL2AVV9XKo0rmj4DrhWQo1pwIQY1RnjAEL4wOb5iAbB"
+
+      responses:
+        '200':
+          description: SWIFT/BIC lookup results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    description: List of banks matching the search criteria
+                    items:
+                      $ref: '#/components/schemas/SwiftBicInfo'
+              examples:
+                exactMatch:
+                  summary: Exact SWIFT/BIC match
+                  value: {
+                    "items": [
+                      {
+                        "bic": "NTSBESM1XXX",
+                        "name": "N26 BANK GMBH, SUCURSAL EN ESPANA",
+                        "country": "Spain",
+                        "address": "CALLE DE MANZANARES 4",
+                        "countryalpha": "ES"
+                      }
+                    ]
+                  }
+                partialMatch:
+                  summary: Partial SWIFT/BIC match
+                  value: {
+                    "items": [
+                      {
+                        "bic": "NTSBATW1XXX",
+                        "name": "N26 BANK GMBH, ZWEIGNIEDERLASSUNG OESTERREICH",
+                        "country": "Austria",
+                        "address": "SPACE 35 FLOOR 3 PRATERSTRASSE 1 EMPFANG SPACE 37",
+                        "countryalpha": "AT"
+                      },
+                      {
+                        "bic": "NTSBDEB1XXX",
+                        "name": "N26 BANK GMBH",
+                        "country": "Germany",
+                        "address": "KLOSTERSTRASSE 62",
+                        "countryalpha": "DE"
+                      },
+                      {
+                        "bic": "NTSBDEBBXXX",
+                        "name": "N26 BANK GMBH",
+                        "country": "Germany",
+                        "address": "KLOSTERSTRASSE 62",
+                        "countryalpha": "DE"
+                      },
+                      {
+                        "bic": "NTSBESM1XXX",
+                        "name": "N26 BANK GMBH, SUCURSAL EN ESPANA",
+                        "country": "Spain",
+                        "address": "CALLE DE MANZANARES 4",
+                        "countryalpha": "ES"
+                      }
+                    ]
+                  }
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized or session expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No matching SWIFT/BIC codes found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+        - sessionAuth: []
+components:
+  parameters:
+    AcceptHeader:
+      name: accept
+      in: header
+      description: Accept header
+      required: false
+      schema:
+        type: string
+        default: application/json
+    AcceptLanguageHeader:
+      name: accept-language
+      in: header
+      description: Accept language header
+      required: false
+      schema:
+        type: string
+        default: en-GB,en;q=0.9,en-US;q=0.8
+    AuthorizationSimpleHeader:
+      name: authorization
+      in: header
+      description: Simple authorization value
+      required: false
+      schema:
+        type: string
+        default: Bob
+    ContentTypeHeader:
+      name: content-type
+      in: header
+      description: Content type header
+      required: false
+      schema:
+        type: string
+        default: application/json
+    OriginHeader:
+      name: origin
+      in: header
+      description: Origin header
+      required: false
+      schema:
+        type: string
+        default: https://intra-fdr-dev.azurefd.net
+    PriorityHeader:
+      name: priority
+      in: header
+      description: Priority header
+      required: false
+      schema:
+        type: string
+        default: "u=1, i"
+    RefererHeader:
+      name: referer
+      in: header
+      description: Referer header
+      required: false
+      schema:
+        type: string
+        default: https://intra-fdr-dev.azurefd.net/
+    SecChUaHeader:
+      name: sec-ch-ua
+      in: header
+      description: Sec-Ch-Ua header
+      required: false
+      schema:
+        type: string
+        default: "\"Not A(Brand\";v=\"8\", \"Chromium\";v=\"132\", \"Microsoft Edge\";v=\"132\""
+    SecChUaMobileHeader:
+      name: sec-ch-ua-mobile
+      in: header
+      description: Sec-Ch-Ua-Mobile header
+      required: false
+      schema:
+        type: string
+        default: "?0"
+    SecChUaPlatformHeader:
+      name: sec-ch-ua-platform
+      in: header
+      description: Sec-Ch-Ua-Platform header
+      required: false
+      schema:
+        type: string
+        default: "\"Windows\""
+    SecFetchDestHeader:
+      name: sec-fetch-dest
+      in: header
+      description: Sec-Fetch-Dest header
+      required: false
+      schema:
+        type: string
+        default: empty
+    SecFetchModeHeader:
+      name: sec-fetch-mode
+      in: header
+      description: Sec-Fetch-Mode header
+      required: false
+      schema:
+        type: string
+        default: cors
+    SecFetchSiteHeader:
+      name: sec-fetch-site
+      in: header
+      description: Sec-Fetch-Site header
+      required: false
+      schema:
+        type: string
+        default: cross-site
+    UserAgentHeader:
+      name: user-agent
+      in: header
+      description: User agent header
+      required: false
+      schema:
+        type: string
+        default: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 Edg/132.0.0.0
+    XSidHeader:
+      name: x-sid
+      in: header
+      description: Session ID for authentication
+      required: true
+      schema:
+        type: string
+        example: "#OlcnoVlfL2AVV9XKo0rmj4DrhWQo1pwIQY1RnjAEL4wOb5iAbB"
+    CookieHeader:
+      name: Cookie
+      in: header
+      description: Cookie header
+      required: false
+      schema:
+        type: string
+        default: ARRAffinity=9973654bb21a3b4fbdd025952f2539128e9c91e0715fe9330945263d497d0480; ARRAffinitySameSite=9973654bb21a3b4fbdd025952f2539128e9c91e0715fe9330945263d497d0480
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        statusCode:
+          type: integer
+          example: 401
+        message:
+          type: string
+          example: "Invalid credentials"
+        error:
+          type: string
+          example: "Unauthorized"
+    DocumentField:
+      type: object
+      description: A form field in a document
+      properties:
+        id:
+          type: string
+          description: Field ID
+        name:
+          type: string
+          description: Field name
+        caption:
+          type: string
+          description: Field caption
+        description:
+          type: string
+          nullable: true
+          description: Field description
+        type:
+          type: string
+          description: Field type (drop-down box, string, money, boolean, document, date, text)
+        required:
+          type: boolean
+          description: Whether this field is required
+        regexp:
+          type: string
+          nullable: true
+          description: Validation regular expression
+        regexpexceptionmessage:
+          type: string
+          nullable: true
+          description: Error message shown when regexp validation fails
+        defaultvalue:
+          type: string
+          nullable: true
+          description: Default value for the field
+        hidden:
+          type: boolean
+          description: Whether this field is hidden
+        tag:
+          type: string
+          nullable: true
+          description: Field tag for special handling
+        canchange:
+          type: boolean
+          description: Whether this field can be changed
+        options:
+          type: array
+          description: Options for dropdown fields
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+                description: Option key
+              value:
+                type: string
+                description: Option display value
+        calcparam:
+          type: boolean
+          description: Whether this is a calculated parameter
+        settings:
+          type: object
+          nullable: true
+          description: Field settings
+        value:
+          type: string
+          nullable: true
+          description: Current field value
+    DocumentGroup:
+      type: object
+      description: A group of fields in a document
+      properties:
+        id:
+          type: string
+          description: Group ID
+        caption:
+          type: string
+          description: Group caption
+        fields:
+          type: array
+          description: Fields in this group
+          items:
+            $ref: '#/components/schemas/DocumentField'
+        conditions:
+          type: array
+          description: Conditions for the group
+          items:
+            type: object
+    AccountItem:
+      type: object
+      description: An account available for document operations
+      properties:
+        accountid:
+          type: string
+          description: Account ID
+          example: "9606"
+        currencyid:
+          type: string
+          description: Currency ID
+          example: "2"
+        iban:
+          type: string
+          description: IBAN for the account
+          example: "CY93912000020000000201010110"
+        description:
+          type: string
+          description: Account description
+          example: "Coworking 365, payment account"
+        designation:
+          type: string
+          description: Account designation/number
+          example: "20101.0110"
+        alias:
+          type: string
+          description: Account alias/nickname
+          example: "Payment Account"
+        currcodechr:
+          type: string
+          description: Currency code
+          example: "EUR"
+        balance:
+          type: string
+          description: Current account balance
+          example: "21379.00"
+        status:
+          type: string
+          description: Account status
+          example: "Active"
+    SwiftBicInfo:
+      type: object
+      description: Bank information identified by SWIFT/BIC code
+      properties:
+        bic:
+          type: string
+          description: SWIFT/BIC code of the bank
+          example: "CY1234XXX"
+        name:
+          type: string
+          description: Bank name
+          example: "12 BANK intreaclear"
+        country:
+          type: string
+          description: Country name
+          example: "Cyprus"
+        address:
+          type: string
+          description: Bank address
+          example: "In traclear address"
+        countryalpha:
+          type: string
+          description: Country code (ISO alpha-2)
+          example: "CY"
+    TemplateItem:
+      type: object
+      description: A payment template
+      properties:
+        id:
+          type: string
+          description: Template ID
+          example: "102365"
+        info:
+          type: string
+          description: Payment information/description
+          example: "payment"
+        amount:
+          type: number
+          format: float
+          description: Payment amount
+          example: 100.0
+        currency:
+          type: string
+          description: Currency code
+          example: "EUR"
+        name:
+          type: string
+          description: Template name
+          example: "test"
+        description:
+          type: string
+          description: Template description
+          example: "European payment, 100"
+        labelfrom:
+          type: string
+          description: Source account label
+          example: "Coworking 365, payment account"
+        labelname:
+          type: string
+          description: Beneficiary label/name
+          example: "ANother test"
+        templatedata:
+          type: string
+          description: Raw template data in XML format
+          example: "<?xml version=\"1.0\"?>\n<document><debitaccountid>9606</debitaccountid><amount>100</amount><currencyid>2</currencyid>...</document>"
+        templatedata_json:
+          type: object
+          description: Template data in JSON format
+          properties:
+            debitaccountid:
+              type: number
+              description: Debit account ID
+              example: 9606.0
+            amount:
+              type: number
+              description: Payment amount
+              example: 100.0
+            currencyid:
+              type: number
+              description: Currency ID
+              example: 2.0
+            tariffamount:
+              type: number
+              nullable: true
+              description: Tariff amount
+            totalamount:
+              type: number
+              nullable: true
+              description: Total amount
+            myaccount:
+              type: string
+              nullable: true
+              description: My account information
+            creditaccountid:
+              type: number
+              nullable: true
+              description: Credit account ID
+            info:
+              type: string
+              description: Payment information
+              example: "payment"
+            id:
+              type: number
+              description: Document ID
+              example: 0.0
+            documenttype:
+              type: string
+              description: Document type
+              example: "Outgoing_SEPAPAY_FReq"
+        candelete:
+          type: boolean
+          description: Whether the user can delete this template
+          example: false
+        canedit:
+          type: boolean
+          description: Whether the user can edit this template
+          example: false
+    CalculatedFieldValue:
+      type: object
+      description: A calculated field value returned from document calculation
+      properties:
+        field:
+          type: string
+          description: Field name
+          example: "totalamount"
+        value:
+          type: string
+          description: Field value
+          example: "105.00"
+        options:
+          type: object
+          description: Field display options
+          example: {"visible": "1"}
+        values:
+          type: object
+          description: Additional field values/properties
+          example: {}
+    DocumentMethod:
+      type: object
+      properties:
+        caption:
+          type: string
+          description: Method display name
+          example: "Sign"
+        guid:
+          type: string
+          description: Method GUID
+          example: "{5040EB5D-5C04-4B6C-B80C-5A5BFFE61DB3}"
+        uid:
+          type: string
+          description: Method UID
+          example: "30"
+        documenttype:
+          type: string
+          description: Document type this method applies to
+          example: "Outgoing_SEPAPAY_FReq"
+        isdefault:
+          type: string
+          description: Whether this is the default method (1=yes, 0=no)
+          example: "1"
+        signaturerequired:
+          type: string
+          description: Whether signature is required (1=yes, 0=no)
+          example: "1"
+        signatures:
+          type: array
+          description: Required signatures if any
+          items:
+            type: object
+            properties:
+              num:
+                type: string
+                description: Signature number
+                example: "1"
+              type:
+                type: string
+                description: Signature type
+                example: "PAYPASSWORD"
+        redirect:
+          type: boolean
+          description: Whether method requires redirect
+          example: true
+        objectid:
+          type: string
+          description: Document ID
+          example: "102366"
+  securitySchemes:
+    sessionAuth:
+      type: apiKey
+      in: header
+      name: x-sid
+      description: Session ID for authentication
+
+security:
+  - sessionAuth: []
