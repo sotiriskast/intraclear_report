@@ -12,7 +12,9 @@ servers:
   - url: https://intra-api-server-dev.azurewebsites.net
     description: Development API server (Auth endpoints)
   - url: https://intra-web-dev.azurewebsites.net
-    description: Development web server (Document endpoints)
+    description: Development web server (Document endpoints for TESTING purposes)
+  - url: https://intra-web-prod.azurewebsites.net
+    description: Development web server (Document endpoints for LIVE purposes)
 paths:
   /auth/api/client/auth:
     servers:
@@ -92,15 +94,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-  /core/api/templates/list:
+  /cfsapi/templates:
     servers:
-      - url: https://intra-api-server-dev.azurewebsites.net
+      - url: https://intra-web-dev.azurewebsites.net
         description: Development API server
     get:
       tags:
         - Templates
       summary: Get Template List
-      description: Retrieve a list of available templates with pagination
+      description: Retrieve a list of available templates with pagination and sorting options
       operationId: getTemplateList
       parameters:
         - name: x-sid
@@ -110,23 +112,38 @@ paths:
           schema:
             type: string
             example: "#OlcnoVlfL2AVV9XKo0rmj4DrhWQo1pwIQY1RnjAEL4wOb5iAbB"
-        - name: rowsToFetch
+        - name: rowfrom
           in: query
           required: false
-          description: Number of rows to fetch per page
+          description: Starting row number (1-based)
+          schema:
+            type: integer
+            default: 1
+            example: 1
+        - name: count
+          in: query
+          required: false
+          description: Number of rows to fetch
           schema:
             type: integer
             default: 20
             example: 20
-        - name: startPage
+        - name: orderBy
           in: query
           required: false
-          description: Starting page number (0-based)
+          description: Field to order results by
           schema:
-            type: integer
-            default: 0
-            example: 0
-
+            type: string
+            example: "thedate"
+        - name: orderbyDirection
+          in: query
+          required: false
+          description: Order direction (asc or desc)
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+            example: "desc"
 
       responses:
         '200':
@@ -149,40 +166,6 @@ paths:
                     type: boolean
                     description: Whether the total count is trimmed
                     example: false
-              examples:
-                success:
-                  summary: Successful templates response
-                  value: {
-                    "items": [
-                      {
-                        "id": "102365",
-                        "info": "payment",
-                        "amount": 100.0,
-                        "currency": "EUR",
-                        "name": "test",
-                        "description": "European payment,  100",
-                        "labelfrom": "Coworking 365, payment account",
-                        "labelname": "ANother test",
-                        "templatedata": "<?xml version=\"1.0\"?>\n<document><debitaccountid>9606</debitaccountid><amount>100</amount><currencyid>2</currencyid><extaccountnumber>ES3115632626353262482979</extaccountnumber><benefname>ANother test</benefname><benefcountry>57</benefcountry><benefaddress>test</benefaddress><benefdateofbirth>20250206</benefdateofbirth><benefnationality>3</benefnationality><extbankswift>NTSBESM1XXX</extbankswift><extbankname>N26 BANK GMBH, SUCURSAL EN ESPANA</extbankname><extbenefbankcountry>205</extbenefbankcountry><extbankaddress>CALLE DE MANZANARES 4</extbankaddress><info>payment</info><email>s.kastanas@intraclear.com</email><paymentattachmenttype></paymentattachmenttype><filestoragecarrier>[{\"documentId\":\"102363\",\"fileName\":\"Go In Action.pdf\",\"bytesSize\":6075788,\"uploadDateTime\":\"2025-02-26T06:58:24.166Z\",\"documentType\":\"1\",\"documentNote\":\"\"}]</filestoragecarrier><documenttype>Outgoing_SEPAPAY_FReq</documenttype><id>0</id></document>",
-                        "templatedata_json": {
-                          "debitaccountid": 9606.0,
-                          "amount": 100.0,
-                          "currencyid": 2.0,
-                          "tariffamount": null,
-                          "totalamount": null,
-                          "myaccount": null,
-                          "creditaccountid": null,
-                          "info": "payment",
-                          "id": 0.0,
-                          "documenttype": "Outgoing_SEPAPAY_FReq"
-                        },
-                        "candelete": false,
-                        "canedit": false
-                      }
-                    ],
-                    "totalitems": "1",
-                    "totalItemsCountIsTrimmed": false
-                  }
         '400':
           description: Bad request
           content:
@@ -863,17 +846,28 @@ paths:
       description: >
         This endpoint can be used to either create a new document or sign an existing document.<br>
         <br>
-        **For Creating New Documents**:
+        **For Creating New Documents**:</br>
 
         **IMPORTANT PREREQUISITE**: Before using this endpoint, you should first understand
-        the required fields by calling the form/withMethods endpoint for the specific document type.
-
+        the required fields by calling the form/withMethods endpoint for the specific document type.</br>
+        </br>
         To create a new document, provide the document type, ID "0", GUID "NEW", and fields array with all required fields.
         <br><br>
-        **For Signing Existing Documents**:
+        **For Signing Existing Documents**:</br>
 
-        To sign a document, provide the document type, existing document ID, method GUID for the signing action,
-        and signatures array containing authentication credentials (like passwords or OTP codes).
+        **IMPORTANT PREREQUISITE**: Before signing a document, you must first call:</br>
+        ```
+        GET /cfsapi/document/{documentId}/string_for_qr_sign
+        ```
+        </br>
+        This call retrieves a formatted string that contains all the document details necessary for signature verification.
+        This string can be used to generate a QR code that users can scan with their authentication device.
+        </br>
+        After obtaining the QR string, you can proceed with signing the document by providing:</br>
+        - The document type</br>
+        - The existing document ID</br>
+        - The method GUID for the signing action</br>
+        - A signatures array containing authentication credentials (passwords, OTP codes, etc.)
       operationId: documentAction
       parameters:
         - $ref: '#/components/parameters/XSidHeader'
@@ -922,12 +916,12 @@ paths:
                     {
                       "num": "1",
                       "type": "PAYPASSWORD",
-                      "value": "password123"
+                      "value": "Pa$$w0rd!!!1"
                     },
                     {
                       "num": "2",
                       "type": "PAYPASSWORD",
-                      "value": "SecondAuth123!"
+                      "value": "Pa$$w0rd!!!1"
                     }
                   ]
                 }
@@ -1207,6 +1201,190 @@ paths:
                 $ref: '#/components/schemas/Error'
         '404':
           description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+        - sessionAuth: []
+  /cfsapi/transactions/:
+    servers:
+      - url: https://intra-web-dev.azurewebsites.net/cfsapi/transactions
+        description: Development API server
+    get:
+      tags:
+        - Transactions
+      summary: Get Transactions List
+      description: >
+        Retrieves a list of transactions with filtering, pagination, and sorting options.
+        Returns details of financial transactions including SEPA payments, instant payments, and other transfers.
+      operationId: getTransactionsList
+      parameters:
+        - name: x-sid
+          in: header
+          required: true
+          description: Session ID for authentication
+          schema:
+            type: string
+            example: "#OlcnoVlfL2AVV9XKo0rmj4DrhWQo1pwIQY1RnjAEL4wOb5iAbB"
+        - name: rowsToFetch
+          in: query
+          required: false
+          description: Number of rows to fetch per page
+          schema:
+            type: integer
+            default: 20
+            example: 20
+        - name: startPage
+          in: query
+          required: false
+          description: Starting page number (0-based)
+          schema:
+            type: integer
+            default: 0
+            example: 0
+        - name: statusesToExclude
+          in: query
+          required: false
+          description: Comma-separated list of statuses to exclude from results
+          schema:
+            type: string
+            example: "Draft,Invalid"
+        - name: beginDate
+          in: query
+          required: false
+          description: Start date for transaction filtering (format YYYYMMDD)
+          schema:
+            type: string
+            example: "20250224"
+        - name: endDate
+          in: query
+          required: false
+          description: End date for transaction filtering (format YYYYMMDD)
+          schema:
+            type: string
+            example: "20250302"
+        - name: orderBy
+          in: query
+          required: false
+          description: Field to order results by
+          schema:
+            type: string
+            default: "Date"
+            enum: ["Date", "Amount", "Status", "Info"]
+            example: "Date"
+        - name: orderByDirection
+          in: query
+          required: false
+          description: Order direction
+          schema:
+            type: string
+            default: "Desc"
+            enum: ["Asc", "Desc"]
+            example: "Desc"
+        - name: accountId
+          in: query
+          required: false
+          description: Filter by account ID
+          schema:
+            type: string
+            example: "9606"
+        - name: documentType
+          in: query
+          required: false
+          description: Filter by document type
+          schema:
+            type: string
+            example: "Outgoing_SEPAPAY_FReq"
+      responses:
+        '200':
+          description: Transactions list retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Transaction'
+              example: [
+                {
+                  "id": "102385",
+                  "documenttype": "Outgoing_SEPA_INST_FReq",
+                  "date": "2025-02-27 09:03:13.883+0300",
+                  "info": "Payment details",
+                  "docclassname": "SEPA Instant Payment",
+                  "docname": "SEPA Instant Payment",
+                  "from": "Payment Account",
+                  "ibanfrom": "CY93912000020000000201010110",
+                  "to": "Test eqwe Recipient",
+                  "ibanto": "ES3115632626353262482979",
+                  "amount": 112.0,
+                  "currency": "EUR",
+                  "incoming": false,
+                  "transtype": "outgoing",
+                  "status": "Canceled",
+                  "fees": "",
+                  "cansign": false,
+                  "methods": [
+                    {
+                      "caption": "View",
+                      "guid": "VIEW",
+                      "objectid": "102385",
+                      "uid": "0",
+                      "documenttype": "Outgoing_SEPA_INST_FReq",
+                      "signaturerequired": "0",
+                      "signatures": []
+                    }
+                  ],
+                  "md_type_id": "0",
+                  "is_mass": false
+                },
+                {
+                  "id": "102383",
+                  "documenttype": "Outgoing_SEPA_INST_FReq",
+                  "date": "2025-02-27 08:58:57.630+0300",
+                  "info": "Payment details",
+                  "docclassname": "SEPA Instant Payment",
+                  "docname": "SEPA Instant Payment",
+                  "from": "Payment Account",
+                  "ibanfrom": "CY93912000020000000201010110",
+                  "to": "Test inst Recipient",
+                  "ibanto": "ES3115632626353262482979",
+                  "amount": 15.0,
+                  "currency": "EUR",
+                  "incoming": false,
+                  "transtype": "outgoing",
+                  "status": "Canceled",
+                  "fees": "",
+                  "cansign": false,
+                  "methods": [
+                    {
+                      "caption": "View",
+                      "guid": "VIEW",
+                      "objectid": "102383",
+                      "uid": "0",
+                      "documenttype": "Outgoing_SEPA_INST_FReq",
+                      "signaturerequired": "0",
+                      "signatures": []
+                    }
+                  ],
+                  "md_type_id": "0",
+                  "is_mass": false
+                }
+              ]
+        '400':
+          description: Bad request - Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - Invalid or expired session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No transactions found
           content:
             application/json:
               schema:
@@ -1733,7 +1911,207 @@ components:
                 type: string
                 description: Signature value (password, OTP, etc.)
                 example: "password123"
-
-
+    SignatureRequirement:
+      type: object
+      description: Defines a signature requirement for a document method
+      properties:
+        num:
+          type: string
+          description: Signature number in sequence
+          example: "1"
+        type:
+          type: string
+          description: Type of signature required
+          example: "PAYPASSWORD"
+          enum:
+            - PAYPASSWORD
+            - OTP
+            - RSA
+            - QR
+        description:
+          type: string
+          description: Human-readable description of the signature requirement
+          example: "Enter your payment password"
+        caption:
+          type: string
+          description: Caption for the signature input field
+          example: "Payment password"
+        helptext:
+          type: string
+          nullable: true
+          description: Help text for the signature input
+          example: "Enter the payment password that you use to authorize transactions"
+        maskinput:
+          type: boolean
+          description: Whether the input should be masked (for passwords)
+          example: true
+    DocumentMethod:
+      type: object
+      description: A method that can be executed on a document
+      properties:
+        guid:
+          type: string
+          description: GUID identifier for the method
+          example: "{5040EB5D-5C04-4B6C-B80C-5A5BFFE61DB3}"
+        name:
+          type: string
+          description: Display name of the method
+          example: "Sign"
+        caption:
+          type: string
+          description: Caption for the method button
+          example: "Sign document"
+        group:
+          type: string
+          description: Method group
+          example: "sign"
+        isavailable:
+          type: boolean
+          description: Whether the method is available for execution
+          example: true
+        signaturesrequired:
+          type: array
+          description: Signatures required to execute this method
+          items:
+            $ref: '#/components/schemas/SignatureRequirement'
+        requiressignature:
+          type: boolean
+          description: Whether this method requires a signature
+          example: true
+        canexecute:
+          type: boolean
+          description: Whether the user can execute this method
+          example: true
+        order:
+          type: integer
+          description: Display order of the method
+          example: 1
+        customaction:
+          type: string
+          nullable: true
+          description: Custom action for the method
+          example: null
+    Transaction:
+      type: object
+      description: A financial transaction record
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the transaction
+          example: "102385"
+        documenttype:
+          type: string
+          description: Type of document/transaction
+          example: "Outgoing_SEPA_INST_FReq"
+        date:
+          type: string
+          description: Transaction date and time with timezone
+          example: "2025-02-27 09:03:13.883+0300"
+        info:
+          type: string
+          description: Additional information or description of the transaction
+          example: "Payment details"
+        docclassname:
+          type: string
+          description: Document class name
+          example: "SEPA Instant Payment"
+        docname:
+          type: string
+          description: Document name/title
+          example: "SEPA Instant Payment"
+        from:
+          type: string
+          description: Source account name or label
+          example: "Payment Account"
+        ibanfrom:
+          type: string
+          description: Source account IBAN
+          example: "CY93912000020000000201010110"
+        to:
+          type: string
+          description: Recipient name
+          example: "Test eqwe Recipient"
+        ibanto:
+          type: string
+          description: Recipient IBAN
+          example: "ES3115632626353262482979"
+        amount:
+          type: number
+          format: float
+          description: Transaction amount
+          example: 112.0
+        currency:
+          type: string
+          description: Currency code
+          example: "EUR"
+        incoming:
+          type: boolean
+          description: Whether this is an incoming transaction
+          example: false
+        transtype:
+          type: string
+          description: Transaction type (incoming/outgoing)
+          example: "outgoing"
+        status:
+          type: string
+          description: Current status of the transaction
+          example: "Canceled"
+        fees:
+          type: string
+          description: Transaction fees
+          example: ""
+        cansign:
+          type: boolean
+          description: Whether the transaction can be signed by the user
+          example: false
+        methods:
+          type: array
+          description: Available methods/actions for this transaction
+          items:
+            type: object
+            properties:
+              caption:
+                type: string
+                description: Display caption for the method
+                example: "View"
+              guid:
+                type: string
+                description: Method GUID
+                example: "VIEW"
+              objectid:
+                type: string
+                description: Object ID for the method
+                example: "102385"
+              uid:
+                type: string
+                description: User ID
+                example: "0"
+              documenttype:
+                type: string
+                description: Document type
+                example: "Outgoing_SEPA_INST_FReq"
+              signaturerequired:
+                type: string
+                description: Whether signatures are required (0=no, 1=yes)
+                example: "0"
+              signatures:
+                type: array
+                description: Required signatures if any
+                items:
+                  type: object
+        md_type_id:
+          type: string
+          description: Metadata type ID
+          example: "0"
+        is_mass:
+          type: boolean
+          description: Whether this is a mass transaction
+          example: false
+  securitySchemes:
+    sessionAuth:
+      type: apiKey
+      name: x-sid
+      in: header
+      description: Session ID based authentication obtained from the login endpoint
 security:
   - sessionAuth: []
