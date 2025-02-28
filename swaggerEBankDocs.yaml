@@ -130,95 +130,95 @@ paths:
                 $ref: '#/components/schemas/Error'
       security:
         - sessionAuth: []
-  /core/api/Tariffs:
-    servers:
-      - url: https://intra-api-server-dev.azurewebsites.net
-        description: Development API server
-    get:
-      tags:
-        - Tariffs
-      summary: Get Tariffs List
-      description: >
-        Retrieves the complete list of tariffs grouped by category.
-        This endpoint provides detailed information about all available tariffs,
-        including rates, descriptions, and applicable conditions.
-      operationId: getTariffsList
-      parameters:
-        - $ref: '#/components/parameters/XSidHeader'
-      responses:
-        '200':
-          description: Tariffs list retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  tariff_groups:
-                    type: array
-                    description: List of tariff groups
-                    items:
-                      $ref: '#/components/schemas/TariffGroup'
-              example: {
-                "tariff_groups": [
-                  {
-                    "name": "Internal payments",
-                    "tariffs": [
-                      {
-                        "rule_id": "1838",
-                        "tariff_name": "Personal customer payment",
-                        "name": "Personal transfer administration fee (per transaction in EUR)",
-                        "tariff_id": "88",
-                        "category_id": "21",
-                        "rule_text": "5.00 EUR",
-                        "tariffs": "Currency = EUR  "
-                      },
-                      {
-                        "rule_id": "1782",
-                        "tariff_name": "Internal customer payment",
-                        "name": "Internal transfer administration fee (per transaction in EUR)",
-                        "tariff_id": "46",
-                        "category_id": "21",
-                        "rule_text": "5.00 EUR",
-                        "tariffs": "Currency = EUR  "
-                      }
-                    ]
-                  },
-                  {
-                    "name": "Incoming payments",
-                    "tariffs": [
-                      {
-                        "rule_id": "1755",
-                        "tariff_name": "Incoming SEPA payment",
-                        "name": "Incoming SEPA payment fee (per transaction)",
-                        "tariff_id": "27",
-                        "category_id": "21",
-                        "rule_text": "0.15%, Min:1.00 EUR, Max:5.00 EUR",
-                        "tariffs": ""
-                      }
-                    ]
-                  }
-                ]
-              }
-        '400':
-          description: Bad request - Invalid parameters
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '401':
-          description: Unauthorized - Invalid or expired session
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '404':
-          description: No tariffs found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-      security:
-        - sessionAuth: []
+  # /core/api/Tariffs:
+  #   servers:
+  #     - url: https://intra-api-server-dev.azurewebsites.net
+  #       description: Development API server
+  #   get:
+  #     tags:
+  #       - Tariffs
+  #     summary: Get Tariffs List
+  #     description: >
+  #       Retrieves the complete list of tariffs grouped by category.
+  #       This endpoint provides detailed information about all available tariffs,
+  #       including rates, descriptions, and applicable conditions.
+  #     operationId: getTariffsList
+  #     parameters:
+  #       - $ref: '#/components/parameters/XSidHeader'
+  #     responses:
+  #       '200':
+  #         description: Tariffs list retrieved successfully
+  #         content:
+  #           application/json:
+  #             schema:
+  #               type: object
+  #               properties:
+  #                 tariff_groups:
+  #                   type: array
+  #                   description: List of tariff groups
+  #                   items:
+  #                     $ref: '#/components/schemas/TariffGroup'
+  #             example: {
+  #               "tariff_groups": [
+  #                 {
+  #                   "name": "Internal payments",
+  #                   "tariffs": [
+  #                     {
+  #                       "rule_id": "1838",
+  #                       "tariff_name": "Personal customer payment",
+  #                       "name": "Personal transfer administration fee (per transaction in EUR)",
+  #                       "tariff_id": "88",
+  #                       "category_id": "21",
+  #                       "rule_text": "5.00 EUR",
+  #                       "tariffs": "Currency = EUR  "
+  #                     },
+  #                     {
+  #                       "rule_id": "1782",
+  #                       "tariff_name": "Internal customer payment",
+  #                       "name": "Internal transfer administration fee (per transaction in EUR)",
+  #                       "tariff_id": "46",
+  #                       "category_id": "21",
+  #                       "rule_text": "5.00 EUR",
+  #                       "tariffs": "Currency = EUR  "
+  #                     }
+  #                   ]
+  #                 },
+  #                 {
+  #                   "name": "Incoming payments",
+  #                   "tariffs": [
+  #                     {
+  #                       "rule_id": "1755",
+  #                       "tariff_name": "Incoming SEPA payment",
+  #                       "name": "Incoming SEPA payment fee (per transaction)",
+  #                       "tariff_id": "27",
+  #                       "category_id": "21",
+  #                       "rule_text": "0.15%, Min:1.00 EUR, Max:5.00 EUR",
+  #                       "tariffs": ""
+  #                     }
+  #                   ]
+  #                 }
+  #               ]
+  #             }
+  #       '400':
+  #         description: Bad request - Invalid parameters
+  #         content:
+  #           application/json:
+  #             schema:
+  #               $ref: '#/components/schemas/Error'
+  #       '401':
+  #         description: Unauthorized - Invalid or expired session
+  #         content:
+  #           application/json:
+  #             schema:
+  #               $ref: '#/components/schemas/Error'
+  #       '404':
+  #         description: No tariffs found
+  #         content:
+  #           application/json:
+  #             schema:
+  #               $ref: '#/components/schemas/Error'
+  #     security:
+  #       - sessionAuth: []
 
   /cfsapi/accounts:
     servers:
