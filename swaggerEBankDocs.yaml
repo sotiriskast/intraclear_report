@@ -94,6 +94,885 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /auth/api/client/logout:
+    servers:
+      - url: https://intra-api-server-dev.azurewebsites.net
+        description: Development API server
+    post:
+      tags:
+        - Authentication
+      summary: User Logout
+      description: Ends the user's session and invalidates the authentication token
+      operationId: logoutUser
+      parameters:
+        - $ref: '#/components/parameters/XSidHeader'
+      responses:
+        '200':
+          description: Successfully logged out
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    description: Whether the logout was successful
+                    example: true
+                  message:
+                    type: string
+                    description: Status message
+                    example: "Logged out successfully"
+        '401':
+          description: Unauthorized - Invalid or expired session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+        - sessionAuth: []
+  /core/api/Tariffs:
+    servers:
+      - url: https://intra-api-server-dev.azurewebsites.net
+        description: Development API server
+    get:
+      tags:
+        - Tariffs
+      summary: Get Tariffs List
+      description: >
+        Retrieves the complete list of tariffs grouped by category.
+        This endpoint provides detailed information about all available tariffs,
+        including rates, descriptions, and applicable conditions.
+      operationId: getTariffsList
+      parameters:
+        - $ref: '#/components/parameters/XSidHeader'
+      responses:
+        '200':
+          description: Tariffs list retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tariff_groups:
+                    type: array
+                    description: List of tariff groups
+                    items:
+                      $ref: '#/components/schemas/TariffGroup'
+              example: {
+                "tariff_groups": [
+                  {
+                    "name": "Internal payments",
+                    "tariffs": [
+                      {
+                        "rule_id": "1838",
+                        "tariff_name": "Personal customer payment",
+                        "name": "Personal transfer administration fee (per transaction in EUR)",
+                        "tariff_id": "88",
+                        "category_id": "21",
+                        "rule_text": "5.00 EUR",
+                        "tariffs": "Currency = EUR  "
+                      },
+                      {
+                        "rule_id": "1782",
+                        "tariff_name": "Internal customer payment",
+                        "name": "Internal transfer administration fee (per transaction in EUR)",
+                        "tariff_id": "46",
+                        "category_id": "21",
+                        "rule_text": "5.00 EUR",
+                        "tariffs": "Currency = EUR  "
+                      }
+                    ]
+                  },
+                  {
+                    "name": "Incoming payments",
+                    "tariffs": [
+                      {
+                        "rule_id": "1755",
+                        "tariff_name": "Incoming SEPA payment",
+                        "name": "Incoming SEPA payment fee (per transaction)",
+                        "tariff_id": "27",
+                        "category_id": "21",
+                        "rule_text": "0.15%, Min:1.00 EUR, Max:5.00 EUR",
+                        "tariffs": ""
+                      }
+                    ]
+                  }
+                ]
+              }
+        '400':
+          description: Bad request - Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - Invalid or expired session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No tariffs found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+        - sessionAuth: []
+
+  /cfsapi/accounts:
+    servers:
+      - url: https://intra-web-dev.azurewebsites.net
+        description: Development web server
+    get:
+      tags:
+        - Accounts
+      summary: Get All Client Accounts
+      description: >
+        Retrieves a comprehensive list of all accounts accessible to the authenticated client,
+        including detailed information such as balances, statuses, and account identifiers.
+        This endpoint provides complete account information across all clients associated with the authenticated user.
+      operationId: getAllClientAccounts
+      parameters:
+        - $ref: '#/components/parameters/XSidHeader'
+        - name: includeInactive
+          in: query
+          required: false
+          description: Whether to include inactive accounts in the response (1=yes, 0=no)
+          schema:
+            type: string
+            enum: ["0", "1"]
+            default: "0"
+        - name: includeDetails
+          in: query
+          required: false
+          description: Level of detail to include in the response (1=full details, 0=basic details)
+          schema:
+            type: string
+            enum: ["0", "1"]
+            default: "1"
+      responses:
+        '200':
+          description: Account list retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accounts:
+                    type: array
+                    description: List of accounts
+                    items:
+                      $ref: '#/components/schemas/DetailedAccountItem'
+                  totalCount:
+                    type: integer
+                    description: Total number of accounts
+                    example: 2
+              examples:
+                success:
+                  summary: Successful accounts response
+                  value: {
+                    "accounts": [
+                      {
+                        "accountId": "9606",
+                        "clientId": "4507",
+                        "currencyId": "2",
+                        "clientName": "Coworking 365",
+                        "iban": "CY93912000020000000201010110",
+                        "description": "Coworking 365, payment account",
+                        "designation": "20101.0110",
+                        "alias": "Payment Account",
+                        "currencyCode": "EUR",
+                        "currencySymbol": "€",
+                        "balance": "21379.00",
+                        "availableBalance": "21379.00",
+                        "blockedAmount": "0.00",
+                        "overdraftLimit": "0.00",
+                        "status": "Active",
+                        "openDate": "2023-05-12",
+                        "lastActivityDate": "2025-02-26",
+                        "accountType": "Current",
+                        "interestRate": "0.00",
+                        "canDebit": true,
+                        "canCredit": true,
+                        "canTransfer": true,
+                        "statementFrequency": "Monthly",
+                        "branch": "Headquarters",
+                        "accountManager": "John Smith",
+                        "accountManagerContact": "j.smith@example.com"
+                      },
+                      {
+                        "accountId": "9690",
+                        "clientId": "4507",
+                        "currencyId": "2",
+                        "clientName": "Coworking 365",
+                        "iban": "CY54912000020000000201010133",
+                        "description": "Coworking 365, payment account",
+                        "designation": "20101.0133",
+                        "alias": "Payment Account",
+                        "currencyCode": "EUR",
+                        "currencySymbol": "€",
+                        "balance": "-17.56",
+                        "availableBalance": "-17.56",
+                        "blockedAmount": "0.00",
+                        "overdraftLimit": "0.00",
+                        "status": "Active",
+                        "openDate": "2023-06-28",
+                        "lastActivityDate": "2025-01-15",
+                        "accountType": "Current",
+                        "interestRate": "0.00",
+                        "canDebit": true,
+                        "canCredit": true,
+                        "canTransfer": true,
+                        "statementFrequency": "Monthly",
+                        "branch": "Headquarters",
+                        "accountManager": "John Smith",
+                        "accountManagerContact": "j.smith@example.com"
+                      }
+                    ],
+                    "totalCount": 2
+                  }
+        '400':
+          description: Bad request - Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - Invalid or expired session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No accounts found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+        - sessionAuth: []
+  /cfsapi/accounts/info:
+    servers:
+      - url: https://intra-web-dev.azurewebsites.net
+        description: Development web server
+    get:
+      tags:
+        - Accounts
+      summary: Get Basic Accounts Information
+      description: >
+        Retrieves basic information about all accounts accessible to the authenticated client.
+        This endpoint provides essential account details such as account identifiers, status,
+        and blocking information.
+      operationId: getAccountsInfo
+      parameters:
+        - $ref: '#/components/parameters/XSidHeader'
+      responses:
+        '200':
+          description: Account information retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    description: List of accounts with basic information
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          description: Account identifier
+                          example: "9606"
+                        designation:
+                          type: string
+                          description: Account designation/number
+                          example: "20101.0110"
+                        iban:
+                          type: string
+                          description: International Bank Account Number
+                          example: "CY93912000020000000201010110"
+                        number:
+                          type: string
+                          description: Account number (may be identical to IBAN)
+                          example: "CY93912000020000000201010110"
+                        description:
+                          type: string
+                          description: Account description
+                          example: "Coworking 365, payment account"
+                        dateopen:
+                          type: string
+                          description: Account opening date (YYYYMMDD)
+                          example: "20230123"
+                        status:
+                          type: string
+                          description: Account status
+                          example: "Active"
+                        block:
+                          type: object
+                          description: Account blocking information
+                          properties:
+                            out:
+                              type: string
+                              description: Whether outgoing transactions are blocked (1=blocked, 0=not blocked)
+                              example: "0"
+                            in:
+                              type: string
+                              description: Whether incoming transactions are blocked (1=blocked, 0=not blocked)
+                              example: "0"
+                        currencies:
+                          type: array
+                          description: Currency information (if available)
+                          nullable: true
+                          items:
+                            type: object
+              example: {
+                "items": [
+                  {
+                    "id": "9690",
+                    "designation": "20101.0133",
+                    "iban": "CY54912000020000000201010133",
+                    "number": "CY54912000020000000201010133",
+                    "description": "Coworking 365, payment account",
+                    "dateopen": "20241004",
+                    "status": "Blocked on debit and credit",
+                    "block": {
+                      "out": "1",
+                      "in": "1"
+                    },
+                    "currencies": null
+                  },
+                  {
+                    "id": "9606",
+                    "designation": "20101.0110",
+                    "iban": "CY93912000020000000201010110",
+                    "number": "CY93912000020000000201010110",
+                    "description": "Coworking 365, payment account",
+                    "dateopen": "20230123",
+                    "status": "Active",
+                    "block": {
+                      "out": "0",
+                      "in": "0"
+                    },
+                    "currencies": null
+                  },
+                  {
+                    "id": "9697",
+                    "designation": "20101.0140",
+                    "iban": "CY59912000020000000201010140",
+                    "number": "CY59912000020000000201010140",
+                    "description": "Coworking 365, payment account",
+                    "dateopen": "20250227",
+                    "status": "Reserved",
+                    "block": {
+                      "out": "1",
+                      "in": "1"
+                    },
+                    "currencies": null
+                  }
+                ]
+              }
+        '400':
+          description: Bad request - Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - Invalid or expired session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No accounts found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+        - sessionAuth: []
+  /cfsapi/account/{accountId}:
+    servers:
+      - url: https://intra-web-dev.azurewebsites.net
+        description: Development web server
+    get:
+      tags:
+        - Accounts
+      summary: Get Account Details by ID
+      description: >
+        Retrieves detailed information about a specific account identified by its unique ID.
+        This endpoint provides comprehensive account information including balance, status,
+        and all associated details for the specified account.
+      operationId: getAccountById
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          description: Unique identifier of the account to retrieve
+          schema:
+            type: string
+            example: "9606"
+        - $ref: '#/components/parameters/XSidHeader'
+      responses:
+        '200':
+          description: Account details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetailedAccountItem'
+              example: {
+                "accountId": "9606",
+                "clientId": "4507",
+                "currencyId": "2",
+                "clientName": "Coworking 365",
+                "iban": "CY93912000020000000201010110",
+                "description": "Coworking 365, payment account",
+                "designation": "20101.0110",
+                "alias": "Payment Account",
+                "currencyCode": "EUR",
+                "currencySymbol": "€",
+                "balance": "21379.00",
+                "availableBalance": "21379.00",
+                "blockedAmount": "0.00",
+                "overdraftLimit": "0.00",
+                "status": "Active",
+                "openDate": "2023-05-12",
+                "lastActivityDate": "2025-02-26",
+                "accountType": "Current",
+                "interestRate": "0.00",
+                "canDebit": true,
+                "canCredit": true,
+                "canTransfer": true,
+                "statementFrequency": "Monthly",
+                "branch": "Headquarters",
+                "accountManager": "John Smith",
+                "accountManagerContact": "j.smith@example.com"
+              }
+        '400':
+          description: Bad request - Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - Invalid or expired session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - User does not have access to this account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Account not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+        - sessionAuth: []
+  /cfsapi/account/{accountId}/balance:
+    servers:
+      - url: https://intra-web-dev.azurewebsites.net
+        description: Development web server
+    get:
+      tags:
+        - Accounts
+      summary: Get Specific Account Balance
+      description: >
+        Retrieves detailed balance information for a specific account identified by its unique ID.
+        This endpoint provides comprehensive balance details including balances in multiple currencies,
+        available amounts, blocked amounts, and equivalent base currency values.
+      operationId: getAccountBalanceById
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          description: Unique identifier of the account
+          schema:
+            type: string
+            example: "9606"
+        - $ref: '#/components/parameters/XSidHeader'
+      responses:
+        '200':
+          description: Account balance retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    description: Account identifier
+                    example: "9606"
+                  totalbc:
+                    type: number
+                    format: float
+                    description: Total balance in base currency
+                    example: 40704.91
+                  basecurrency:
+                    type: object
+                    description: Base currency information
+                    properties:
+                      id:
+                        type: string
+                        description: Currency ID
+                        example: "2"
+                      code:
+                        type: string
+                        description: Currency code
+                        example: "EUR"
+                  currencies:
+                    type: array
+                    description: Balances in different currencies
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          description: Currency ID
+                          example: "2"
+                        code:
+                          type: string
+                          description: Currency code
+                          example: "EUR"
+                        alias:
+                          type: string
+                          description: Account alias
+                          example: "Payment Account"
+                        balance:
+                          type: string
+                          description: Current balance in this currency
+                          example: "19814.0000"
+                        available_amount:
+                          type: string
+                          description: Available amount in this currency
+                          example: "19814.0000"
+                        blocked_amount:
+                          type: string
+                          description: Blocked/reserved amount in this currency
+                          example: "0.0000"
+                        balancebc:
+                          type: string
+                          description: Equivalent balance in base currency
+                          example: "19814.0000"
+              example: {
+                "id": "9606",
+                "totalbc": 40704.91,
+                "basecurrency": {
+                  "id": "2",
+                  "code": "EUR"
+                },
+                "currencies": [
+                  {
+                    "id": "2",
+                    "code": "EUR",
+                    "alias": "Payment Account",
+                    "balance": "19814.0000",
+                    "available_amount": "19814.0000",
+                    "blocked_amount": "0.0000",
+                    "balancebc": "19814.0000"
+                  },
+                  {
+                    "id": "7",
+                    "code": "GBP",
+                    "alias": "Payment Account",
+                    "balance": "10000.0000",
+                    "available_amount": "10000.0000",
+                    "blocked_amount": "0.0000",
+                    "balancebc": "11800.0000"
+                  },
+                  {
+                    "id": "49",
+                    "code": "USD",
+                    "alias": "Payment Account",
+                    "balance": "10000.0000",
+                    "available_amount": "10000.0000",
+                    "blocked_amount": "0.0000",
+                    "balancebc": "9090.9100"
+                  }
+                ]
+              }
+        '400':
+          description: Bad request - Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - Invalid or expired session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - User does not have access to this account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Account not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+        - sessionAuth: []
+  /cfsapi/account/{accountId}/statement:
+    servers:
+      - url: https://intra-web-dev.azurewebsites.net
+        description: Development web server
+    get:
+      tags:
+        - Accounts
+      summary: Get Account Statement
+      description: >
+        Retrieves a statement of transactions for a specific account identified by its unique ID.
+        This endpoint provides transaction history, including opening and closing balances,
+        transaction details, and running balances.
+      operationId: getAccountStatement
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          description: Unique identifier of the account
+          schema:
+            type: string
+            example: "9606"
+        - $ref: '#/components/parameters/XSidHeader'
+        - name: fromDate
+          in: query
+          required: false
+          description: Start date for the statement period (format YYYYMMDD)
+          schema:
+            type: string
+            example: "20250201"
+        - name: toDate
+          in: query
+          required: false
+          description: End date for the statement period (format YYYYMMDD)
+          schema:
+            type: string
+            example: "20250228"
+        - name: page
+          in: query
+          required: false
+          description: Page number for pagination
+          schema:
+            type: integer
+            default: 1
+            example: 1
+        - name: rowsPerPage
+          in: query
+          required: false
+          description: Number of transactions per page
+          schema:
+            type: integer
+            default: 20
+            example: 20
+      responses:
+        '200':
+          description: Account statement retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalrowcount:
+                    type: string
+                    description: Total number of transactions in the statement
+                    example: "4"
+                  inbalance:
+                    type: string
+                    description: Opening balance for the period
+                    example: "42269.9100"
+                  todebit:
+                    type: string
+                    description: Total debited amount during the period
+                    example: "1565.0000"
+                  tocredit:
+                    type: string
+                    description: Total credited amount during the period
+                    example: "0.0000"
+                  outbalance:
+                    type: string
+                    description: Closing balance for the period
+                    example: "40704.9100"
+                  transactions:
+                    type: array
+                    description: List of transactions for the period
+                    items:
+                      type: object
+                      properties:
+                        row:
+                          type: string
+                          description: Row number in the result set
+                          example: "1"
+                        layer:
+                          type: string
+                          description: Layer identifier
+                          example: "1"
+                        transactionid:
+                          type: string
+                          description: Unique transaction identifier
+                          example: "98972"
+                        thedate:
+                          type: string
+                          description: Transaction date (format YYYYMMDD)
+                          example: "20250227"
+                        designation:
+                          type: string
+                          description: Account designation related to the transaction
+                          example: "40204.0001"
+                        description:
+                          type: string
+                          description: Transaction description
+                          example: "Payments & transfers fees & charges"
+                        currency_code:
+                          type: string
+                          description: Currency code for the transaction
+                          example: "EUR                 "
+                        amtdebit:
+                          type: string
+                          nullable: true
+                          description: Debit amount
+                          example: "5.0000"
+                        amtcredit:
+                          type: string
+                          nullable: true
+                          description: Credit amount
+                          example: null
+                        amtdebitbc:
+                          type: string
+                          nullable: true
+                          description: Debit amount in base currency
+                          example: "5.0000"
+                        amtcreditbc:
+                          type: string
+                          nullable: true
+                          description: Credit amount in base currency
+                          example: null
+                        amount:
+                          type: string
+                          description: Net transaction amount (negative for debits)
+                          example: "-5.0000"
+                        amountbc:
+                          type: string
+                          description: Net transaction amount in base currency
+                          example: "-5.0000"
+                        balance:
+                          type: string
+                          description: Account balance after this transaction
+                          example: "42264.9100"
+                        balancebc:
+                          type: string
+                          description: Account balance in base currency after this transaction
+                          example: "42264.9100"
+                        docnumber:
+                          type: string
+                          nullable: true
+                          description: Document number
+                          example: null
+                        src:
+                          type: string
+                          description: Source of the transaction
+                          example: "OUTGOINGPA"
+                        info:
+                          type: string
+                          nullable: true
+                          description: Additional transaction information
+                          example: null
+                        reference:
+                          type: string
+                          description: Transaction reference
+                          example: ""
+                        completed:
+                          type: string
+                          description: Whether the transaction is completed (1=yes, 0=no)
+                          example: "1"
+                        revaluation:
+                          type: string
+                          description: Whether this is a revaluation transaction (1=yes, 0=no)
+                          example: "0"
+                        documentid:
+                          type: string
+                          description: Associated document ID
+                          example: "102380"
+                        doctype:
+                          type: string
+                          description: Document type
+                          example: "Outgoing_SEPAPAY_FReq"
+                        correspondent:
+                          type: string
+                          description: Correspondent information
+                          example: ""
+              example: {
+                "totalrowcount": "4",
+                "inbalance": "42269.9100",
+                "todebit": "1565.0000",
+                "tocredit": "0.0000",
+                "outbalance": "40704.9100",
+                "transactions": [
+                  {
+                    "row": "1",
+                    "layer": "1",
+                    "transactionid": "98972",
+                    "thedate": "20250227",
+                    "designation": "40204.0001",
+                    "description": "Payments & transfers fees & charges",
+                    "currency_code": "EUR                 ",
+                    "amtdebit": "5.0000",
+                    "amtcredit": null,
+                    "amtdebitbc": "5.0000",
+                    "amtcreditbc": null,
+                    "amount": "-5.0000",
+                    "amountbc": "-5.0000",
+                    "balance": "42264.9100",
+                    "balancebc": "42264.9100",
+                    "docnumber": null,
+                    "src": "OUTGOINGPA",
+                    "info": null,
+                    "reference": "",
+                    "completed": "1",
+                    "revaluation": "0",
+                    "documentid": "102380",
+                    "doctype": "Outgoing_SEPAPAY_FReq",
+                    "correspondent": ""
+                  }
+                ]
+              }
+        '400':
+          description: Bad request - Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - Invalid or expired session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - User does not have access to this account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Account not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+        - sessionAuth: []
   /cfsapi/templates:
     servers:
       - url: https://intra-web-dev.azurewebsites.net
@@ -186,7 +1065,130 @@ paths:
                 $ref: '#/components/schemas/Error'
       security:
         - sessionAuth: []
-
+  /cfsapi/document/form/from/template/{templateId}:
+    servers:
+      - url: https://intra-web-dev.azurewebsites.net
+        description: Development web server
+    get:
+      tags:
+        - Documents
+        - Templates
+      summary: Get Document Form From Template
+      description: >
+        Retrieves a document form pre-filled with values from a specified template.
+        This endpoint allows generating new document forms based on previously saved templates,
+        facilitating the creation of recurring or similar documents.
+      operationId: getDocumentFormFromTemplate
+      parameters:
+        - name: templateId
+          in: path
+          required: true
+          description: Unique identifier of the template to use
+          schema:
+            type: string
+            example: "102365"
+        - $ref: '#/components/parameters/XSidHeader'
+      responses:
+        '200':
+          description: Document form retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  documenttype:
+                    type: string
+                    description: Type of document
+                    example: "Outgoing_SEPAPAY_FReq"
+                  appcaption:
+                    type: string
+                    description: Caption of the application
+                    example: "European payment"
+                  guid:
+                    type: string
+                    description: Document GUID
+                    example: "NEW"
+                  uid:
+                    type: integer
+                    description: Document UID
+                    example: 0
+                  caption:
+                    type: string
+                    description: Document caption
+                    example: "Create from template"
+                  signatures:
+                    type: array
+                    description: Document signatures
+                    items:
+                      type: object
+                  showform:
+                    type: boolean
+                    description: Whether to show the form
+                    example: true
+                  isdefault:
+                    type: boolean
+                    description: Whether this is the default form
+                    example: false
+                  groups:
+                    type: array
+                    description: Form field groups
+                    items:
+                      $ref: '#/components/schemas/DocumentGroup'
+                  methods:
+                    type: array
+                    description: Available methods for the document
+                    items:
+                      $ref: '#/components/schemas/DocumentMethod'
+                  templatedata:
+                    type: object
+                    description: Template data that was used to pre-fill the form
+                    properties:
+                      id:
+                        type: string
+                        description: Template ID
+                        example: "102365"
+                      info:
+                        type: string
+                        description: Template information
+                        example: "payment"
+                      amount:
+                        type: number
+                        description: Payment amount from template
+                        example: 100.0
+                      currency:
+                        type: string
+                        description: Currency code
+                        example: "EUR"
+                      name:
+                        type: string
+                        description: Template name
+                        example: "test"
+        '400':
+          description: Bad request - Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - Invalid or expired session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - User does not have access to this template
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Template not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+        - sessionAuth: []
   /cfsapi/document/{documentType}/{documentId}/{documentStatus}/form/withMethods:
     servers:
       - url: https://intra-web-dev.azurewebsites.net
@@ -749,6 +1751,297 @@ paths:
                 $ref: '#/components/schemas/Error'
       security:
         - sessionAuth: []
+  /cfsapi/document/AppExchange/{documentId}/{documentStatus}/calculate:
+    servers:
+      - url: https://intra-web-dev.azurewebsites.net
+        description: Development web server
+    get:
+      tags:
+        - Documents
+        - Currency Exchange
+      summary: Calculate Currency Exchange Fields
+      description: >
+        Calculates and validates field values for a currency exchange document.
+        This endpoint handles currency conversion calculations, retrieves current exchange rates,
+        and determines available balances for the specified accounts.
+      operationId: calculateAppExchangeFields
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          description: ID of the document (use "0" for new documents)
+          schema:
+            type: string
+            example: "0"
+        - name: documentStatus
+          in: path
+          required: true
+          description: Status of the document
+          schema:
+            type: string
+            enum: [NEW, DRAFT, PENDING, COMPLETED]
+            example: NEW
+        - $ref: '#/components/parameters/XSidHeader'
+        - name: orientation
+          in: query
+          required: false
+          description: Exchange orientation (1=Sell/Buy, 2=Buy/Sell)
+          schema:
+            type: string
+            enum: ["1", "2"]
+            example: "1"
+        - name: fromacc
+          in: query
+          required: false
+          description: Source account ID
+          schema:
+            type: string
+            example: "9606"
+        - name: amounttosalecalc
+          in: query
+          required: false
+          description: Amount to sell (calculated)
+          schema:
+            type: string
+            example: ""
+        - name: amounttosale
+          in: query
+          required: false
+          description: Amount to sell
+          schema:
+            type: string
+            example: "0.00"
+        - name: currtosale
+          in: query
+          required: false
+          description: Currency ID to sell
+          schema:
+            type: string
+            example: "49"
+        - name: balancesell
+          in: query
+          required: false
+          description: Balance in sell currency
+          schema:
+            type: string
+            example: ""
+        - name: toacc
+          in: query
+          required: false
+          description: Destination account ID
+          schema:
+            type: string
+            example: "9606"
+        - name: amounttobycalc
+          in: query
+          required: false
+          description: Amount to buy (calculated)
+          schema:
+            type: string
+            example: ""
+        - name: amounttoby
+          in: query
+          required: false
+          description: Amount to buy
+          schema:
+            type: string
+            example: "0.00"
+        - name: currtoby
+          in: query
+          required: false
+          description: Currency ID to buy
+          schema:
+            type: string
+            example: "2"
+        - name: balancebuy
+          in: query
+          required: false
+          description: Balance in buy currency
+          schema:
+            type: string
+            example: ""
+        - name: currpair
+          in: query
+          required: false
+          description: Currency pair (e.g., USD/EUR)
+          schema:
+            type: string
+            example: ""
+        - name: rate
+          in: query
+          required: false
+          description: Exchange rate
+          schema:
+            type: string
+            example: "0"
+        - name: changedFieldName
+          in: query
+          required: false
+          description: Name of the field that was changed
+          schema:
+            type: string
+            example: "currtosale"
+      responses:
+        '200':
+          description: Exchange calculation results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  values:
+                    type: array
+                    description: Calculated and updated field values
+                    items:
+                      type: object
+                      properties:
+                        field:
+                          type: string
+                          description: Field name
+                          example: "rate"
+                        value:
+                          type: string
+                          nullable: true
+                          description: Field value
+                          example: "0.9027"
+                        options:
+                          type: object
+                          description: Field options
+                          properties:
+                            readonly:
+                              type: string
+                              nullable: true
+                              description: Whether the field is read-only
+                              example: null
+                            isdate:
+                              type: boolean
+                              description: Whether the field is a date field
+                              example: true
+                        values:
+                          type: object
+                          description: Field value options (for dropdowns, etc.)
+                          example: {
+                            "2": "EUR",
+                            "7": "GBP",
+                            "49": "USD"
+                          }
+                  warnings:
+                    type: array
+                    description: Warnings that occurred during validation
+                    items:
+                      type: object
+              example: {
+                "values": [
+                  {
+                    "field": "docnumber",
+                    "value": null,
+                    "options": {
+                      "readonly": null
+                    },
+                    "values": {}
+                  },
+                  {
+                    "field": "thedate",
+                    "value": "20250227",
+                    "options": {
+                      "isdate": true,
+                      "readonly": null
+                    },
+                    "values": {}
+                  },
+                  {
+                    "field": "thedate forsoap",
+                    "value": "20250227",
+                    "options": {},
+                    "values": {}
+                  },
+                  {
+                    "field": "amounttosalecalc",
+                    "value": null,
+                    "options": {},
+                    "values": {}
+                  },
+                  {
+                    "field": "balancesell",
+                    "value": "10,000.00",
+                    "options": {},
+                    "values": {}
+                  },
+                  {
+                    "field": "amounttobycalc",
+                    "value": null,
+                    "options": {},
+                    "values": {}
+                  },
+                  {
+                    "field": "currtoby",
+                    "value": "2",
+                    "options": {},
+                    "values": {
+                      "2": "EUR",
+                      "7": "GBP",
+                      "49": "USD"
+                    }
+                  },
+                  {
+                    "field": "balancebuy",
+                    "value": "19,814.00",
+                    "options": {},
+                    "values": {}
+                  },
+                  {
+                    "field": "currpair",
+                    "value": "USD/EUR",
+                    "options": {},
+                    "values": {}
+                  },
+                  {
+                    "field": "rate",
+                    "value": "0.9027",
+                    "options": {},
+                    "values": {}
+                  },
+                  {
+                    "field": "actualrate",
+                    "value": "0.9027",
+                    "options": {},
+                    "values": {}
+                  },
+                  {
+                    "field": "template_description",
+                    "value": null,
+                    "options": {},
+                    "values": {}
+                  },
+                  {
+                    "field": "calculate_warning",
+                    "value": "",
+                    "options": {},
+                    "values": {}
+                  }
+                ],
+                "warnings": []
+              }
+        '400':
+          description: Bad request - Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - Invalid or expired session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+        - sessionAuth: []
   /cfsapi/document/{documentType}/form/accounts:
     servers:
       - url: https://intra-web-dev.azurewebsites.net
@@ -844,15 +2137,20 @@ paths:
         - Documents
       summary: Create or Sign Document
       description: >
-        This endpoint can be used to either create a new document or sign an existing document.<br>
-        <br>
+        This endpoint can be used to either create a new document or sign an existing document.</br></br>
+
         **For Creating New Documents**:</br>
 
         **IMPORTANT PREREQUISITE**: Before using this endpoint, you should first understand
-        the required fields by calling the form/withMethods endpoint for the specific document type.</br>
+        the required fields by calling the form/withMethods endpoint for the specific document type.</br></br>
+
+        To create a new document, provide the document type, ID "0", GUID "NEW", and fields array with all required fields.</br>
+        Supported document types include:</br>
+        - Outgoing_SEPAPAY_FReq - Standard SEPA payment</br>
+        - Outgoing_SEPA_INST_FReq - SEPA instant payment</br>
+        - Outgoing_Payment_FReq - International payment</br>
+        - AppExchange - Currency exchange</br>
         </br>
-        To create a new document, provide the document type, ID "0", GUID "NEW", and fields array with all required fields.
-        <br><br>
         **For Signing Existing Documents**:</br>
 
         **IMPORTANT PREREQUISITE**: Before signing a document, you must first call:</br>
@@ -861,8 +2159,7 @@ paths:
         ```
         </br>
         This call retrieves a formatted string that contains all the document details necessary for signature verification.
-        This string can be used to generate a QR code that users can scan with their authentication device.
-        </br>
+        This string can be used to generate a QR code that users can scan with their authentication device.</br>
         After obtaining the QR string, you can proceed with signing the document by providing:</br>
         - The document type</br>
         - The existing document ID</br>
@@ -885,8 +2182,8 @@ paths:
                 mapping:
                   NEW: '#/components/schemas/CreateDocumentRequest'
             examples:
-              createDocument:
-                summary: Create new document
+              createSEPADocument:
+                summary: Create new SEPA payment document
                 value: {
                   "documenttype": "Outgoing_SEPAPAY_FReq",
                   "id": "0",
@@ -904,6 +2201,22 @@ paths:
                     {"key": "extbenefbankcountry", "value": "205"},
                     {"key": "extbankaddress", "value": "CALLE DE MANZANARES 4"},
                     {"key": "info", "value": "Payment details"}
+                  ]
+                }
+              createExchangeDocument:
+                summary: Create new currency exchange document
+                value: {
+                  "documenttype": "AppExchange",
+                  "id": "0",
+                  "guid": "NEW",
+                  "fields": [
+                    {"key": "orientation", "value": "1"},
+                    {"key": "fromacc", "value": "9606"},
+                    {"key": "amounttosale", "value": "100.00"},
+                    {"key": "currtosale", "value": "49"},
+                    {"key": "toacc", "value": "9606"},
+                    {"key": "currtoby", "value": "2"},
+                    {"key": "rate", "value": "0.9027"}
                   ]
                 }
               signDocument:
@@ -1018,6 +2331,35 @@ paths:
                     type: string
                     description: Template name if created
                     example: ""
+              example: {
+                "result": "1",
+                "fieldErrors": [],
+                "message": "Action completed successfully",
+                "additionalinfo": {
+                  "documenttype": "AppExchange",
+                  "objectid": "102398",
+                  "methodGUID": "{707A5A1F-019E-47EE-90A0-690E220A342B}"
+                },
+                "objectid": "102398",
+                "object": {
+                  "id": "102398",
+                  "documenttype": "AppExchange",
+                  "status": {
+                    "guid": "{8BD84837-5753-4833-903A-EE7D0652752A}",
+                    "uid": "1",
+                    "name": "Draft"
+                  },
+                  "fields": [
+                    {"key": "orientation", "value": "1"},
+                    {"key": "fromacc", "value": "9606"},
+                    {"key": "amounttosale", "value": "100.00"},
+                    {"key": "currtosale", "value": "49"}
+                  ]
+                },
+                "withTemplate": false,
+                "templateId": 0,
+                "templateName": ""
+              }
         '400':
           description: Bad request
           content:
@@ -1032,6 +2374,60 @@ paths:
                 $ref: '#/components/schemas/Error'
         '500':
           description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+        - sessionAuth: []
+  /cfsapi/document/{documentId}/string_for_qr_sign:
+    servers:
+      - url: https://intra-web-dev.azurewebsites.net
+        description: Development web server
+    get:
+      tags:
+        - Documents
+      summary: Get QR Sign String
+      description: >
+        Retrieves a formatted string representation of a document that can be used for QR code generation.
+        This is typically used for generating QR codes that facilitate document signing processes.
+        The string contains document details with field separators.
+      operationId: getQrSignString
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          description: ID of the document to generate QR string for
+          schema:
+            type: string
+            example: "102366"
+        - $ref: '#/components/parameters/XSidHeader'
+      responses:
+        '200':
+          description: QR sign string retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: string
+                    description: Formatted string with document details for QR code generation
+                    example: "ID:102366\u001cFrom account:20101.0110\u001cAmount:15.00\u001cPayment fee:5.00\u001cTotal Amount with rates:20.00\u001cAccount(IBAN):ES3115632626353262482979\u001cBeneficiary Name:teest"
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized or session expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Document not found
           content:
             application/json:
               schema:
@@ -1153,63 +2549,195 @@ paths:
                 $ref: '#/components/schemas/Error'
       security:
         - sessionAuth: []
-  /cfsapi/document/{documentId}/string_for_qr_sign:
+  /cfsapi/currencies:
     servers:
       - url: https://intra-web-dev.azurewebsites.net
         description: Development web server
     get:
       tags:
-        - Documents
-      summary: Get QR Sign String
+        - Reference Data
+      summary: Get Currencies List
       description: >
-        Retrieves a formatted string representation of a document that can be used for QR code generation.
-        This is typically used for generating QR codes that facilitate document signing processes.
-        The string contains document details with field separators.
-      operationId: getQrSignString
+        Retrieves a list of available currencies with their codes and identifiers.
+        This endpoint provides essential currency information used throughout the system
+        for payment operations, exchanges, and account management.
+      operationId: getCurrenciesList
       parameters:
-        - name: documentId
-          in: path
-          required: true
-          description: ID of the document to generate QR string for
-          schema:
-            type: string
-            example: "102366"
         - $ref: '#/components/parameters/XSidHeader'
       responses:
         '200':
-          description: QR sign string retrieved successfully
+          description: Currencies list retrieved successfully
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  result:
-                    type: string
-                    description: Formatted string with document details for QR code generation
-                    example: "ID:102366\u001cFrom account:20101.0110\u001cAmount:15.00\u001cPayment fee:5.00\u001cTotal Amount with rates:20.00\u001cAccount(IBAN):ES3115632626353262482979\u001cBeneficiary Name:teest"
+                  items:
+                    type: array
+                    description: List of currency items
+                    items:
+                      $ref: '#/components/schemas/Currency'
+              example: {
+                "items": [
+                  {
+                    "id": "2",
+                    "name": "Euro",
+                    "code": "EUR",
+                    "symbol": "€",
+                    "isbase": "1",
+                    "ratio": "1.0000",
+                    "order": "1"
+                  },
+                  {
+                    "id": "7",
+                    "name": "British Pound",
+                    "code": "GBP",
+                    "symbol": "£",
+                    "isbase": "0",
+                    "ratio": "1.1800",
+                    "order": "2"
+                  },
+                  {
+                    "id": "49",
+                    "name": "US Dollar",
+                    "code": "USD",
+                    "symbol": "$",
+                    "isbase": "0",
+                    "ratio": "0.9091",
+                    "order": "3"
+                  }
+                ]
+              }
         '400':
-          description: Bad request
+          description: Bad request - Invalid parameters
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
         '401':
-          description: Unauthorized or session expired
+          description: Unauthorized - Invalid or expired session
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
         '404':
-          description: Document not found
+          description: No currencies found
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
       security:
         - sessionAuth: []
-  /cfsapi/transactions/:
+  /cfsapi/rates/currencies:
     servers:
-      - url: https://intra-web-dev.azurewebsites.net/cfsapi/transactions
+      - url: https://intra-web-dev.azurewebsites.net
+        description: Development web server
+    get:
+      tags:
+        - Reference Data
+      summary: Get Currency Exchange Rates
+      description: >
+        Retrieves current exchange rates between available currencies.
+        This endpoint provides up-to-date conversion rates used for currency
+        exchange operations, transaction calculations, and reporting.
+      operationId: getCurrencyExchangeRates
+      parameters:
+        - $ref: '#/components/parameters/XSidHeader'
+      responses:
+        '200':
+          description: Currency exchange rates retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    description: List of currency pair exchange rates
+                    items:
+                      $ref: '#/components/schemas/CurrencyRate'
+              example: {
+                "items": [
+                  {
+                    "fromcurrencyid": "2",
+                    "tocurrencyid": "7",
+                    "fromcurrencycode": "EUR",
+                    "tocurrencycode": "GBP",
+                    "rate": "0.8475",
+                    "sellrate": "0.8390",
+                    "buyrate": "0.8560"
+                  },
+                  {
+                    "fromcurrencyid": "2",
+                    "tocurrencyid": "49",
+                    "fromcurrencycode": "EUR",
+                    "tocurrencycode": "USD",
+                    "rate": "1.0982",
+                    "sellrate": "1.0872",
+                    "buyrate": "1.1092"
+                  },
+                  {
+                    "fromcurrencyid": "7",
+                    "tocurrencyid": "2",
+                    "fromcurrencycode": "GBP",
+                    "tocurrencycode": "EUR",
+                    "rate": "1.1800",
+                    "sellrate": "1.1682",
+                    "buyrate": "1.1918"
+                  },
+                  {
+                    "fromcurrencyid": "7",
+                    "tocurrencyid": "49",
+                    "fromcurrencycode": "GBP",
+                    "tocurrencycode": "USD",
+                    "rate": "1.2962",
+                    "sellrate": "1.2832",
+                    "buyrate": "1.3092"
+                  },
+                  {
+                    "fromcurrencyid": "49",
+                    "tocurrencyid": "2",
+                    "fromcurrencycode": "USD",
+                    "tocurrencycode": "EUR",
+                    "rate": "0.9102",
+                    "sellrate": "0.9011",
+                    "buyrate": "0.9193"
+                  },
+                  {
+                    "fromcurrencyid": "49",
+                    "tocurrencyid": "7",
+                    "fromcurrencycode": "USD",
+                    "tocurrencycode": "GBP",
+                    "rate": "0.7714",
+                    "sellrate": "0.7637",
+                    "buyrate": "0.7791"
+                  }
+                ]
+              }
+        '400':
+          description: Bad request - Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - Invalid or expired session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No exchange rates found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+        - sessionAuth: []
+
+  /cfsapi/transactions:
+    servers:
+      - url: https://intra-web-dev.azurewebsites.net
         description: Development API server
     get:
       tags:
@@ -1220,16 +2748,10 @@ paths:
         Returns details of financial transactions including SEPA payments, instant payments, and other transfers.
       operationId: getTransactionsList
       parameters:
-        - name: x-sid
-          in: header
-          required: true
-          description: Session ID for authentication
-          schema:
-            type: string
-            example: "#OlcnoVlfL2AVV9XKo0rmj4DrhWQo1pwIQY1RnjAEL4wOb5iAbB"
+        - $ref: '#/components/parameters/XSidHeader'
         - name: rowsToFetch
           in: query
-          required: false
+          required: true
           description: Number of rows to fetch per page
           schema:
             type: integer
@@ -1237,12 +2759,12 @@ paths:
             example: 20
         - name: startPage
           in: query
-          required: false
-          description: Starting page number (0-based)
+          required: true
+          description: Starting page number (1-based)
           schema:
             type: integer
-            default: 0
-            example: 0
+            default: 1
+            example: 1
         - name: statusesToExclude
           in: query
           required: false
@@ -1250,16 +2772,47 @@ paths:
           schema:
             type: string
             example: "Draft,Invalid"
-        - name: beginDate
+        - name: statusesToInclude
           in: query
           required: false
+          description: Comma-separated list of statuses to include in results
+          schema:
+            type: string
+            example: "Awaiting Signatures,In Progress"
+            enum: [
+              "Awaiting Signatures",
+              "In Progress",
+              "Completed",
+              "Draft",
+              "Rejected",
+              "Canceled",
+              "Invalid"
+            ]
+        - name: accountIds
+          in: query
+          required: false
+          description: Comma-separated list of account IDs to filter by
+          schema:
+            type: string
+            example: "9606,9690"
+        - name: transactionType
+          in: query
+          required: false
+          description: Filter by transaction type (incoming or outgoing)
+          schema:
+            type: string
+            enum: ["Incoming", "Outgoing"]
+            example: "Outgoing"
+        - name: beginDate
+          in: query
+          required: true
           description: Start date for transaction filtering (format YYYYMMDD)
           schema:
             type: string
             example: "20250224"
         - name: endDate
           in: query
-          required: false
+          required: true
           description: End date for transaction filtering (format YYYYMMDD)
           schema:
             type: string
@@ -1282,13 +2835,6 @@ paths:
             default: "Desc"
             enum: ["Asc", "Desc"]
             example: "Desc"
-        - name: accountId
-          in: query
-          required: false
-          description: Filter by account ID
-          schema:
-            type: string
-            example: "9606"
         - name: documentType
           in: query
           required: false
@@ -1385,6 +2931,271 @@ paths:
                 $ref: '#/components/schemas/Error'
         '404':
           description: No transactions found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+        - sessionAuth: []
+  /cfsapi/transaction/web/{transactionId}:
+    servers:
+      - url: https://intra-web-dev.azurewebsites.net
+        description: Development web server
+    get:
+      tags:
+        - Transactions
+      summary: Get Transaction Details
+      description: >
+        Retrieves detailed information about a specific transaction by its ID.
+        This endpoint provides comprehensive details about a single transaction including
+        payment information, status, amounts, and available methods/actions.
+      operationId: getTransactionDetails
+      parameters:
+        - name: transactionId
+          in: path
+          required: true
+          description: Unique identifier of the transaction to retrieve
+          schema:
+            type: string
+            example: "102388"
+        - $ref: '#/components/parameters/XSidHeader'
+      responses:
+        '200':
+          description: Transaction details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionDetail'
+              example: {
+                "id": "102388",
+                "transid": "102388",
+                "documenttype": "Outgoing_SEPA_INST_FReq",
+                "date": "2025-02-27 09:08:49.887+0000",
+                "info": "Payment details",
+                "docclassname": "SEPA Instant Payment",
+                "docname": "SEPA Instant Payment",
+                "from": "Payment Account",
+                "ibanfrom": "CY93912000020000000201010110",
+                "to": "Payment Account",
+                "ibanto": null,
+                "amount": "158.0000",
+                "currency": "EUR",
+                "incoming": false,
+                "transtype": "outgoing",
+                "status": "Canceled",
+                "fees": null,
+                "methods": [
+                  {
+                    "caption": "View",
+                    "guid": "VIEW",
+                    "objectid": "102388",
+                    "uid": "0",
+                    "documenttype": "Outgoing_SEPA_INST_FReq",
+                    "signaturerequired": "0",
+                    "signatures": []
+                  }
+                ]
+              }
+        '400':
+          description: Bad request - Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - Invalid or expired session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Transaction not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+        - sessionAuth: []
+  /cfsapi/equivalentAmount/{amount}/{currencyId}:
+    servers:
+      - url: https://intra-web-dev.azurewebsites.net
+        description: Development web server
+    get:
+      tags:
+        - Reference Data
+      summary: Get Equivalent Amount in Base Currency
+      description: >
+        Converts a specified amount from a given currency to its equivalent value in the system's base currency.
+        This endpoint is useful for currency conversion calculations, reporting, and displaying equivalent values
+        across different currencies.
+      operationId: getEquivalentAmount
+      parameters:
+        - $ref: '#/components/parameters/XSidHeader'
+        - name: amount
+          in: path
+          required: true
+          description: The amount to convert
+          schema:
+            type: number
+            example: 100
+        - name: currencyId
+          in: path
+          required: true
+          description: The currency ID of the source amount
+          schema:
+            type: string
+            example: "7"
+      responses:
+        '200':
+          description: Equivalent amount retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  amount:
+                    type: string
+                    description: Original amount
+                    example: "100"
+                  currencyid:
+                    type: string
+                    description: Original currency ID
+                    example: "7"
+                  code:
+                    type: string
+                    description: Original currency code
+                    example: "GBP"
+                  equivalent:
+                    type: string
+                    description: Equivalent amount in base currency
+                    example: "118.00"
+                  basecurrencyid:
+                    type: string
+                    description: Base currency ID
+                    example: "2"
+                  basecurrencycode:
+                    type: string
+                    description: Base currency code
+                    example: "EUR"
+              example: {
+                "amount": "100",
+                "currencyid": "7",
+                "code": "GBP",
+                "equivalent": "118.00",
+                "basecurrencyid": "2",
+                "basecurrencycode": "EUR"
+              }
+        '400':
+          description: Bad request - Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - Invalid or expired session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Currency not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+        - sessionAuth: []
+  /cfsapi/equivalentAmount/{amount}/{fromCurrency}/{toCurrency}:
+    servers:
+      - url: https://intra-web-dev.azurewebsites.net
+        description: Development web server
+    get:
+      tags:
+        - Reference Data
+      summary: Convert Amount Between Specific Currencies
+      description: >
+        Converts a specified amount from one currency to another using current exchange rates.
+        This endpoint allows direct conversion between any two supported currencies without
+        requiring conversion to the base currency first.
+      operationId: convertAmountBetweenCurrencies
+      parameters:
+        - $ref: '#/components/parameters/XSidHeader'
+        - name: amount
+          in: path
+          required: true
+          description: The amount to convert
+          schema:
+            type: number
+            example: 100
+        - name: fromCurrency
+          in: path
+          required: true
+          description: Source currency ID
+          schema:
+            type: string
+            example: "2"
+        - name: toCurrency
+          in: path
+          required: true
+          description: Target currency ID
+          schema:
+            type: string
+            example: "7"
+      responses:
+        '200':
+          description: Currency conversion completed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  amount:
+                    type: string
+                    description: Original amount
+                    example: "100"
+                  fromcurrencyid:
+                    type: string
+                    description: Source currency ID
+                    example: "2"
+                  fromcurrencycode:
+                    type: string
+                    description: Source currency code
+                    example: "EUR"
+                  equivalent:
+                    type: string
+                    description: Equivalent amount in target currency
+                    example: "84.75"
+                  tocurrencyid:
+                    type: string
+                    description: Target currency ID
+                    example: "7"
+                  tocurrencycode:
+                    type: string
+                    description: Target currency code
+                    example: "GBP"
+                  rate:
+                    type: string
+                    description: Exchange rate used for conversion
+                    example: "0.8475"
+              example: {
+                "result": "1",
+                "amount": "84.745762711864",
+                "message": ""
+              }
+        '400':
+          description: Bad request - Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - Invalid or expired session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Currency not found
           content:
             application/json:
               schema:
@@ -1535,6 +3346,117 @@ components:
         error:
           type: string
           example: "Unauthorized"
+    DetailedAccountItem:
+      type: object
+      description: Comprehensive information about a client account
+      properties:
+        accountId:
+          type: string
+          description: Unique identifier for the account
+          example: "9606"
+        clientId:
+          type: string
+          description: Identifier of the client that owns the account
+          example: "4507"
+        currencyId:
+          type: string
+          description: Identifier of the account currency
+          example: "2"
+        clientName:
+          type: string
+          description: Name of the client
+          example: "Coworking 365"
+        iban:
+          type: string
+          description: International Bank Account Number
+          example: "CY93912000020000000201010110"
+        description:
+          type: string
+          description: Descriptive text for the account
+          example: "Coworking 365, payment account"
+        designation:
+          type: string
+          description: Account designation/number
+          example: "20101.0110"
+        alias:
+          type: string
+          description: User-friendly alias for the account
+          example: "Payment Account"
+        currencyCode:
+          type: string
+          description: Three-letter currency code
+          example: "EUR"
+        currencySymbol:
+          type: string
+          description: Currency symbol
+          example: "€"
+        balance:
+          type: string
+          description: Current account balance
+          example: "21379.00"
+        availableBalance:
+          type: string
+          description: Available balance (accounting for pending transactions)
+          example: "21379.00"
+        blockedAmount:
+          type: string
+          description: Amount currently blocked/reserved
+          example: "0.00"
+        overdraftLimit:
+          type: string
+          description: Authorized overdraft limit
+          example: "0.00"
+        status:
+          type: string
+          description: Current account status
+          example: "Active"
+          enum: ["Active", "Inactive", "Blocked", "Closed", "Dormant"]
+        openDate:
+          type: string
+          description: Date when the account was opened (YYYY-MM-DD)
+          example: "2023-05-12"
+        lastActivityDate:
+          type: string
+          description: Date of last account activity (YYYY-MM-DD)
+          example: "2025-02-26"
+        accountType:
+          type: string
+          description: Type of account
+          example: "Current"
+          enum: ["Current", "Savings", "Term Deposit", "Credit", "Loan", "Investment"]
+        interestRate:
+          type: string
+          description: Current interest rate applicable to the account
+          example: "0.00"
+        canDebit:
+          type: boolean
+          description: Whether debit operations are allowed
+          example: true
+        canCredit:
+          type: boolean
+          description: Whether credit operations are allowed
+          example: true
+        canTransfer:
+          type: boolean
+          description: Whether transfer operations are allowed
+          example: true
+        statementFrequency:
+          type: string
+          description: Frequency of account statements
+          example: "Monthly"
+          enum: ["Daily", "Weekly", "Monthly", "Quarterly", "Yearly", "On Demand"]
+        branch:
+          type: string
+          description: Branch where the account is registered
+          example: "Headquarters"
+        accountManager:
+          type: string
+          description: Name of the account manager
+          example: "John Smith"
+        accountManagerContact:
+          type: string
+          description: Contact information for the account manager
+          example: "j.smith@example.com"
     DocumentField:
       type: object
       description: A form field in a document
@@ -1623,6 +3545,110 @@ components:
           description: Conditions for the group
           items:
             type: object
+    TariffGroup:
+      type: object
+      description: A group of related tariffs
+      properties:
+        name:
+          type: string
+          description: Group name/category
+          example: "Internal payments"
+    Currency:
+      type: object
+      description: Information about a currency
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the currency
+          example: "2"
+        name:
+          type: string
+          description: Full name of the currency
+          example: "Euro"
+        code:
+          type: string
+          description: Three-letter currency code (ISO 4217)
+          example: "EUR"
+        symbol:
+          type: string
+          description: Currency symbol
+          example: "€"
+        isbase:
+          type: string
+          description: Whether this is the base currency (1=yes, 0=no)
+          example: "1"
+        ratio:
+          type: string
+          description: Exchange ratio relative to the base currency
+          example: "1.0000"
+        order:
+          type: string
+          description: Display order
+          example: "1"
+    CurrencyRate:
+      type: object
+      description: Exchange rate information between two currencies
+      properties:
+        fromcurrencyid:
+          type: string
+          description: ID of the source currency
+          example: "2"
+        tocurrencyid:
+          type: string
+          description: ID of the target currency
+          example: "7"
+        fromcurrencycode:
+          type: string
+          description: Three-letter code of the source currency
+          example: "EUR"
+        tocurrencycode:
+          type: string
+          description: Three-letter code of the target currency
+          example: "GBP"
+        rate:
+          type: string
+          description: Mid-market exchange rate
+          example: "0.8475"
+        sellrate:
+          type: string
+          description: Rate applied when selling the source currency
+          example: "0.8390"
+        buyrate:
+          type: string
+          description: Rate applied when buying the source currency
+          example: "0.8560"
+    Tariff:
+      type: object
+      description: Information about a specific tariff
+      properties:
+        rule_id:
+          type: string
+          description: Unique identifier for the tariff rule
+          example: "1838"
+        tariff_name:
+          type: string
+          description: Short name of the tariff
+          example: "Personal customer payment"
+        name:
+          type: string
+          description: Full descriptive name of the tariff
+          example: "Personal transfer administration fee (per transaction in EUR)"
+        tariff_id:
+          type: string
+          description: Identifier for the tariff type
+          example: "88"
+        category_id:
+          type: string
+          description: Category identifier
+          example: "21"
+        rule_text:
+          type: string
+          description: Human-readable rule description with amounts
+          example: "5.00 EUR"
+        tariffs:
+          type: string
+          description: Conditions for when this tariff applies
+          example: "Currency = EUR"
     AccountItem:
       type: object
       description: An account available for document operations
@@ -2107,6 +4133,116 @@ components:
           type: boolean
           description: Whether this is a mass transaction
           example: false
+    TransactionDetail:
+      type: object
+      description: Detailed information about a specific transaction
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the transaction
+          example: "102388"
+        transid:
+          type: string
+          description: Transaction identifier (may be identical to id)
+          example: "102388"
+        documenttype:
+          type: string
+          description: Type of document/transaction
+          example: "Outgoing_SEPA_INST_FReq"
+        date:
+          type: string
+          description: Transaction date and time with timezone
+          example: "2025-02-27 09:08:49.887+0000"
+        info:
+          type: string
+          description: Additional information or description of the transaction
+          example: "Payment details"
+        docclassname:
+          type: string
+          description: Document class name
+          example: "SEPA Instant Payment"
+        docname:
+          type: string
+          description: Document name/title
+          example: "SEPA Instant Payment"
+        from:
+          type: string
+          description: Source account name or label
+          example: "Payment Account"
+        ibanfrom:
+          type: string
+          description: Source account IBAN
+          example: "CY93912000020000000201010110"
+        to:
+          type: string
+          description: Recipient name
+          example: "Payment Account"
+        ibanto:
+          type: string
+          nullable: true
+          description: Recipient IBAN
+          example: null
+        amount:
+          type: string
+          description: Transaction amount as string to preserve precision
+          example: "158.0000"
+        currency:
+          type: string
+          description: Currency code
+          example: "EUR"
+        incoming:
+          type: boolean
+          description: Whether this is an incoming transaction
+          example: false
+        transtype:
+          type: string
+          description: Transaction type (incoming/outgoing)
+          example: "outgoing"
+        status:
+          type: string
+          description: Current status of the transaction
+          example: "Canceled"
+        fees:
+          type: string
+          nullable: true
+          description: Transaction fees if applicable
+          example: null
+        methods:
+          type: array
+          description: Available methods/actions for this transaction
+          items:
+            type: object
+            properties:
+              caption:
+                type: string
+                description: Display caption for the method
+                example: "View"
+              guid:
+                type: string
+                description: Method GUID
+                example: "VIEW"
+              objectid:
+                type: string
+                description: Object ID for the method
+                example: "102388"
+              uid:
+                type: string
+                description: User ID
+                example: "0"
+              documenttype:
+                type: string
+                description: Document type
+                example: "Outgoing_SEPA_INST_FReq"
+              signaturerequired:
+                type: string
+                description: Whether signatures are required (0=no, 1=yes)
+                example: "0"
+              signatures:
+                type: array
+                description: Required signatures if any
+                items:
+                  type: object
+
   securitySchemes:
     sessionAuth:
       type: apiKey
