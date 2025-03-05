@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\DashboardApiAuthentication;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -27,6 +28,13 @@ return Application::configure(basePath: dirname(__DIR__))
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
             \Illuminate\Routing\Middleware\ThrottleRequests::class . ':api',
             \App\Http\Middleware\ForceJsonResponse::class,
+        ]);
+        $middleware->group('dashboard-api', [
+            \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+            \Illuminate\Session\Middleware\StartSession::class,
+            \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+            \Illuminate\Routing\Middleware\SubstituteBindings::class,
+            DashboardApiAuthentication::class,
         ]);
 
     })
