@@ -44,11 +44,12 @@ Route::prefix('v1')->group(function () {
                 ->name('api.v1.rolling-reserves.show');
         });
     });
+    Route::prefix('/dashboard')->middleware(['dashboard-api'])->group(function () {
+        Route::get('/merchants', [DashboardController::class, 'getMerchants']);
+        Route::get('/rolling-reserve/summary', [DashboardController::class, 'getReserveSummary']);
+        Route::get('/rolling-reserve', [DashboardController::class, 'getRollingReserves']);
+        Route::get('/fees/history', [DashboardController::class, 'getFeeHistory']);
+    });
 });
 
-Route::middleware(['dashboard-api'])->prefix('api/v1/dashboard')->group(function () {
-    Route::get('/merchants', [DashboardController::class, 'getMerchants']);
-    Route::get('/rolling-reserve/summary', [DashboardController::class, 'getReserveSummary']);
-    Route::get('/rolling-reserve', [DashboardController::class, 'getRollingReserves']);
-    Route::get('/fees/history', [DashboardController::class, 'getFeeHistory']);
-});
+
