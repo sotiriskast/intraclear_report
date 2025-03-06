@@ -19,3 +19,46 @@
     transform: translateY(-2px);
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
+
+/* Add these styles to your global CSS file */
+
+/* Ensure charts maintain minimum heights */
+.recharts-wrapper {
+    min-height: 300px !important;
+}
+
+/* Fix for responsive container issues */
+.recharts-responsive-container {
+    min-height: 300px !important;
+}
+
+/* Ensure tab content has minimum height */
+.dashboard-tab-content {
+    min-height: 500px !important;
+}
+
+/* Ensure chart containers don't collapse */
+.chart-container {
+    min-height: 400px !important;
+    height: 400px !important;
+}
+
+/* Fix axis label positioning */
+.recharts-label {
+    text-anchor: middle;
+}
+
+/* Ensure tooltips remain visible */
+.recharts-tooltip-wrapper {
+    z-index: 1000;
+}
+
+/* Better spacing for the chart legends */
+.recharts-default-legend {
+    margin-bottom: 20px !important;
+}
+
+/* Fix X-axis label truncation */
+.recharts-xAxis .recharts-cartesian-axis-tick-value {
+    font-size: 12px;
+}
