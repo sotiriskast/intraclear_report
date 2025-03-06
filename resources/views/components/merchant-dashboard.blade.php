@@ -12,5 +12,6 @@
 </div>
 
 @pushonce('scripts')
+    @viteReactRefresh
     @vite(['resources/js/merchant-dashboard.jsx'])
 @endpushonce
