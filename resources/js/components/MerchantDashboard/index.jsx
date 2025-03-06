@@ -222,9 +222,8 @@ const MerchantDashboard = ({ merchantId: initialMerchantId }) => {
             }
         };
 
-        if (selectedMerchant !== null) {
-            fetchAllData();
-        }
+        // Fetch data regardless of merchant selection (both for specific merchant or all merchants)
+        fetchAllData();
     }, [selectedMerchant, currencies]);
 
     // Process upcoming releases and fee history from object to array format for charts
@@ -238,7 +237,7 @@ const MerchantDashboard = ({ merchantId: initialMerchantId }) => {
         return <ErrorDisplay message="Please log in to view the dashboard" redirectUrl="/login" />;
     }
 
-    if (loading && !selectedMerchant) {
+    if (loading && !selectedMerchant && merchants.length === 0) {
         return <LoadingSpinner message="Loading merchants..." />;
     }
 
