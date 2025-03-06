@@ -30,29 +30,42 @@ const MerchantDashboard = ({merchantId: initialMerchantId}) => {
 
     // Helper function to make authenticated API calls
     const fetchAPI = useCallback(async (url) => {
-        const token = document.querySelector('meta[name="csrf-token"]');
-        const csrfToken = token ? token.getAttribute('content') : '';
+        try {
+            // Get the CSRF token from the meta tag
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'X-CSRF-TOKEN': csrfToken,
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            credentials: 'same-origin' // Important for cookies/session
-        });
-
-        if (!response.ok) {
-            if (response.status === 401) {
-                setIsAuthenticated(false);
-                throw new Error('Authentication required');
+            // Ensure we have a CSRF token
+            if (!csrfToken) {
+                console.error("CSRF token not found");
+                throw new Error("CSRF token missing - authentication may fail");
             }
-            throw new Error(`API error: ${response.statusText}`);
-        }
 
-        return await response.json();
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin' // Include cookies for session authentication
+            });
+
+            if (!response.ok) {
+                if (response.status === 401) {
+                    setIsAuthenticated(false);
+                    throw new Error('Authentication required');
+                }
+
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || `API error: ${response.statusText}`);
+            }
+
+            return await response.json();
+        } catch (error) {
+            console.error("API request failed:", error);
+            throw error;
+        }
     }, []);
 
     // Fetch merchants list
@@ -83,20 +96,26 @@ const MerchantDashboard = ({merchantId: initialMerchantId}) => {
     // Fetch reserve and fee data when selected merchant or currency changes
     useEffect(() => {
         const fetchData = async () => {
-            if (!selectedMerchant) return;
-
             setLoading(true);
             setError(null);
 
             try {
-                // Fetch rolling reserve data
-                const reserveData = await fetchAPI(`/api/v1/dashboard/rolling-reserve/summary?currency=${selectedCurrency}`);
+                // Fetch rolling reserve data - adjust URL based on whether merchant is selected
+                const reserveUrl = selectedMerchant
+                    ? `/api/v1/dashboard/rolling-reserve/summary?merchant_id=${selectedMerchant}&currency=${selectedCurrency}`
+                    : `/api/v1/dashboard/rolling-reserve/summary?currency=${selectedCurrency}`;
+
+                const reserveData = await fetchAPI(reserveUrl);
                 if (reserveData.success) {
                     setReserveData(reserveData.data);
                 }
 
-                // Fetch upcoming releases
-                const releasesData = await fetchAPI(`/api/v1/dashboard/rolling-reserve?status=pending&currency=${selectedCurrency}`);
+                // Fetch upcoming releases - adjust URL based on whether merchant is selected
+                const releasesUrl = selectedMerchant
+                    ? `/api/v1/dashboard/rolling-reserve?merchant_id=${selectedMerchant}&status=pending&currency=${selectedCurrency}`
+                    : `/api/v1/dashboard/rolling-reserve?status=pending&currency=${selectedCurrency}`;
+
+                const releasesData = await fetchAPI(releasesUrl);
                 if (releasesData.success) {
                     // Process upcoming releases by month
                     const releases = releasesData.data;
@@ -129,8 +148,12 @@ const MerchantDashboard = ({merchantId: initialMerchantId}) => {
                     setUpcomingReleases(releasesByMonth);
                 }
 
-                // Fetch fee history
-                const feeData = await fetchAPI(`/api/v1/dashboard/fees/history?merchant_id=${selectedMerchant}&currency=${selectedCurrency}`);
+                // Fetch fee history - adjust URL based on whether merchant is selected
+                const feeUrl = selectedMerchant
+                    ? `/api/v1/dashboard/fees/history?merchant_id=${selectedMerchant}&currency=${selectedCurrency}`
+                    : `/api/v1/dashboard/fees/history?currency=${selectedCurrency}`;
+
+                const feeData = await fetchAPI(feeUrl);
 
                 if (feeData.success) {
                     // Process fee history by month
@@ -353,10 +376,10 @@ const MerchantDashboard = ({merchantId: initialMerchantId}) => {
                             id="merchant-select"
                             className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
                             value={selectedMerchant?.toString() || ''}
-                            onChange={(e) => setSelectedMerchant(Number(e.target.value))}
+                            onChange={(e) => setSelectedMerchant(e.target.value ? Number(e.target.value) : null)}
                             disabled={loading}
                         >
-                            <option value="" disabled>Select Merchant</option>
+                            <option value="">All Merchants</option>
                             {merchants.map(merchant => (
                                 <option key={merchant.id} value={merchant.id.toString()}>
                                     {merchant.name}

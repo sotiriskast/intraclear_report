@@ -16,11 +16,17 @@ class DashboardApiAuthentication
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (!Auth::check()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthorized - Authentication required',
-            ], 401);
+        // Check if user is authenticated using the web guard
+        if (!Auth::guard('web')->check()) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized - Authentication required',
+                ], 401);
+            }
+
+            // Redirect to login if not an API request
+            return redirect()->route('login');
         }
 
         // Add a custom header to identify dashboard API requests
