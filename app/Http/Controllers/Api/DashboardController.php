@@ -242,7 +242,6 @@ class DashboardController extends Controller
             }
 
             $merchantId = $request->input('merchant_id');
-            $currency = $request->input('currency', 'EUR');
             $startDate = $request->input('start_date')
                 ? Carbon::parse($request->input('start_date'))
                 : Carbon::now()->subMonths(6);
@@ -257,7 +256,6 @@ class DashboardController extends Controller
             // Build an optimized query with eager loading or joins
             $query = FeeHistory::query()
                 ->with(['feeType']) // Eager load to avoid N+1 problem
-                ->where('base_currency', $currency)
                 ->whereBetween('applied_date', [$startDate, $endDate])
                 ->when($merchantId, fn($q) => $q->where('merchant_id', $merchantId))
                 ->when($feeTypeId, fn($q) => $q->where('fee_type_id', $feeTypeId))
@@ -269,10 +267,7 @@ class DashboardController extends Controller
                     'merchant_id' => $fee->merchant_id,
                     'fee_type_id' => $fee->fee_type_id,
                     'fee_type' => $fee->feeType->name ?? $feeTypes[$fee->fee_type_id] ?? 'Unknown',
-                    'base_amount' => $fee->base_amount / 100,
-                    'base_currency' => $fee->base_currency,
                     'fee_amount_eur' => $fee->fee_amount_eur / 100,
-                    'exchange_rate' => $fee->exchange_rate / 10000, // Adjust based on your storage format
                     'applied_date' => Carbon::parse($fee->applied_date)->format('Y-m-d'),
                     'report_reference' => $fee->report_reference,
                 ];

@@ -128,8 +128,8 @@ const MerchantDashboard = ({ merchantId: initialMerchantId }) => {
 
                 // Fetch fee history
                 const feeUrl = selectedMerchant
-                    ? `/api/v1/dashboard/fees/history?merchant_id=${selectedMerchant}&currency=${currency}`
-                    : `/api/v1/dashboard/fees/history?currency=${currency}`;
+                    ? `/api/v1/dashboard/fees/history?merchant_id=${selectedMerchant}`
+                    : `/api/v1/dashboard/fees/history`;
                 const feeResponse = await fetchAPI(feeUrl);
 
                 if (feeResponse.success) {
@@ -145,16 +145,15 @@ const MerchantDashboard = ({ merchantId: initialMerchantId }) => {
                             feesByMonth[key] = {
                                 month: feeDate.toLocaleString('default', { month: 'short' }),
                                 year: feeDate.getFullYear(),
-                                fullDate: feeDate,
-                                currency: currency
+                                fullDate: feeDate
                             };
                         }
 
-                        // Make sure fee type exists as a key
+                        // Create a key combining fee type and currency (always EUR)
                         const feeType = fee.fee_type || 'Unknown';
-                        const feeKey = `${feeType}_${currency}`;
+                        const feeKey = `${feeType}_EUR`;
 
-                        // Add to the appropriate fee type, converting to a number for safety
+                        // Add to the appropriate fee type, using fee_amount_eur from the API
                         feesByMonth[key][feeKey] = (feesByMonth[key][feeKey] || 0) + Number(fee.fee_amount_eur);
                     });
 
@@ -162,33 +161,8 @@ const MerchantDashboard = ({ merchantId: initialMerchantId }) => {
                         .sort((a, b) => a.fullDate - b.fullDate) // Sort chronologically
                         .slice(0, 6);
 
-                    setFeeHistory(prevHistory => {
-                        // Merge with existing history
-                        const mergedHistory = { ...prevHistory };
+                    setFeeHistory(feeHistoryByMonth);
 
-                        // For each month in the new data
-                        feeHistoryByMonth.forEach(monthData => {
-                            const monthKey = `${monthData.month}-${monthData.year}`;
-
-                            // If we don't have this month yet, add it
-                            if (!mergedHistory[monthKey]) {
-                                mergedHistory[monthKey] = {
-                                    month: monthData.month,
-                                    year: monthData.year,
-                                    fullDate: monthData.fullDate
-                                };
-                            }
-
-                            // Merge all fee types with currency suffix
-                            Object.entries(monthData).forEach(([key, value]) => {
-                                if (key !== 'month' && key !== 'year' && key !== 'fullDate' && key !== 'currency') {
-                                    mergedHistory[monthKey][key] = value;
-                                }
-                            });
-                        });
-
-                        return mergedHistory;
-                    });
                 }
             } catch (err) {
                 console.error(`Error fetching data for ${currency}:`, err);
