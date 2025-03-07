@@ -43,7 +43,7 @@ const DashboardTabs = ({ reserveData = {}, feeHistory = [], upcomingReleases = [
             </div>
 
             {/* Fixed height content container with consistent padding */}
-            <div className="p-6 min-h-[530px]">
+            <div className="p-6 min-h-[800px]">
                 {activeTab === 'reserves' && (
                     <div className="grid gap-8 md:grid-cols-2 h-full">
                         <RollingReserveChart reserveData={safeReserveData} />
@@ -61,15 +61,20 @@ const DashboardTabs = ({ reserveData = {}, feeHistory = [], upcomingReleases = [
                 )}
 
                 {activeTab === 'fees' && (
-                    <div className="grid gap-8 md:grid-cols-2 h-full">
-                        <FeeHistoryChart
-                            feeHistory={feeHistory}
-                            currencies={currencies}
-                        />
-                        <FeeDistributionChart
-                            feeHistory={feeHistory}
-                            currencies={currencies}
-                        />
+                    <div className="flex flex-col space-y-8">
+                        {/* Fee Distribution Chart - Full width */}
+                        <div className="w-full bg-gray-50 p-4 rounded-lg shadow-sm border border-gray-200">
+                            <FeeDistributionChart
+                                feeHistory={feeHistory}
+                            />
+                        </div>
+
+                        {/* Fee History Chart - Full width */}
+                        <div className="w-full bg-gray-50 p-4 rounded-lg shadow-sm border border-gray-200">
+                            <FeeHistoryChart
+                                feeHistory={feeHistory}
+                            />
+                        </div>
                     </div>
                 )}
             </div>

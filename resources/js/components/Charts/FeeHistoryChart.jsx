@@ -1,53 +1,15 @@
 import React from 'react';
 import { ResponsiveContainer, ComposedChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 
-// Colors for fee types and currencies
+// Colors for fee types - extremely bright, high contrast colors
 const TYPE_COLORS = {
-    'MDR': '#0088FE',
-    'Transaction': '#00C49F',
-    'Payout': '#FFBB28',
-    'Refund': '#FF8042',
-    'Declined': '#8884d8',
-    'Chargeback': '#82ca9d',
-    'Setup': '#d884a8'
-};
-
-// Currency-specific color tints
-const CURRENCY_TINT = {
-    'EUR': 1.0,  // 100% - original color
-    'USD': 0.85, // 85% - slightly darker
-    'GBP': 0.7,  // 70% - darker
-    'JPY': 0.55  // 55% - darkest
-};
-
-// Function to adjust color based on currency - with safety checks
-const adjustColor = (baseColor, currency) => {
-    if (!baseColor || typeof baseColor !== 'string' || !baseColor.startsWith('#') || baseColor.length < 7) {
-        // Return a fallback color if baseColor is invalid
-        return '#888888';
-    }
-
-    try {
-        // Parse the hex color
-        const r = parseInt(baseColor.slice(1, 3), 16);
-        const g = parseInt(baseColor.slice(3, 5), 16);
-        const b = parseInt(baseColor.slice(5, 7), 16);
-
-        // Get the tint factor for the currency with fallback
-        const tint = (currency && CURRENCY_TINT[currency]) ? CURRENCY_TINT[currency] : 1.0;
-
-        // Apply the tint
-        const newR = Math.round(r * tint);
-        const newG = Math.round(g * tint);
-        const newB = Math.round(b * tint);
-
-        // Convert back to hex with padding
-        return `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`;
-    } catch (error) {
-        // Return a fallback color if any error occurs
-        console.error('Error adjusting color:', error);
-        return '#888888';
-    }
+    'MDR': '#2979FF',         // Bright Blue
+    'Transaction': '#00E676', // Bright Green
+    'Payout': '#FFEA00',      // Bright Yellow
+    'Refund': '#FF3D00',      // Bright Orange/Red
+    'Declined': '#D500F9',    // Bright Purple
+    'Chargeback': '#00E5FF',  // Bright Cyan
+    'Setup': '#FF9100'        // Bright Orange
 };
 
 // Get color for a fee type with safety check
@@ -55,7 +17,7 @@ const getTypeColor = (feeType) => {
     return TYPE_COLORS[feeType] || '#888888';
 };
 
-const FeeHistoryChart = ({ feeHistory = [], currencies = [] }) => {
+const FeeHistoryChart = ({ feeHistory = [] }) => {
     // Sort the fee history chronologically
     const sortedFeeHistory = [...feeHistory].sort((a, b) => {
         if (!a.fullDate || !b.fullDate) return 0;
@@ -71,10 +33,10 @@ const FeeHistoryChart = ({ feeHistory = [], currencies = [] }) => {
                 // Skip non-fee fields
                 if (key === 'month' || key === 'year' || key === 'fullDate') return;
 
-                // Parse the fee type and currency (format: "FeeType_Currency")
-                const parts = key.split('_');
-                if (parts.length >= 1) {
-                    types.add(parts[0]);
+                // Extract only the fee type from the key
+                const feeType = key.split('_')[0];
+                if (feeType) {
+                    types.add(feeType);
                 }
             });
         });
@@ -84,16 +46,19 @@ const FeeHistoryChart = ({ feeHistory = [], currencies = [] }) => {
 
     const feeTypes = extractFeeTypes();
 
-    // Format the data for display
+    // Format the data for display - using only fee_amount_eur
     const formattedData = sortedFeeHistory.map(month => {
         const result = {
             month: `${month.month} ${month.year}`
         };
 
-        // Add values for each fee type and currency
-        Object.entries(month).forEach(([key, value]) => {
-            if (key !== 'month' && key !== 'year' && key !== 'fullDate') {
-                result[key] = Number(value) || 0;
+        // Add values for each fee type
+        feeTypes.forEach(feeType => {
+            const key = `${feeType}_EUR`;
+            if (key in month) {
+                result[feeType] = Number(month[key]) || 0;
+            } else {
+                result[feeType] = 0;
             }
         });
 
@@ -104,10 +69,9 @@ const FeeHistoryChart = ({ feeHistory = [], currencies = [] }) => {
     const getMaxMDRValue = () => {
         let max = 0;
         formattedData.forEach(month => {
-            currencies.forEach(currency => {
-                const mdrValue = month[`MDR_${currency}`] || 0;
-                if (mdrValue > max) max = mdrValue;
-            });
+            if ('MDR' in month && month.MDR > max) {
+                max = month.MDR;
+            }
         });
 
         // Round up to next significant number
@@ -121,12 +85,9 @@ const FeeHistoryChart = ({ feeHistory = [], currencies = [] }) => {
         let max = 0;
         formattedData.forEach(month => {
             feeTypes.forEach(type => {
-                if (type === 'MDR') return; // Skip MDR fees
-
-                currencies.forEach(currency => {
-                    const value = month[`${type}_${currency}`] || 0;
-                    if (value > max) max = value;
-                });
+                if (type !== 'MDR' && type in month && month[type] > max) {
+                    max = month[type];
+                }
             });
         });
 
@@ -143,24 +104,13 @@ const FeeHistoryChart = ({ feeHistory = [], currencies = [] }) => {
 
     // Custom tooltip formatter
     const formatTooltip = (value, name) => {
-        const parts = name.split('_');
-        const feeType = parts[0] || '';
-        const currency = parts[1] || '';
-
         return [
             `${value.toLocaleString(undefined, {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2
-            })} ${currency}`,
-            `${feeType} (${currency})`
+            })} EUR`,
+            name
         ];
-    };
-
-    // Custom legend formatter
-    const formatLegend = (value) => {
-        const parts = value.split('_');
-        if (parts.length < 2) return value;
-        return `${parts[0]} (${parts[1]})`;
     };
 
     // Custom tick formatter
@@ -171,26 +121,62 @@ const FeeHistoryChart = ({ feeHistory = [], currencies = [] }) => {
         return value;
     };
 
+    // Custom tooltip component
+    const CustomTooltip = ({ active, payload, label }) => {
+        if (active && payload && payload.length) {
+            return (
+                <div className="bg-white p-3 border-2 shadow-md rounded-md">
+                    <p className="font-bold text-lg border-b pb-2 mb-2">{label}</p>
+                    <div className="space-y-2">
+                        {payload.map((entry, index) => {
+                            if (entry.value === 0) return null;
+
+                            return (
+                                <div key={`item-${index}`} className="flex items-center">
+                                    <div
+                                        className="w-3 h-3 rounded-full mr-2"
+                                        style={{ backgroundColor: entry.color }}
+                                    />
+                                    <span className="mr-2 font-medium">{entry.name}:</span>
+                                    <span className="ml-auto font-bold">
+                                        {entry.value.toLocaleString(undefined, {
+                                            minimumFractionDigits: 2,
+                                            maximumFractionDigits: 2
+                                        })} EUR
+                                    </span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
+        }
+        return null;
+    };
+
     return (
-        <div className="bg-white shadow rounded-lg border p-4" style={{ height: '400px', width: '100%' }}>
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Monthly Fee History</h3>
-            <div className="h-[320px] w-full">
+        <div className="bg-white shadow rounded-lg border p-4" style={{ height: '450px', width: '100%' }}>
+            <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-gray-800">Monthly Fee History (EUR)</h3>
+            </div>
+            <div className="h-[370px] w-full">
                 {formattedData.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                         <ComposedChart
                             data={formattedData}
-                            margin={{ top: 20, right: 65, left: 65, bottom: 30 }}
-                            barSize={25}
-                            barGap={2}
-                            barCategoryGap={8}
+                            margin={{ top: 20, right: 65, left: 65, bottom: 40 }}
+                            barSize={18}
+                            barGap={6}
+                            barCategoryGap={16}
                         >
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis
                                 dataKey="month"
-                                angle={0}
-                                textAnchor="middle"
-                                height={50}
-                                tick={{ fontSize: 12, fontWeight: 'bold' }}
+                                angle={-15}
+                                textAnchor="end"
+                                height={60}
+                                tick={{ fontSize: 13, fontWeight: 'bold' }}
+                                tickMargin={10}
                                 interval={0}
                             />
                             {/* Left Y axis for MDR Fee */}
@@ -205,9 +191,9 @@ const FeeHistoryChart = ({ feeHistory = [], currencies = [] }) => {
                                     angle: -90,
                                     position: 'insideLeft',
                                     offset: -15,
-                                    style: { textAnchor: 'middle', fill: '#666' }
+                                    style: { textAnchor: 'middle', fill: '#666', fontWeight: 'bold' }
                                 }}
-                                tick={{ fontSize: 11 }}
+                                tick={{ fontSize: 12 }}
                             />
                             {/* Right Y axis for other fees */}
                             <YAxis
@@ -221,61 +207,48 @@ const FeeHistoryChart = ({ feeHistory = [], currencies = [] }) => {
                                     angle: 90,
                                     position: 'insideRight',
                                     offset: -15,
-                                    style: { textAnchor: 'middle', fill: '#666' }
+                                    style: { textAnchor: 'middle', fill: '#666', fontWeight: 'bold' }
                                 }}
-                                tick={{ fontSize: 11 }}
+                                tick={{ fontSize: 12 }}
                             />
                             <Tooltip
-                                formatter={formatTooltip}
-                                itemSorter={(item) => -item.value}
-                                wrapperStyle={{ fontSize: '12px' }}
+                                content={<CustomTooltip />}
+                                wrapperStyle={{ zIndex: 1000 }}
                             />
                             <Legend
                                 verticalAlign="top"
-                                height={36}
-                                formatter={formatLegend}
-                                wrapperStyle={{ fontSize: '12px' }}
-                                iconSize={10}
+                                height={40}
+                                wrapperStyle={{ fontSize: '13px', paddingTop: '10px' }}
+                                iconSize={12}
                                 iconType="circle"
                             />
 
-                            {/* Render MDR Fee bars for each currency */}
-                            {currencies.map(currency => {
-                                const dataKey = `MDR_${currency}`;
-                                const baseColor = getTypeColor('MDR');
-                                const barColor = adjustColor(baseColor, currency);
-
-                                return (
-                                    <Bar
-                                        key={dataKey}
-                                        yAxisId="left"
-                                        dataKey={dataKey}
-                                        name={dataKey}
-                                        fill={barColor}
-                                        radius={[4, 4, 0, 0]}
-                                    />
-                                );
-                            })}
-
-                            {/* Render other fee types for each currency */}
-                            {feeTypes.filter(type => type !== 'MDR').map(feeType =>
-                                currencies.map(currency => {
-                                    const dataKey = `${feeType}_${currency}`;
-                                    const baseColor = getTypeColor(feeType);
-                                    const barColor = adjustColor(baseColor, currency);
-
-                                    return (
-                                        <Bar
-                                            key={dataKey}
-                                            yAxisId="right"
-                                            dataKey={dataKey}
-                                            name={dataKey}
-                                            fill={barColor}
-                                            radius={[4, 4, 0, 0]}
-                                        />
-                                    );
-                                })
+                            {/* Render MDR Fee bar */}
+                            {feeTypes.includes('MDR') && (
+                                <Bar
+                                    yAxisId="left"
+                                    dataKey="MDR"
+                                    name="MDR"
+                                    fill={getTypeColor('MDR')}
+                                    radius={[8, 8, 0, 0]}
+                                    strokeWidth={3}
+                                    stroke="#ffffff"
+                                />
                             )}
+
+                            {/* Render other fee types */}
+                            {feeTypes.filter(type => type !== 'MDR').map(feeType => (
+                                <Bar
+                                    key={feeType}
+                                    yAxisId="right"
+                                    dataKey={feeType}
+                                    name={feeType}
+                                    fill={getTypeColor(feeType)}
+                                    radius={[6, 6, 0, 0]}
+                                    strokeWidth={2}
+                                    stroke="#ffffff"
+                                />
+                            ))}
                         </ComposedChart>
                     </ResponsiveContainer>
                 ) : (
