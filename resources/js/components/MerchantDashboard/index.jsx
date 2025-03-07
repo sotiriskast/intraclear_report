@@ -6,6 +6,35 @@ import LoadingSpinner from '../Utilities/LoadingSpinner';
 import ErrorDisplay from '../Utilities/ErrorDisplay';
 import { fetchAPI } from '../../services/api';
 
+/**
+ * Helper function to execute promises sequentially with delay
+ * @param {Array} items - Items to process
+ * @param {Function} fn - Function that returns a promise for each item
+ * @param {number} delay - Delay in ms between each request
+ * @returns {Promise<Array>} - Results from all promises
+ */
+const executeSequentially = async (items, fn, delay = 300) => {
+    const results = [];
+
+    for (const item of items) {
+        try {
+            // Wait for the current promise to resolve
+            const result = await fn(item);
+            results.push(result);
+        } catch (error) {
+            console.error(`Error processing item ${item}:`, error);
+            results.push(null); // Push null for failed items
+        }
+
+        // Delay before the next request
+        if (delay > 0 && items.indexOf(item) < items.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+
+    return results;
+};
+
 const MerchantDashboard = ({ merchantId: initialMerchantId }) => {
     const [isAuthenticated, setIsAuthenticated] = useState(true);
     const [merchants, setMerchants] = useState([]);
@@ -183,8 +212,8 @@ const MerchantDashboard = ({ merchantId: initialMerchantId }) => {
             setUpcomingReleases({});
 
             try {
-                // Fetch data for all currencies in parallel
-                await Promise.all(currencies.map(currency => fetchDataForCurrency(currency)));
+                // Process currencies one by one with a delay between each
+                await executeSequentially(currencies, fetchDataForCurrency, 500);
             } catch (err) {
                 setError('Failed to load data: ' + err.message);
                 if (err.message.includes('Authentication required')) {

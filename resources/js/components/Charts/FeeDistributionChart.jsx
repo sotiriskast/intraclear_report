@@ -1,20 +1,42 @@
 import React from 'react';
 import { ResponsiveContainer, BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, Cell, Legend } from 'recharts';
 
-// Colors for fee types - extremely bright, high contrast colors
+// Color palette with professional, distinguishable colors
 const TYPE_COLORS = {
-    'MDR': '#2979FF',         // Bright Blue
-    'Transaction': '#00E676', // Bright Green
-    'Payout': '#FFEA00',      // Bright Yellow
-    'Refund': '#FF3D00',      // Bright Orange/Red
-    'Declined': '#D500F9',    // Bright Purple
-    'Chargeback': '#00E5FF',  // Bright Cyan
-    'Setup': '#FF9100'        // Bright Orange
+    'MDR': '#3B82F6',         // Soft Blue
+    'Transaction': '#10B981', // Soft Green
+    'Payout': '#F59E0B',      // Soft Yellow/Orange
+    'Refund': '#EF4444',      // Soft Red
+    'Declined': '#6366F1',    // Soft Indigo
+    'Chargeback': '#06B6D4',  // Soft Cyan
+    'Setup': '#8B5CF6',       // Soft Purple
+    'Monthly Fee': '#64748B', // Soft Slate
+    'Visa High Risk Fee': '#FF6B6B', // Soft Coral
+    'Mastercard High Risk Fee': '#4ECDC4' // Soft Teal
 };
 
-// Get color for a fee type with safety check
+// Robust color retrieval function with fallback
 const getTypeColor = (feeType) => {
-    return TYPE_COLORS[feeType] || '#888888';
+    // Normalize the fee type to handle variations
+    const normalizedType = feeType
+        .replace(/\s+/g, ' ')
+        .replace('High Risk', 'High Risk Fee')
+        .trim();
+
+    // Check exact match first
+    if (TYPE_COLORS[normalizedType]) {
+        return TYPE_COLORS[normalizedType];
+    }
+
+    // Try partial match
+    const matchedKey = Object.keys(TYPE_COLORS).find(key =>
+        normalizedType.includes(key)
+    );
+
+    // Return matched color or default grey
+    return matchedKey
+        ? TYPE_COLORS[matchedKey]
+        : '#888888';
 };
 
 const FeeDistributionChart = ({ feeHistory = [] }) => {
@@ -103,10 +125,15 @@ const FeeDistributionChart = ({ feeHistory = [] }) => {
 
         const maxValue = Math.max(...data.map(item => item.value));
         // Round up to a clean number
-        if (maxValue <= 1000) return [0, 1000];
-        if (maxValue <= 2000) return [0, 2000];
-        if (maxValue <= 5000) return [0, 5000];
-        return [0, Math.ceil(maxValue / 1000) * 1000];
+        const roundUpToSignificant = (value) => {
+            if (value <= 100) return 100;
+            if (value <= 250) return 250;
+            if (value <= 500) return 500;
+            if (value <= 1000) return 1000;
+            return Math.ceil(value / 1000) * 1000;
+        };
+
+        return [0, roundUpToSignificant(maxValue)];
     };
 
     // Format X-axis ticks

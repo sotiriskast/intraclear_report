@@ -1,20 +1,42 @@
 import React from 'react';
 import { ResponsiveContainer, ComposedChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 
-// Colors for fee types - extremely bright, high contrast colors
+// Color palette with professional, distinguishable colors
 const TYPE_COLORS = {
-    'MDR': '#2979FF',         // Bright Blue
-    'Transaction': '#00E676', // Bright Green
-    'Payout': '#FFEA00',      // Bright Yellow
-    'Refund': '#FF3D00',      // Bright Orange/Red
-    'Declined': '#D500F9',    // Bright Purple
-    'Chargeback': '#00E5FF',  // Bright Cyan
-    'Setup': '#FF9100'        // Bright Orange
+    'MDR': '#3B82F6',         // Soft Blue
+    'Transaction': '#10B981', // Soft Green
+    'Payout': '#F59E0B',      // Soft Yellow/Orange
+    'Refund': '#EF4444',      // Soft Red
+    'Declined': '#6366F1',    // Soft Indigo
+    'Chargeback': '#06B6D4',  // Soft Cyan
+    'Setup': '#8B5CF6',       // Soft Purple
+    'Monthly Fee': '#64748B', // Soft Slate
+    'Visa High Risk Fee': '#FF6B6B', // Soft Coral
+    'Mastercard High Risk Fee': '#4ECDC4' // Soft Teal
 };
 
-// Get color for a fee type with safety check
+// Robust color retrieval function with fallback
 const getTypeColor = (feeType) => {
-    return TYPE_COLORS[feeType] || '#888888';
+    // Normalize the fee type to handle variations
+    const normalizedType = feeType
+        .replace(/\s+/g, ' ')
+        .replace('High Risk', 'High Risk Fee')
+        .trim();
+
+    // Check exact match first
+    if (TYPE_COLORS[normalizedType]) {
+        return TYPE_COLORS[normalizedType];
+    }
+
+    // Try partial match
+    const matchedKey = Object.keys(TYPE_COLORS).find(key =>
+        normalizedType.includes(key)
+    );
+
+    // Return matched color or default grey
+    return matchedKey
+        ? TYPE_COLORS[matchedKey]
+        : '#888888';
 };
 
 const FeeHistoryChart = ({ feeHistory = [] }) => {
@@ -65,61 +87,41 @@ const FeeHistoryChart = ({ feeHistory = [] }) => {
         return result;
     });
 
-    // Find max value for each axis to set scales
-    const getMaxMDRValue = () => {
-        let max = 0;
+    // Find max value for MDR and other fees
+    const calculateAxisScales = () => {
+        let maxMDR = 0;
+        let maxOtherFees = 0;
+
         formattedData.forEach(month => {
-            if ('MDR' in month && month.MDR > max) {
-                max = month.MDR;
+            // Calculate MDR max
+            if ('MDR' in month) {
+                maxMDR = Math.max(maxMDR, month.MDR);
             }
+
+            // Calculate other fees max
+            const otherFeeTypes = feeTypes.filter(type => type !== 'MDR');
+            const otherFeesTotal = otherFeeTypes.reduce((total, type) => {
+                return total + (month[type] || 0);
+            }, 0);
+            maxOtherFees = Math.max(maxOtherFees, otherFeesTotal);
         });
 
         // Round up to next significant number
-        if (max <= 1000) return 1000;
-        if (max <= 2000) return 2000;
-        if (max <= 5000) return 5000;
-        return Math.ceil(max / 1000) * 1000;
+        const roundUpToSignificant = (value) => {
+            if (value <= 100) return 100;
+            if (value <= 250) return 250;
+            if (value <= 500) return 500;
+            if (value <= 1000) return 1000;
+            return Math.ceil(value / 1000) * 1000;
+        };
+
+        return {
+            maxMDR: roundUpToSignificant(maxMDR),
+            maxOtherFees: roundUpToSignificant(maxOtherFees)
+        };
     };
 
-    const getMaxOtherFeeValue = () => {
-        let max = 0;
-        formattedData.forEach(month => {
-            feeTypes.forEach(type => {
-                if (type !== 'MDR' && type in month && month[type] > max) {
-                    max = month[type];
-                }
-            });
-        });
-
-        // Round up to next significant number
-        if (max <= 50) return 50;
-        if (max <= 100) return 100;
-        if (max <= 200) return 200;
-        if (max <= 500) return 500;
-        return Math.ceil(max / 100) * 100;
-    };
-
-    const maxMDRValue = getMaxMDRValue();
-    const maxOtherFeeValue = getMaxOtherFeeValue();
-
-    // Custom tooltip formatter
-    const formatTooltip = (value, name) => {
-        return [
-            `${value.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-            })} EUR`,
-            name
-        ];
-    };
-
-    // Custom tick formatter
-    const formatAxisTick = (value) => {
-        if (value >= 1000) {
-            return `${(value / 1000).toFixed(1)}K`;
-        }
-        return value;
-    };
+    const { maxMDR, maxOtherFees } = calculateAxisScales();
 
     // Custom tooltip component
     const CustomTooltip = ({ active, payload, label }) => {
@@ -164,7 +166,7 @@ const FeeHistoryChart = ({ feeHistory = [] }) => {
                     <ResponsiveContainer width="100%" height="100%">
                         <ComposedChart
                             data={formattedData}
-                            margin={{ top: 20, right: 65, left: 65, bottom: 40 }}
+                            margin={{ top: 20, right: 65, left: 65, bottom: 80 }}
                             barSize={18}
                             barGap={6}
                             barCategoryGap={16}
@@ -172,7 +174,7 @@ const FeeHistoryChart = ({ feeHistory = [] }) => {
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis
                                 dataKey="month"
-                                angle={-15}
+                                angle={-45}
                                 textAnchor="end"
                                 height={60}
                                 tick={{ fontSize: 13, fontWeight: 'bold' }}
@@ -183,8 +185,10 @@ const FeeHistoryChart = ({ feeHistory = [] }) => {
                             <YAxis
                                 yAxisId="left"
                                 orientation="left"
-                                domain={[0, maxMDRValue]}
-                                tickFormatter={formatAxisTick}
+                                domain={[0, maxMDR]}
+                                tickFormatter={(value) =>
+                                    value >= 1000 ? `${(value / 1000).toFixed(1)}K` : value
+                                }
                                 width={60}
                                 label={{
                                     value: 'MDR Fee',
@@ -199,8 +203,10 @@ const FeeHistoryChart = ({ feeHistory = [] }) => {
                             <YAxis
                                 yAxisId="right"
                                 orientation="right"
-                                domain={[0, maxOtherFeeValue]}
-                                tickFormatter={formatAxisTick}
+                                domain={[0, maxOtherFees]}
+                                tickFormatter={(value) =>
+                                    value >= 1000 ? `${(value / 1000).toFixed(1)}K` : value
+                                }
                                 width={60}
                                 label={{
                                     value: 'Other Fees',
@@ -216,8 +222,8 @@ const FeeHistoryChart = ({ feeHistory = [] }) => {
                                 wrapperStyle={{ zIndex: 1000 }}
                             />
                             <Legend
-                                verticalAlign="top"
-                                height={40}
+                                verticalAlign="bottom"
+                                height={60}
                                 wrapperStyle={{ fontSize: '13px', paddingTop: '10px' }}
                                 iconSize={12}
                                 iconType="circle"
