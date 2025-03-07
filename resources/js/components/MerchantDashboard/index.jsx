@@ -1,52 +1,24 @@
-import React, { useState, useEffect } from 'react';
-import MerchantSelector from '../MerchantSelector';
-import SummaryCards from '../SummaryCards';
-import DashboardTabs from '../DashboardTabs';
-import LoadingSpinner from '../Utilities/LoadingSpinner';
-import ErrorDisplay from '../Utilities/ErrorDisplay';
+import React, { useState, useEffect, Suspense } from 'react';
+import MerchantSelector from './MerchantSelector.jsx';
+import SummaryCards from './SummaryCards.jsx';
+import DashboardTabs from './DashboardTabs.jsx';
+import LoadingSpinner from './Utilities/LoadingSpinner';
+import ErrorDisplay from './Utilities/ErrorDisplay';
 import { fetchAPI } from '../../services/api';
-
-/**
- * Helper function to execute promises sequentially with delay
- * @param {Array} items - Items to process
- * @param {Function} fn - Function that returns a promise for each item
- * @param {number} delay - Delay in ms between each request
- * @returns {Promise<Array>} - Results from all promises
- */
-const executeSequentially = async (items, fn, delay = 300) => {
-    const results = [];
-
-    for (const item of items) {
-        try {
-            // Wait for the current promise to resolve
-            const result = await fn(item);
-            results.push(result);
-        } catch (error) {
-            console.error(`Error processing item ${item}:`, error);
-            results.push(null); // Push null for failed items
-        }
-
-        // Delay before the next request
-        if (delay > 0 && items.indexOf(item) < items.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, delay));
-        }
-    }
-
-    return results;
-};
 
 const MerchantDashboard = ({ merchantId: initialMerchantId }) => {
     const [isAuthenticated, setIsAuthenticated] = useState(true);
     const [merchants, setMerchants] = useState([]);
     const [currencies] = useState(['EUR', 'USD', 'GBP', 'JPY']);
-    const [selectedMerchant, setSelectedMerchant] = useState(initialMerchantId || null);
+    const [selectedMerchant, setSelectedMerchant] = useState(null);
     const [loading, setLoading] = useState(false);
     const [reserveData, setReserveData] = useState({
         pending_reserves: {},
+        total_reserved_eur: 0,
         statistics: { pending_count: 0, released_count: 0 }
     });
-    const [feeHistory, setFeeHistory] = useState({});
-    const [upcomingReleases, setUpcomingReleases] = useState({});
+    const [feeHistory, setFeeHistory] = useState([]);
+    const [upcomingReleases, setUpcomingReleases] = useState([]);
     const [error, setError] = useState(null);
 
     // Fetch merchants list
@@ -57,9 +29,8 @@ const MerchantDashboard = ({ merchantId: initialMerchantId }) => {
                 const result = await fetchAPI('/api/v1/dashboard/merchants');
                 if (result.success && result.data) {
                     setMerchants(result.data);
-                    if (!selectedMerchant && result.data.length > 0) {
-                        setSelectedMerchant(result.data[0].id);
-                    }
+                    // Always start with All Merchants
+                    setSelectedMerchant(null);
                 }
             } catch (err) {
                 setError('Failed to load merchants: ' + err.message);
@@ -71,151 +42,135 @@ const MerchantDashboard = ({ merchantId: initialMerchantId }) => {
         fetchMerchants();
     }, []);
 
-    // Fetch reserve, fee, and upcoming releases data for all currencies when merchant changes
+    // Fetch dashboard data
     useEffect(() => {
-        const fetchDataForCurrency = async (currency) => {
+        const fetchDashboardData = async () => {
+            setLoading(true);
+            setError(null);
+
+            // Reset all data
+            setReserveData({
+                pending_reserves: {},
+                total_reserved_eur: 0,
+                statistics: { pending_count: 0, released_count: 0 }
+            });
+            setFeeHistory([]);
+            setUpcomingReleases([]);
+
+
             try {
-                // Fetch rolling reserve summary
-                const reserveUrl = selectedMerchant
-                    ? `/api/v1/dashboard/rolling-reserve/summary?merchant_id=${selectedMerchant}&currency=${currency}`
-                    : `/api/v1/dashboard/rolling-reserve/summary?currency=${currency}`;
-                const reserveResponse = await fetchAPI(reserveUrl);
+                // Construct base query parameters
+                // When selectedMerchant is null, we want to fetch all merchants' data
+                const baseParams = selectedMerchant
+                    ? `merchant_id=${selectedMerchant}`
+                    : '';
 
-                if (reserveResponse.success) {
-                    setReserveData(prevData => ({
-                        ...prevData,
-                        pending_reserves: {
-                            ...prevData.pending_reserves,
-                            ...reserveResponse.data?.pending_reserves
-                        },
-                        statistics: {
-                            pending_count: (prevData.statistics?.pending_count || 0) + (reserveResponse.data?.statistics?.pending_count || 0),
-                            released_count: (prevData.statistics?.released_count || 0) + (reserveResponse.data?.statistics?.released_count || 0)
+                // Fetch ALL data concurrently
+                const [reservesResponse, feeResponse] = await Promise.all([
+                    fetchAPI(`/api/v1/dashboard/rolling-reserve?${baseParams}&status=pending`),
+                    fetchAPI(`/api/v1/dashboard/fees/history?${baseParams}`)
+                ]);
+
+                // Process Pending Reserves
+                if (reservesResponse.success) {
+                    const reserves = reservesResponse.data.reserves || [];
+                    const totalReservedEur = reservesResponse.data.total_reserved_eur || 0;
+
+                    // Aggregate pending reserves by currency
+                    const pendingReserves = {};
+                    const currencyCounts = {
+                        pending_count: 0,
+                        released_count: 0
+                    };
+
+                    reserves.forEach(reserve => {
+                        const currency = reserve.currency || reserve.original_currency;
+
+                        // Aggregate reserve amounts
+                        if (!pendingReserves[currency]) {
+                            pendingReserves[currency] = 0;
                         }
-                    }));
-                }
+                        pendingReserves[currency] += reserve.amount;
 
-                // Fetch upcoming releases
-                const releasesUrl = selectedMerchant
-                    ? `/api/v1/dashboard/rolling-reserve?merchant_id=${selectedMerchant}&status=pending&currency=${currency}`
-                    : `/api/v1/dashboard/rolling-reserve?status=pending&currency=${currency}`;
-                const releasesResponse = await fetchAPI(releasesUrl);
+                        // Count entries
+                        if (reserve.status === 'pending') {
+                            currencyCounts.pending_count++;
+                        } else if (reserve.status === 'released') {
+                            currencyCounts.released_count++;
+                        }
+                    });
 
-                if (releasesResponse.success) {
-                    // Process releases by month
-                    const releases = releasesResponse.data || [];
+                    // Update reserve data
+                    setReserveData({
+                        pending_reserves: pendingReserves,
+                        total_reserved_eur: totalReservedEur,
+                        statistics: {
+                            pending_count: currencyCounts.pending_count,
+                            released_count: currencyCounts.released_count
+                        }
+                    });
+
+                    // Process Upcoming Releases
                     const byMonth = {};
-
-                    releases.forEach(release => {
+                    reserves.forEach(release => {
                         const releaseDate = new Date(release.release.due_date);
-                        const key = `${releaseDate.getMonth()}-${releaseDate.getFullYear()}`;
+                        const monthKey = `${releaseDate.getMonth()}-${releaseDate.getFullYear()}`;
 
-                        if (!byMonth[key]) {
-                            byMonth[key] = {
+                        if (!byMonth[monthKey]) {
+                            byMonth[monthKey] = {
                                 month: releaseDate.toLocaleString('default', { month: 'short' }),
                                 year: releaseDate.getFullYear(),
-                                fullDate: releaseDate
+                                fullDate: releaseDate,
+                                EUR: 0,
+                                USD: 0,
+                                GBP: 0,
+                                JPY: 0
                             };
                         }
 
-                        // Store value by currency
-                        if (!byMonth[key][currency]) {
-                            byMonth[key][currency] = 0;
-                        }
-
-                        byMonth[key][currency] += release.amount;
+                        const currency = release.currency || release.original_currency || 'EUR';
+                        byMonth[monthKey][currency] += release.amount;
                     });
 
-                    const releasesByMonth = Object.values(byMonth)
+                    const sortedReleases = Object.values(byMonth)
                         .sort((a, b) => a.fullDate - b.fullDate)
                         .slice(0, 6);
 
-                    setUpcomingReleases(prevReleases => {
-                        // Merge with existing releases
-                        const mergedReleases = { ...prevReleases };
-
-                        // For each month in the new data
-                        releasesByMonth.forEach(monthData => {
-                            const monthKey = `${monthData.month}-${monthData.year}`;
-
-                            // If we don't have this month yet, add it
-                            if (!mergedReleases[monthKey]) {
-                                mergedReleases[monthKey] = {
-                                    month: monthData.month,
-                                    year: monthData.year,
-                                    fullDate: monthData.fullDate
-                                };
-                            }
-
-                            // Add the currency data
-                            mergedReleases[monthKey][currency] = monthData[currency];
-                        });
-
-                        return mergedReleases;
-                    });
+                    setUpcomingReleases(sortedReleases);
                 }
 
-                // Fetch fee history
-                const feeUrl = selectedMerchant
-                    ? `/api/v1/dashboard/fees/history?merchant_id=${selectedMerchant}`
-                    : `/api/v1/dashboard/fees/history`;
-                const feeResponse = await fetchAPI(feeUrl);
-
+                // Process Fee History
                 if (feeResponse.success) {
-                    // Process fee history by month
                     const fees = feeResponse.data || [];
                     const feesByMonth = {};
 
                     fees.forEach(fee => {
                         const feeDate = new Date(fee.applied_date);
-                        const key = `${feeDate.getMonth()}-${feeDate.getFullYear()}`;
+                        const monthKey = `${feeDate.getMonth()}-${feeDate.getFullYear()}`;
 
-                        if (!feesByMonth[key]) {
-                            feesByMonth[key] = {
+                        if (!feesByMonth[monthKey]) {
+                            feesByMonth[monthKey] = {
                                 month: feeDate.toLocaleString('default', { month: 'short' }),
                                 year: feeDate.getFullYear(),
                                 fullDate: feeDate
                             };
                         }
 
-                        // Create a key combining fee type and currency (always EUR)
                         const feeType = fee.fee_type || 'Unknown';
                         const feeKey = `${feeType}_EUR`;
 
-                        // Add to the appropriate fee type, using fee_amount_eur from the API
-                        feesByMonth[key][feeKey] = (feesByMonth[key][feeKey] || 0) + Number(fee.fee_amount_eur);
+                        feesByMonth[monthKey][feeKey] =
+                            (feesByMonth[monthKey][feeKey] || 0) + Number(fee.fee_amount_eur);
                     });
 
-                    const feeHistoryByMonth = Object.values(feesByMonth)
-                        .sort((a, b) => a.fullDate - b.fullDate) // Sort chronologically
+                    const sortedFees = Object.values(feesByMonth)
+                        .sort((a, b) => a.fullDate - b.fullDate)
                         .slice(0, 6);
 
-                    setFeeHistory(feeHistoryByMonth);
-
+                    setFeeHistory(sortedFees);
                 }
             } catch (err) {
-                console.error(`Error fetching data for ${currency}:`, err);
-                // Don't set error state for individual currency failures
-            }
-        };
-
-        const fetchAllData = async () => {
-            setLoading(true);
-            setError(null);
-
-            // Reset data stores for new merchant
-            setReserveData({
-                pending_reserves: {},
-                statistics: { pending_count: 0, released_count: 0 }
-            });
-            setFeeHistory({});
-            setUpcomingReleases({});
-
-            try {
-                // Process currencies one by one with a delay between each
-                await executeSequentially(currencies, fetchDataForCurrency, 500);
-            } catch (err) {
-                setError('Failed to load data: ' + err.message);
+                setError('Failed to load dashboard data: ' + err.message);
                 if (err.message.includes('Authentication required')) {
                     setIsAuthenticated(false);
                     window.location.href = '/login';
@@ -225,22 +180,15 @@ const MerchantDashboard = ({ merchantId: initialMerchantId }) => {
             }
         };
 
-        // Fetch data regardless of merchant selection (both for specific merchant or all merchants)
-        fetchAllData();
-    }, [selectedMerchant, currencies]);
-
-    // Process upcoming releases and fee history from object to array format for charts
-    const processedUpcomingReleases = Object.values(upcomingReleases)
-        .sort((a, b) => new Date(a.fullDate) - new Date(b.fullDate));
-
-    const processedFeeHistory = Object.values(feeHistory)
-        .sort((a, b) => new Date(a.fullDate) - new Date(b.fullDate));
+        // Always attempt to fetch data, even when selectedMerchant is null
+        fetchDashboardData();
+    }, [selectedMerchant]);
 
     if (!isAuthenticated) {
         return <ErrorDisplay message="Please log in to view the dashboard" redirectUrl="/login" />;
     }
 
-    if (loading && !selectedMerchant && merchants.length === 0) {
+    if (loading && merchants.length === 0) {
         return <LoadingSpinner message="Loading merchants..." />;
     }
 
@@ -269,20 +217,20 @@ const MerchantDashboard = ({ merchantId: initialMerchantId }) => {
                     <LoadingSpinner message="Loading dashboard data..." />
                 </div>
             ) : (
-                <>
+                <Suspense fallback={<LoadingSpinner message="Loading components..." />}>
                     <SummaryCards
-                        upcomingReleases={processedUpcomingReleases}
+                        upcomingReleases={upcomingReleases}
                         reserveData={reserveData}
-                        feeHistory={processedFeeHistory}
+                        feeHistory={feeHistory}
                         currencies={currencies}
                     />
                     <DashboardTabs
                         reserveData={reserveData}
-                        feeHistory={processedFeeHistory}
-                        upcomingReleases={processedUpcomingReleases}
+                        feeHistory={feeHistory}
+                        upcomingReleases={upcomingReleases}
                         currencies={currencies}
                     />
-                </>
+                </Suspense>
             )}
         </div>
     );

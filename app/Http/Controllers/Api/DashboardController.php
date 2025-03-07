@@ -112,8 +112,8 @@ class DashboardController extends Controller
      */
     private function getAggregatedReserveSummary(string $currency): array
     {
-        // Base query for rolling reserve entries with currency filtering
         $baseQuery = DB::table('rolling_reserve_entries')
+            // Only filter by currency if it's not 'all'
             ->when($currency !== 'all', function ($query) use ($currency) {
                 return $query->where('original_currency', $currency);
             });
@@ -127,6 +127,11 @@ class DashboardController extends Controller
             ->keyBy('original_currency')
             ->map(fn($item) => round($item->total_amount / 100, 2))
             ->toArray();
+
+        // Get total reserved amount in EUR
+        $totalReservedEur = (clone $baseQuery)
+                ->where('status', 'pending')
+                ->sum('reserve_amount_eur') / 100;
 
         // Get pending reserves in EUR
         $pendingReservesEur = (clone $baseQuery)
@@ -160,6 +165,7 @@ class DashboardController extends Controller
         return [
             'pending_reserves' => $pendingReserves,
             'pending_reserves_eur' => $pendingReservesEur,
+            'total_reserved_eur' => round($totalReservedEur, 2), // Add this line
             'pending_count' => $counts['pending'] ?? 0,
             'released_count' => $counts['released'] ?? 0,
             'upcoming_releases' => $upcomingReleases,
@@ -196,6 +202,11 @@ class DashboardController extends Controller
                 ->when($currency, fn($q) => $q->where('original_currency', $currency))
                 ->orderBy('created_at', 'desc');
 
+            // Calculate total reserved amount in EUR
+            $totalReservedEur = (clone $query)
+                    ->where('status', 'pending')
+                    ->sum('reserve_amount_eur') / 100;
+
             // Use pagination for better performance on large datasets
             $reserves = $request->input('paginate', true)
                 ? $query->paginate($perPage)
@@ -222,10 +233,14 @@ class DashboardController extends Controller
                 ];
             });
 
-            return $this->successResponse($formattedReserves);
+            return $this->successResponse([
+                'reserves' => $formattedReserves,
+                'total_reserved_eur' => round($totalReservedEur, 2)
+            ]);
         } catch (\Exception $e) {
             return $this->errorResponse('Failed to load rolling reserves', $e);
         }
+
     }
 
     /**
