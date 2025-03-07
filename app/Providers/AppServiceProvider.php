@@ -10,6 +10,7 @@ use App\Repositories\ChargebackTrackingRepository;
 use App\Repositories\FeeRepository;
 use App\Repositories\Interfaces\ChargebackTrackingRepositoryInterface;
 use App\Repositories\Interfaces\TransactionRepositoryInterface;
+use App\Repositories\MerchantRepository;
 use App\Repositories\RoleRepository;
 use App\Repositories\RollingReserveRepository;
 use App\Repositories\TransactionRepository;
@@ -152,6 +153,7 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(FeeFrequencyHandler::class),
                 $app->make(CustomFeeHandler::class),
                 $app->make(StandardFeeHandler::class),
+                $app->make(MerchantRepository::class),
             );
         });
 

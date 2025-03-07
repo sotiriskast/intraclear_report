@@ -2,6 +2,7 @@
 
 use App\Api\V1\Controllers\Auth\MerchantApiAuthController;
 use App\Api\V1\Controllers\RollingReserve\RollingReserveController;
+use App\Http\Controllers\Api\DashboardController;
 
 /*
 |--------------------------------------------------------------------------
@@ -28,7 +29,6 @@ Route::prefix('v1')->group(function () {
     ])->group(function () {
         Route::post('/auth/logout', [MerchantApiAuthController::class, 'logout'])
             ->name('api.v1.auth.logout');
-
         Route::prefix('rolling-reserves')->group(function () {
             Route::get('/', [RollingReserveController::class, 'index'])
                 ->middleware('throttle:60,1')
@@ -44,5 +44,12 @@ Route::prefix('v1')->group(function () {
                 ->name('api.v1.rolling-reserves.show');
         });
     });
+    Route::prefix('/dashboard')->middleware(['dashboard-api'])->group(function () {
+        Route::get('/merchants', [DashboardController::class, 'getMerchants']);
+        Route::get('/rolling-reserve/summary', [DashboardController::class, 'getReserveSummary']);
+        Route::get('/rolling-reserve', [DashboardController::class, 'getRollingReserves']);
+        Route::get('/fees/history', [DashboardController::class, 'getFeeHistory']);
+    });
 });
+
 
