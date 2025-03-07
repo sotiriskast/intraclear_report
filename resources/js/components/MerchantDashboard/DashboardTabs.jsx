@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import RollingReserveChart from './Charts/RollingReserveChart';
-import ReserveDistributionPie from './Charts/ReserveDistributionPie';
-import UpcomingReleasesChart from './Charts/UpcomingReleasesChart';
-import FeeHistoryChart from './Charts/FeeHistoryChart';
-import FeeDistributionChart from './Charts/FeeDistributionChart';
+import RollingReserveChart from './Charts/RollingReserveChart.jsx';
+import ReserveDistributionPie from './Charts/ReserveDistributionPie.jsx';
+import UpcomingReleasesChart from './Charts/UpcomingReleasesChart.jsx';
+import FeeHistoryChart from './Charts/FeeHistoryChart.jsx';
+import FeeDistributionChart from './Charts/FeeDistributionChart.jsx';
 
 const DashboardTabs = ({ reserveData = {}, feeHistory = [], upcomingReleases = [], currencies = [] }) => {
     const [activeTab, setActiveTab] = useState('reserves');
