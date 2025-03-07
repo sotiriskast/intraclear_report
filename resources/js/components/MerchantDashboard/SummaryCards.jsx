@@ -1,7 +1,17 @@
 import React from 'react';
 
+const formatCurrency = (amount, currency = 'EUR') => {
+    return new Intl.NumberFormat('de-DE', {
+        style: 'currency',
+        currency: currency,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }).format(amount);
+};
+
 const SummaryCards = ({ upcomingReleases = [], reserveData = {}, feeHistory = [], currencies = [] }) => {
     // Get the next releases for each currency
+
     const getNextReleasesByCurrency = () => {
         const result = {};
 
@@ -18,13 +28,13 @@ const SummaryCards = ({ upcomingReleases = [], reserveData = {}, feeHistory = []
         currencies.forEach(currency => {
             if (nextRelease && nextRelease[currency]) {
                 result[currency] = {
-                    amount: Number(nextRelease[currency]).toFixed(2),
+                    amount: formatCurrency(nextRelease[currency], currency),
                     month: nextRelease.month,
                     year: nextRelease.year
                 };
             } else {
                 result[currency] = {
-                    amount: '0.00',
+                    amount: formatCurrency(0, currency),
                     month: null,
                     year: null
                 };
@@ -40,10 +50,10 @@ const SummaryCards = ({ upcomingReleases = [], reserveData = {}, feeHistory = []
 
         currencies.forEach(currency => {
             const amount = reserveData?.pending_reserves?.[currency]
-                ? Number(reserveData.pending_reserves[currency]).toFixed(2)
-                : '0.00';
+                ? reserveData.pending_reserves[currency]
+                : 0;
 
-            result[currency] = amount;
+            result[currency] = formatCurrency(amount, currency);
         });
 
         return result;
@@ -52,11 +62,29 @@ const SummaryCards = ({ upcomingReleases = [], reserveData = {}, feeHistory = []
     // Safely access statistics with optional chaining and default values
     const totalReleased = reserveData?.statistics?.released_count || 0;
 
+    // Safely get total reserved amount in EUR
+    const totalReservedEur = (() => {
+        // First, try to get total_reserved_eur from reserveData
+        if (reserveData && 'total_reserved_eur' in reserveData) {
+            return formatCurrency(reserveData.total_reserved_eur);
+        }
+
+        // If not found, calculate from pending_reserves if possible
+        if (reserveData?.pending_reserves) {
+            const total = Object.values(reserveData.pending_reserves)
+                .reduce((sum, amount) => sum + Number(amount || 0), 0);
+            return formatCurrency(total);
+        }
+
+        // Fallback to 0
+        return formatCurrency(0);
+    })();
+
     // Calculate total fees in EUR (fees are already in EUR in the data)
     const calculateTotalFees = () => {
-        if (!feeHistory || feeHistory.length === 0) return 0;
+        if (!feeHistory || feeHistory.length === 0) return formatCurrency(0);
 
-        return feeHistory.reduce((total, month) => {
+        const total = feeHistory.reduce((total, month) => {
             if (!month) return total;
 
             const monthTotal = Object.entries(month)
@@ -70,6 +98,8 @@ const SummaryCards = ({ upcomingReleases = [], reserveData = {}, feeHistory = []
 
             return total + monthTotal;
         }, 0);
+
+        return formatCurrency(total);
     };
 
     const nextReleases = getNextReleasesByCurrency();
@@ -106,6 +136,12 @@ const SummaryCards = ({ upcomingReleases = [], reserveData = {}, feeHistory = []
                             <span className="text-base font-bold">{amount}</span>
                         </div>
                     ))}
+                    <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-200">
+                        <span className="text-sm font-medium text-gray-700">Total EUR:</span>
+                        <span className="text-base font-bold text-blue-600">
+                            {totalReservedEur}
+                        </span>
+                    </div>
                 </div>
                 <p className="text-xs text-gray-500 mt-2">Currently held in reserve</p>
             </div>
@@ -120,7 +156,7 @@ const SummaryCards = ({ upcomingReleases = [], reserveData = {}, feeHistory = []
             {/* Total Fees Collected Card */}
             <div className="bg-white shadow rounded-lg p-4">
                 <h3 className="text-sm font-medium text-gray-500">Total Fees Collected</h3>
-                <p className="text-2xl font-bold text-gray-900">{`${calculateTotalFees().toFixed(2)} EUR`}</p>
+                <p className="text-2xl font-bold text-gray-900">{calculateTotalFees()}</p>
                 <p className="text-xs text-gray-500">For all fee types</p>
             </div>
         </div>
