@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\SettlementController;
 use App\Livewire\FeeTypeManagement;
+use App\Livewire\MerchantAnalytics;
 use App\Livewire\MerchantFeeManagement;
 use App\Livewire\MerchantManagement;
 use App\Livewire\MerchantSettingsManagement;
@@ -34,6 +35,7 @@ Route::middleware(['auth:web', 'verified',
         Route::middleware(['can:manage-merchants'])->group(function () {
             Route::get('/merchants', MerchantManagement::class)->name('admin.merchants');
             Route::get('/merchants/{merchant}/view', MerchantView::class)->name('merchant.view');
+            Route::get('/merchants/{merchant}/analytics', MerchantAnalytics::class)->name('merchant.analytics');
         });
 
         // Merchant Fees and Settings

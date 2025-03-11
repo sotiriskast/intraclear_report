@@ -29,7 +29,10 @@ class MerchantView extends Component
     {
         return redirect()->route('merchant.api', $this->merchant->id);
     }
-
+    public function viewAnalytics()
+    {
+        return redirect()->route('merchant.analytics', $this->merchant->id);
+    }
     public function render()
     {
         return view('livewire.merchant-view', [
