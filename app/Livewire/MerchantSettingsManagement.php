@@ -7,10 +7,12 @@ use App\Repositories\MerchantRepository;
 use App\Repositories\MerchantSettingRepository;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Lazy;
+use Livewire\Attributes\Title;
 use Livewire\Component;
 use Livewire\WithPagination;
 #[Lazy]
-#[Layout('layouts.app')]
+#[Layout('layouts.app', ['header' => 'Merchant Settings'])]
+#[Title('Merchant Settings')]
 class MerchantSettingsManagement extends Component
 {
     use WithPagination;

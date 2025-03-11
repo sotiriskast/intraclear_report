@@ -1,4 +1,10 @@
 <div>
+    @section('header')
+        <h2 class="text-2xl font-bold text-gray-800">
+            {{ __('Merchant Details') }}
+        </h2>
+    @endsection
+
     <x-slot name="header">
         <h2 class="text-2xl font-bold text-gray-800">
             {{ __('Merchant Details') }}
@@ -12,15 +18,17 @@
                     <h3 class="text-lg leading-6 font-medium text-gray-900">
                         {{ $merchant->name }}
                     </h3>
-                    <x-button wire:click="manageFees" class="bg-blue-600 hover:bg-blue-700">
-                        {{ __('Manage Fees') }}
-                    </x-button>
-                    <!-- Add this button -->
-                    @can('manage-merchants-api-keys')
-                        <x-button wire:click="manageApi" class="bg-indigo-600 hover:bg-indigo-700">
-                            {{ __('Manage API') }}
+                    <div class="flex gap-2">
+                        <x-button wire:click="manageFees" class="bg-blue-600 hover:bg-blue-700">
+                            {{ __('Manage Fees') }}
                         </x-button>
-                    @endcan
+                        <!-- Add this button -->
+                        @can('manage-merchants-api-keys')
+                            <x-button wire:click="manageApi" class="bg-indigo-600 hover:bg-indigo-700">
+                                {{ __('Manage API') }}
+                            </x-button>
+                        @endcan
+                    </div>
                 </div>
                 <div class="border-t border-gray-200">
                     <dl>

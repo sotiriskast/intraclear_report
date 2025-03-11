@@ -108,9 +108,17 @@
                 </button>
 
                 <!-- Page Title -->
-                @if (isset($header))
+                @hasSection('header')
                     <div class="ml-4">
-                        {{ $header }}
+                        @yield('header')
+                    </div>
+                @else
+                    <div class="ml-4">
+                        @if (isset($header) && is_string($header))
+                            <h2 class="text-2xl font-bold text-gray-800">{{ $header }}</h2>
+                        @elseif (isset($header))
+                            {{ $header }}
+                        @endif
                     </div>
                 @endif
             </div>
