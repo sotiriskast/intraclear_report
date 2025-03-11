@@ -287,19 +287,19 @@ const UpcomingReleasesChart = ({ upcomingReleases = [], currencies = [] }) => {
             </div>
 
             {viewMode === 'separateCharts' ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4" style={{ minHeight: '350px', height: 'auto' }}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6" style={{ minHeight: '400px', height: 'auto' }}>
                     {currencies.map(currency => {
                         // Only show charts for currencies that have data
                         const hasData = weeklyData.some(week => week[currency] > 0);
                         if (!hasData) return null;
 
                         return (
-                            <div key={currency} style={{ height: '175px', minHeight: '175px' }}>
-                                <h4 className="font-bold text-center mb-1">{currency}</h4>
-                                <ResponsiveContainer width="100%" height="90%">
+                            <div key={currency} className="bg-gray-50 p-4 rounded-md border" style={{ height: '250px', minHeight: '250px' }}>
+                                <h4 className="font-bold text-center mb-2">{currency}</h4>
+                                <ResponsiveContainer width="100%" height="85%">
                                     <BarChart
                                         data={weeklyData}
-                                        margin={{ top: 5, right: 20, left: 20, bottom: 25 }}
+                                        margin={{ top: 10, right: 10, left: 10, bottom: 20 }}
                                     >
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} />
                                         <XAxis
