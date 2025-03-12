@@ -44,12 +44,6 @@
                                 <option value="lastyear">Last Year</option>
                                 <option value="alltime">All Time</option>
                             </select>
-                            <select wire:model.live="currency" wire:loading.attr="disabled" class="rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
-                                <option value="all">All Currencies</option>
-                                @foreach($currencies as $currencyCode)
-                                    <option value="{{ $currencyCode }}">{{ $currencyCode }}</option>
-                                @endforeach
-                            </select>
                         </div>
                     </div>
                 </div>
