@@ -46,18 +46,30 @@ class ZipExportService
             }
 
             foreach ($filePaths as $filePath) {
-                if (Storage::exists($filePath)) {
-                    // Get merchant details from the path structure
-                    preg_match('/reports\/[\d-]+\/([^\/]+)\//', $filePath, $matches);
-                    $merchantFolder = $matches[1] ?? 'unknown_merchant';
+                try {
+                    if (Storage::exists($filePath)) {
+                        // Get merchant details from the path structure
+                        preg_match('/reports\/[\d-]+\/([^\/]+)\//', $filePath, $matches);
+                        $merchantFolder = $matches[1] ?? 'unknown_merchant';
 
-                    // Add file to ZIP maintaining the merchant folder structure
-                    $filename = basename($filePath);
-                    $pathInZip = "{$merchantFolder}/{$filename}";
+                        // Add file to ZIP maintaining the merchant folder structure
+                        $filename = basename($filePath);
+                        $pathInZip = "{$merchantFolder}/{$filename}";
 
-                    // Get file content from Storage and add to ZIP
-                    $content = Storage::get($filePath);
-                    $zip->addFromString($pathInZip, $content);
+                        // Get file content from Storage and add to ZIP
+                        $content = Storage::get($filePath);
+                        $zip->addFromString($pathInZip, $content);
+                    } else {
+                        $this->logger->log('warning', 'File not found, skipping', [
+                            'file_path' => $filePath
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    $this->logger->log('warning', 'Error checking file existence, skipping', [
+                        'file_path' => $filePath,
+                        'error' => $e->getMessage()
+                    ]);
+                    // Continue with next file instead of failing the entire process
                 }
             }
 

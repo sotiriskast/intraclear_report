@@ -31,7 +31,7 @@ class MerchantManagement extends Component
                     ->orWhere('email', 'like', '%'.$this->search.'%')
                     ->orWhere('phone', 'like', '%'.$this->search.'%');
             });
-        })->latest()->paginate(15);
+        })->orderBy('account_id','desc')->paginate(15);
 
         return view('livewire.merchant-management', [
             'merchants' => $merchants,
