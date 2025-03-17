@@ -45,15 +45,15 @@
                             @forelse ($archives as $archive)
                                 <tr>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {{ \Carbon\Carbon::parse($archive->start_date)->format('Y-m-d') }}
+                                        {{ \Carbon\Carbon::parse($archive->start_date)->format('d/m/Y') }}
                                         to
-                                        {{ \Carbon\Carbon::parse($archive->end_date)->format('Y-m-d') }}
+                                        {{ \Carbon\Carbon::parse($archive->end_date)->format('d/m/Y') }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         {{ $archive->report_count }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {{ \Carbon\Carbon::parse($archive->created_at)->format('Y-m-d H:i:s') }}
+                                        {{ \Carbon\Carbon::parse($archive->created_at)->format('d/m/Y H:i:s') }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
 

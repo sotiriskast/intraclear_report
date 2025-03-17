@@ -18,14 +18,12 @@ class TruncateMariaDBTables extends Command
 
     /**
      * The console command description.
-     *
      * @var string
      */
     protected $description = 'Truncate settlement and related tables while preserving user and permission data';
 
     /**
      * Tables that should never be truncated
-     *
      * @var array
      */
     protected $protectedTables = [
