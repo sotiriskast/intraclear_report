@@ -27,6 +27,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'ability' => \Laravel\Sanctum\Http\Middleware\CheckAbilities::class,
             'abilities' => \Laravel\Sanctum\Http\Middleware\CheckAbilities::class,
             'merchant.active' => \App\Http\Middleware\EnsureMerchantIsActive::class,
+            '2fa.required' => \App\Http\Middleware\ForceTwoFactor::class,
 
         ]);
         // Add API middleware group

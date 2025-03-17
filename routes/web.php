@@ -13,7 +13,7 @@ use App\Livewire\UserManagement;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Redis;
 
-Route::middleware(['auth:web', 'verified',
+Route::middleware(['auth:web', 'verified', '2fa.required'
 ])->group(function () {
     Route::get('/', function () {
         return redirect('/admin/dashboard');
