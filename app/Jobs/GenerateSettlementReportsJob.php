@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use Carbon\Carbon;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -51,10 +52,11 @@ class GenerateSettlementReportsJob implements ShouldQueue
         $command = 'intraclear:settlement-generate';
         $parameters = [];
         if ($this->startDate) {
-            $parameters['--start-date'] = $this->startDate;
+            $parameters['--start-date'] = Carbon::parse($this->startDate)->format('Y-m-d');
         }
+
         if ($this->endDate) {
-            $parameters['--end-date'] = $this->endDate;
+            $parameters['--end-date'] = Carbon::parse($this->endDate)->format('Y-m-d');
         }
 
         if ($this->merchantId) {
