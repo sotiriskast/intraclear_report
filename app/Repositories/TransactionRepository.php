@@ -137,18 +137,18 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
             $transactionType = mb_strtoupper($transaction->transaction_type);
             $transactionStatus = mb_strtoupper($transaction->transaction_status);
 
-            if ($transactionType === 'CHARGEBACK') {
+            if (mb_strtoupper($transactionType) === 'CHARGEBACK') {
                 // Create ChargebackData and process it
                 $chargebackData = ChargebackData::fromTransaction($transaction, $rate);
                 $this->chargebackProcessor->processChargeback($transaction->account_id, $chargebackData);
 
                 // Handle chargebacks based on status
-                if ($transactionStatus === 'PROCESSING') {
+                if (mb_strtoupper($transactionStatus) === 'PROCESSING') {
                     $totals[$currency]['processing_chargeback_count']++;
                     $totals[$currency]['processing_chargeback_amount'] += $amount;
                     $totals[$currency]['processing_chargeback_amount_eur'] += ($amount * $effectiveRate);
 
-                } elseif ($transactionStatus === 'APPROVED') {
+                } elseif (mb_strtoupper($transactionStatus) === 'APPROVED') {
                     $totals[$currency]['approved_chargeback_amount'] += $amount;
                     $totals[$currency]['approved_chargeback_amount_eur'] += ($amount * $effectiveRate);
                 } else {
@@ -157,14 +157,14 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
                 }
                 $totals[$currency]['total_chargeback_count']++;
             }
-            elseif ($transactionType === 'PAYOUT') {
+            elseif (mb_strtoupper($transactionType) === 'PAYOUT') {
                 // Handle chargebacks based on status
-                if ($transactionStatus === 'PROCESSING') {
+                if (mb_strtoupper($transactionStatus) === 'PROCESSING') {
                     $totals[$currency]['processing_payout_count']++;
                     $totals[$currency]['processing_payout_amount'] += $amount;
                     $totals[$currency]['processing_payout_amount_eur'] += ($amount * $effectiveRate);
 
-                } elseif ($transactionStatus === 'APPROVED') {
+                } elseif (mb_strtoupper($transactionStatus) === 'APPROVED') {
                     $totals[$currency]['approved_payout_amount'] += $amount;
                     $totals[$currency]['approved_payout_amount_eur'] += ($amount * $effectiveRate);
                 } else {
@@ -173,15 +173,15 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
                 }
                 $totals[$currency]['total_payout_count']++;
             }
-            elseif ($transactionType === 'SALE' && $transactionStatus === 'APPROVED') {
+            elseif (mb_strtoupper($transactionType) === 'SALE' && mb_strtoupper($transactionStatus) === 'APPROVED') {
                 $totals[$currency]['total_sales'] += $amount;
                 $totals[$currency]['total_sales_eur'] += ($amount * $effectiveRate);
                 $totals[$currency]['transaction_sales_count']++;
-            } elseif ($transactionType === 'SALE' && $transactionStatus === 'DECLINED') {
+            } elseif (mb_strtoupper($transactionType) === 'SALE' && mb_strtoupper($transactionStatus) === 'DECLINED') {
                 $totals[$currency]['total_declined_sales'] += $amount;
                 $totals[$currency]['total_declined_sales_eur'] += ($amount * $effectiveRate);
                 $totals[$currency]['transaction_declined_count']++;
-            } elseif (in_array($transactionType, ['REFUND', 'PARTIAL REFUND'])) {
+            } elseif (in_array(mb_strtoupper($transactionType), ['REFUND', 'PARTIAL REFUND'])) {
                 $totals[$currency]['total_refunds'] += $amount;
                 $totals[$currency]['total_refunds_eur'] += ($amount * $effectiveRate);
                 $totals[$currency]['transaction_refunds_count']++;
