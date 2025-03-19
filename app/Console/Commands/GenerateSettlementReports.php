@@ -52,7 +52,8 @@ class GenerateSettlementReports extends Command
         private readonly ExcelExportService $excelService,
         private readonly ZipExportService   $zipService,
         private readonly DynamicLogger      $logger,
-    ) {
+    )
+    {
         parent::__construct();
 
     }
@@ -77,11 +78,12 @@ class GenerateSettlementReports extends Command
                     ->endOfWeek(CarbonInterface::SUNDAY)
                     ->format('Y-m-d');
 
+            $endDate = date('Y-m-d 23:59:59', strtotime($endDate));
             $dateRange = ['start' => $startDate, 'end' => $endDate];
 
             // Get merchants to process with both internal ID and account_id
             $merchants = $this->getMerchants();
-            $generatedFiles=[];
+            $generatedFiles = [];
             foreach ($merchants as $merchant) {
                 $this->info("Processing merchant ID: {$merchant->account_id}");
 
@@ -115,7 +117,7 @@ class GenerateSettlementReports extends Command
                     }
                 }
 
-                if (! empty($settlementData['data'])) {
+                if (!empty($settlementData['data'])) {
                     $filePath = $this->excelService->generateReport(
                         $merchant->account_id,
                         $settlementData,
@@ -143,9 +145,9 @@ class GenerateSettlementReports extends Command
                     return;
                 }
                 $this->info('Sending emails to: ' . $recipients->join(', '));
-                $this->logger->log('info',"Sending emails to" . $recipients->join(', '));
+                $this->logger->log('info', "Sending emails to" . $recipients->join(', '));
                 // Send email to each recipient
-                $recipients->each(function($recipient) use ($zipPath, $dateRange, $generatedFiles) {
+                $recipients->each(function ($recipient) use ($zipPath, $dateRange, $generatedFiles) {
                     try {
                         Mail::to($recipient)->send(new SettlementReportGenerated(
                             zipPath: $zipPath,
@@ -156,7 +158,7 @@ class GenerateSettlementReports extends Command
                         $this->info("Email sent successfully to: {$recipient}");
                     } catch (\Throwable $e) {
 
-                        $this->logger->log('error',"Settlement report email failed", [
+                        $this->logger->log('error', "Settlement report email failed", [
                             'recipient' => $recipient,
                             'error' => $e->getMessage(),
                             'zipPath' => $zipPath
@@ -178,6 +180,7 @@ class GenerateSettlementReports extends Command
             throw $e;
         }
     }
+
     /**
      * Store reference to generated ZIP archive
      *
@@ -217,6 +220,7 @@ class GenerateSettlementReports extends Command
 
         return $query->get()->toArray();
     }
+
     /**
      * Get merchant's shop data for the given date range
      *
@@ -269,6 +273,7 @@ class GenerateSettlementReports extends Command
             ->pluck('currency')
             ->toArray();
     }
+
     /**
      * Store reference to generated report in database
      *
