@@ -24,7 +24,7 @@ readonly class TransactionData
     public const TOTAL_PAYOUT_COUNT = 'total_payout_count';
     public const PROCESSING_PAYOUT_AMOUNT = 'total_payout_amount';
     public const PROCESSING_PAYOUT_AMOUNT_EUR = 'total_payout_amount_eur';
-    public const PROCESSING_PAYOUT_COUNT = 'total_payout_count';
+    public const PROCESSING_PAYOUT_COUNT = 'processing_payout_count';
     public const APPROVED_PAYOUT_AMOUNT = 'approved_payout_amount';
     public const APPROVED_PAYOUT_AMOUNT_EUR = 'approved_payout_amount_eur';
     public const DECLINED_PAYOUT_AMOUNT = 'declined_payout_amount';
