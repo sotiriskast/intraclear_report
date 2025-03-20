@@ -15,7 +15,7 @@ use Illuminate\Support\Collection;
 readonly class SummaryCalculator
 {
     /** @var float Default FX rate percentage */
-    private const FX_RATE = 0.02;
+    private const FX_RATE = 0.01;
     /**
      * Calculate total processing amount in original currency
      *
