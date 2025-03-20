@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\DB;
  */
 readonly class TransactionRepository implements TransactionRepositoryInterface
 {
-    private const RATE = 1.005;
+    private const float RATE = 1.01;
 
     /**
      * Create a new TransactionRepository instance.
@@ -246,7 +246,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
             ->select([
                 'from_currency',
                 'brand',
-                'sell as rate',
+                'buy as rate',
                 DB::raw('DATE(added) as rate_date'),
             ])
             ->whereIn('from_currency', $currencies)

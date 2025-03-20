@@ -128,7 +128,7 @@ readonly class SummaryCalculator
     public function getGrossAmount(array $data): float
     {
         return $this->getTotalProcessingAmount($data) +
-            $this->getReleasedReserve($data) +
+            $this->getReleasedReserve($data) -
             $this->getTotalRefund($data) -
             $this->getTotalFees($data) -
             $this->getTotalChargebacks($data) -
@@ -143,7 +143,7 @@ readonly class SummaryCalculator
     public function getGrossAmountEur(array $data): float
     {
         return $this->getTotalProcessingAmountEur($data) +
-            $this->getReleasedReserveEur($data) +
+            $this->getReleasedReserveEur($data) -
             $this->getTotalRefundEur($data) -
             $this->getTotalFeesEur($data) -
             $this->getTotalChargebacksEur($data) -
