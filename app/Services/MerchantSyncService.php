@@ -123,6 +123,7 @@ class MerchantSyncService
                 'visa_high_risk_fee_applied' => 15000,
                 'setup_fee' => 50000,
                 'setup_fee_charged' => false,
+                'exchange_rate_markup'=>1.01
             ];
 
             $this->merchantSettingRepository->create($defaultSettings);
