@@ -174,6 +174,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
                 'processing_payout_amount_eur' => 0,
                 'approved_payout_amount' => 0,
                 'approved_payout_amount_eur' => 0,
+                'declined_payout_count' => 0,
                 'declined_payout_amount' => 0,
                 'declined_payout_amount_eur' => 0,
                 'currency' => $currency,
