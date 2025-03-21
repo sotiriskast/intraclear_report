@@ -98,7 +98,8 @@ readonly class SettlementService
             // Calculate transaction totals
             $totals = $this->transactionRepository->calculateTransactionTotals(
                 $transactions,
-                $exchangeRates
+                $exchangeRates,
+                $merchantId
             );
             $this->logger->log('info', 'Calculated transaction totals', [
                 'merchant_id' => $merchantId,

@@ -25,6 +25,7 @@ class MerchantSetting extends Model
         'setup_fee',
         'setup_fee_charged',
         'declined_fee',
+        'exchange_rate_markup',
     ];
 
     protected $casts = [

@@ -81,6 +81,8 @@
                                 <p>Transaction Fee: {{ number_format($setting->transaction_fee / 100, 2) }} EUR</p>
                                 <p>Declined Fee: {{ number_format($setting->transaction_fee / 100, 2) }} EUR</p>
                                 <p>Setup Fee: {{ number_format($setting->setup_fee / 100, 2) }} EUR</p>
+                                <p>Exchange Rate Markup: {{ $this->formatExchangeRate($setting->exchange_rate_markup) }}</p>
+
                             </div>
                         </div>
                     @endforeach
@@ -99,6 +101,9 @@
                             </th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 MDR
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                FX Markup
                             </th>
                                 <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Actions
@@ -122,6 +127,11 @@
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="text-sm text-gray-900">
                                         {{ number_format($setting->mdr_percentage / 100, 2) }}%
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm text-gray-900">
+                                        {{ $this->formatExchangeRate($setting->exchange_rate_markup) }}
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -281,7 +291,14 @@
                                      wire:model="setupFee"/>
                             <x-input-error for="setupFee" class="mt-2"/>
                         </div>
-
+                        <!-- Exchange Rate Markup -->
+                        <div>
+                            <x-label for="exchangeRateMarkup" value="{{ __('Exchange Rate Markup') }}"/>
+                            <x-input id="exchangeRateMarkup" type="number" step="0.001" class="mt-1 block w-full"
+                                     wire:model="exchangeRateMarkup"/>
+                            <p class="mt-1 text-xs text-gray-500">Default: 1.01 (1% markup). Determines the exchange rate adjustment for non-EUR transactions.</p>
+                            <x-input-error for="exchangeRateMarkup" class="mt-2"/>
+                        </div>
                         <div>
                             <label class="flex items-center">
                                 <x-checkbox wire:model="setupFeeCharged"/>
@@ -289,6 +306,7 @@
                             </label>
                             <x-input-error for="setupFeeCharged" class="mt-2"/>
                         </div>
+
                     </div>
                 </x-slot>
 

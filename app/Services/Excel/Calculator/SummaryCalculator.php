@@ -75,8 +75,7 @@ readonly class SummaryCalculator
      */
     public function getTotalChargebacksEur(array $data): float
     {
-        return ($data['total_refunds_amount_eur'] ?? 0) +
-            ($data['total_processing_chargeback_amount_eur'] ?? 0) +
+        return ($data['total_processing_chargeback_amount_eur'] ?? 0) +
             ($data['total_approved_chargeback_amount_eur'] ?? 0);
     }
     /**

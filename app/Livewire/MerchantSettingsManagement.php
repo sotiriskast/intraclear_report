@@ -52,10 +52,12 @@ class MerchantSettingsManagement extends Component
     public $showCreateModal = false;
 
     public $editSettingId = null;
+    public $exchangeRateMarkup = 1.01;
 
     private $merchantSettingRepository;
 
     private $merchantRepository;
+
 
     protected function rules()
     {
@@ -63,7 +65,7 @@ class MerchantSettingsManagement extends Component
             'selectedMerchantId' => 'required',
             'rollingReservePercentage' => 'required|integer|min:0|max:10000',
             'holdingPeriodDays' => 'required|integer|min:1|max:365',
-            'mdrPercentage' => 'required|integer|min:0|max:10000',
+            'mdrPercentage' => 'required|numeric|min:0|max:10000',
             'transactionFee' => 'required|numeric|min:0',
             'payoutFee' => 'required|numeric|min:0',
             'refundFee' => 'required|numeric|min:0',
@@ -74,6 +76,7 @@ class MerchantSettingsManagement extends Component
             'visaHighRiskFee' => 'required|numeric|min:0',
             'setupFee' => 'required|numeric|min:0',
             'setupFeeCharged' => 'boolean',
+            'exchangeRateMarkup' => 'required|numeric',
         ];
     }
 
@@ -124,6 +127,8 @@ class MerchantSettingsManagement extends Component
             'visa_high_risk_fee_applied' => round($this->visaHighRiskFee * 100),
             'setup_fee' => round($this->setupFee * 100),
             'setup_fee_charged' => $this->setupFeeCharged,
+            'exchange_rate_markup' => $this->exchangeRateMarkup,
+
         ]);
 
         session()->flash('message', 'Merchant settings created successfully.');
@@ -150,6 +155,7 @@ class MerchantSettingsManagement extends Component
         $this->setupFee = $setting->setup_fee / 100;
         $this->setupFeeCharged = $setting->setup_fee_charged;
         $this->showCreateModal = true;
+        $this->exchangeRateMarkup = $setting->exchange_rate_markup;
     }
 
     public function update()
@@ -171,6 +177,8 @@ class MerchantSettingsManagement extends Component
             'visa_high_risk_fee_applied' => round($this->visaHighRiskFee * 100),
             'setup_fee' => round($this->setupFee * 100),
             'setup_fee_charged' => $this->setupFeeCharged,
+            'exchange_rate_markup' => $this->exchangeRateMarkup,
+
         ]);
 
         session()->flash('message', 'Merchant settings updated successfully.');
@@ -203,9 +211,21 @@ class MerchantSettingsManagement extends Component
             'active',
             'showCreateModal',
             'editSettingId',
+            'exchangeRateMarkup',
+
         ]);
     }
-
+    /**
+     * Format exchange rate to remove trailing zeros
+     *
+     * @param float $value The exchange rate value
+     * @return string Formatted exchange rate
+     */
+    public function formatExchangeRate($value)
+    {
+        // This removes trailing zeros
+        return rtrim(rtrim(number_format($value, 4, '.', ''), '0'), '.');
+    }
     public function render()
     {
         $merchantSettings = $this->merchantSettingRepository->getAll(['merchant']);
