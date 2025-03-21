@@ -466,8 +466,8 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
 
         // Determine rate type based on transaction type
         $rateType = match ($transactionType) {
-            'REFUND', 'PARTIAL REFUND', 'CHARGEBACK' => 'sell',
-            default => 'buy' // Default to buy rate for other transaction types
+            'REFUND', 'PARTIAL REFUND', 'CHARGEBACK' => 'buy',
+            default => 'sell' // Default to buy rate for other transaction types
         };
 
         $key = $rateType . "{$transaction->currency}_{$cardType}_{$date}";
