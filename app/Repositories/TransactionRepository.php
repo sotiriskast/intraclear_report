@@ -60,8 +60,8 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
                 'transactions.shop_id',
                 'transactions.customer_id',
                 'transactions.added',
-                'transactions.amount',
-                'transactions.currency',
+                'transactions.bank_amount as amount',
+                'transactions.bank_currency as currency',
                 'transactions.transaction_type',
                 'transactions.transaction_status',
 
