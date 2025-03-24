@@ -4,6 +4,7 @@ namespace App\Services\Settlement\Fee;
 
 use App\Repositories\Interfaces\FeeRepositoryInterface;
 use App\Repositories\MerchantRepository;
+use App\Repositories\MerchantSettingRepository;
 use App\Services\DynamicLogger;
 use App\Services\Settlement\Fee\interfaces\CustomFeeHandlerInterface;
 use App\Services\Settlement\Fee\interfaces\FeeFrequencyHandlerInterface;
@@ -32,6 +33,8 @@ readonly class FeeService
         private CustomFeeHandlerInterface $customFeeHandler,
         private StandardFeeHandlerInterface $standardFeeHandler,
         private MerchantRepository $merchantRepository,
+        private MerchantSettingRepository $merchantSettingRepository, // Add this dependency
+
     ) {}
 
     /**
@@ -54,6 +57,7 @@ readonly class FeeService
     {
         try {
             $calculatedFees = [];
+            $actualMerchantId = $this->merchantRepository->getMerchantIdByAccountId($merchantId);
 
             // Process standard fees (e.g., MDR, transaction fees, etc.)
             $standardFees = $this->standardFeeHandler->getStandardFees($merchantId, $transactionData);
@@ -67,6 +71,13 @@ readonly class FeeService
                 )) {
                     $calculatedFees[] = $fee;
                     $this->logFeeApplication($this->merchantRepository->getMerchantIdByAccountId($merchantId), $fee, $transactionData, $fee['fee_amount'], $dateRange);
+                    if ($fee['fee_type'] === 'Setup Fee' || $fee['fee_type_id'] === 4) {
+                        $this->updateSetupFeeStatus($actualMerchantId);
+                        $this->logger->log('info', 'Setup fee applied and marked as charged', [
+                            'merchant_id' => $actualMerchantId,
+                            'merchant_account_id' => $merchantId,
+                        ]);
+                    }
                 }
             }
 
@@ -101,6 +112,47 @@ readonly class FeeService
                 'error' => $e->getMessage(),
             ]);
             throw $e;
+        }
+    }
+    /**
+     * Update the merchant settings to mark setup fee as charged
+     *
+     * @param int $merchantId ID of the merchant
+     */
+    private function updateSetupFeeStatus(int $merchantId): void
+    {
+        try {
+            $merchantSettings = $this->merchantSettingRepository->findByMerchant($merchantId);
+
+            // Log the before state
+            $this->logger->log('info', 'Before update setup fee status', [
+                'merchant_id' => $merchantId,
+                'current_setup_fee_charged' => $merchantSettings->setup_fee_charged ?? 'not found',
+            ]);
+
+            if ($merchantSettings) {
+                // Update via repository to ensure correct persistence
+                $result = $this->merchantSettingRepository->update($merchantSettings->id, [
+                    'setup_fee_charged' => true
+                ]);
+
+                // Log the update result
+                $this->logger->log('info', 'Setup fee status updated', [
+                    'merchant_id' => $merchantId,
+                    'new_setup_fee_charged' => $result->setup_fee_charged,
+                    'update_successful' => $result->wasChanged('setup_fee_charged'),
+                ]);
+            } else {
+                $this->logger->log('warning', 'Cannot update setup fee status - merchant settings not found', [
+                    'merchant_id' => $merchantId,
+                ]);
+            }
+        } catch (\Exception $e) {
+            $this->logger->log('error', 'Failed to update setup fee status', [
+                'merchant_id' => $merchantId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
         }
     }
 
