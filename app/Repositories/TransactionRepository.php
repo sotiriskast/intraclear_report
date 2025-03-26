@@ -376,7 +376,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
         foreach ($totals as $currency => &$currencyData) {
             if ($currencyData['total_sales'] > 0) {
                 // First, calculate the raw exchange rate from totals
-                $rawExchangeRate = $currencyData['total_sales'] / $currencyData['total_sales_eur'];
+                $rawExchangeRate = ($currencyData['total_sales']-$currencyData['total_refunds']??0 )/ $currencyData['total_sales_eur'];
 
                 // Store the raw exchange rate (for reference)
                 $currencyData['raw_exchange_rate'] = $rawExchangeRate;
@@ -505,8 +505,8 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
 
         // Determine rate type based on transaction type
         $rateType = match ($transactionType) {
-            'REFUND', 'PARTIAL REFUND', 'CHARGEBACK' => 'BUY_',
-            default => 'SELL_'
+            'REFUND', 'PARTIAL REFUND', 'CHARGEBACK' => 'SELL_',
+            default => 'BUY_'
         };
 
         $key = $rateType . "{$transaction->currency}_{$cardType}_{$date}";
