@@ -34,7 +34,10 @@ class TruncateMariaDBTables extends Command
         'fee_types',
         'role_has_permissions',
         'model_has_permissions',
-        'model_has_roles'
+        'model_has_roles',
+        'merchant_settings',
+        'merchant_fees',
+        'merchants'
     ];
 
     /**

@@ -61,6 +61,8 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
                 'transactions.customer_id',
                 'transactions.added',
                 'transactions.bank_amount as amount',
+//                DB::raw('transactions.bank_amount / 100 as amount'), // Convert from cents directly in SQL
+
                 'transactions.bank_currency as currency',
                 'transactions.transaction_type',
                 'transactions.transaction_status',
@@ -114,13 +116,14 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
         foreach ($transactions as $transaction) {
             $currency = $transaction->currency;
             $rate = $this->getDailyExchangeRate($transaction, $exchangeRates);
-            $amount = $transaction->amount / 100; // Convert from cents
+//            $amount = $transaction->amount / 100; // Convert from cents
+            $amountInStandardUnits = bcmul($transaction->amount, '0.01', 8);
 
             // Use the base rate without markup for per-transaction calculations
             $this->processTransactionByType(
                 $totals[$currency],
                 $transaction,
-                $amount,
+                $amountInStandardUnits,
                 $rate, // Using base rate without markup
                 $rate
             );
@@ -144,36 +147,36 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
 
         foreach ($uniqueCurrencies as $currency) {
             $totals[$currency] = [
-                'total_sales' => 0,
-                'total_sales_eur' => 0,
-                'transaction_sales_count' => 0,
-                'total_declined_sales' => 0,
-                'total_declined_sales_eur' => 0,
-                'transaction_declined_count' => 0,
-                'total_refunds' => 0,
-                'total_refunds_eur' => 0,
-                'transaction_refunds_count' => 0,
-                'total_chargeback_count' => 0,
-                'processing_chargeback_count' => 0,
-                'processing_chargeback_amount' => 0,
-                'processing_chargeback_amount_eur' => 0,
-                'approved_chargeback_count' => 0,
-                'approved_chargeback_amount' => 0,
-                'declined_chargeback_count' => 0,
-                'declined_chargeback_amount' => 0,
-                'total_payout_count' => 0,
-                'total_payout_amount' => 0,
-                'total_payout_amount_eur' => 0,
-                'processing_payout_count' => 0,
-                'processing_payout_amount' => 0,
-                'processing_payout_amount_eur' => 0,
-                'approved_payout_amount' => 0,
-                'approved_payout_amount_eur' => 0,
-                'declined_payout_count' => 0,
-                'declined_payout_amount' => 0,
-                'declined_payout_amount_eur' => 0,
+                'total_sales' => '0',
+                'total_sales_eur' => '0',
+                'transaction_sales_count' => '0',
+                'total_declined_sales' => '0',
+                'total_declined_sales_eur' => '0',
+                'transaction_declined_count' => '0',
+                'total_refunds' => '0',
+                'total_refunds_eur' => '0',
+                'transaction_refunds_count' => '0',
+                'total_chargeback_count' => '0',
+                'processing_chargeback_count' => '0',
+                'processing_chargeback_amount' => '0',
+                'processing_chargeback_amount_eur' => '0',
+                'approved_chargeback_count' => '0',
+                'approved_chargeback_amount' => '0',
+                'declined_chargeback_count' => '0',
+                'declined_chargeback_amount' => '0',
+                'total_payout_count' => '0',
+                'total_payout_amount' => '0',
+                'total_payout_amount_eur' => '0',
+                'processing_payout_count' => '0',
+                'processing_payout_amount' => '0',
+                'processing_payout_amount_eur' => '0',
+                'approved_payout_amount' => '0',
+                'approved_payout_amount_eur' => '0',
+                'declined_payout_count' => '0',
+                'declined_payout_amount' => '0',
+                'declined_payout_amount_eur' => '0',
                 'currency' => $currency,
-                'exchange_rate' => 0,
+                'exchange_rate' => '0',
             ];
         }
 
@@ -267,16 +270,25 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
         // Handle chargebacks based on status
         if ($transactionStatus === 'PROCESSING') {
             $currencyTotals['processing_chargeback_count']++;
-            $currencyTotals['processing_chargeback_amount'] += $amount;
-            $currencyTotals['processing_chargeback_amount_eur'] += ($amount * $effectiveRate);
+            $currencyTotals['processing_chargeback_amount'] = bcadd($currencyTotals['processing_chargeback_amount'], $amount, 8);
+            // Use BCMath for multiplication
+            $amountInEur = bcmul($amount, (string)$effectiveRate, 8);
+            // Use BCMath for addition
+            $currencyTotals['processing_chargeback_amount_eur'] = bcadd($currencyTotals['processing_chargeback_amount_eur'], $amountInEur, 8);
         } elseif ($transactionStatus === 'APPROVED') {
             $currencyTotals['approved_chargeback_count']++;
-            $currencyTotals['approved_chargeback_amount'] += $amount;
-            $currencyTotals['approved_chargeback_amount_eur'] += ($amount * $effectiveRate);
+            $currencyTotals['approved_chargeback_amount'] = bcadd($currencyTotals['approved_chargeback_amount'], $amount, 8);
+            // Use BCMath for multiplication
+            $amountInEur = bcmul($amount, (string)$effectiveRate, 8);
+            // Use BCMath for addition
+            $currencyTotals['approved_chargeback_amount_eur'] = bcadd($currencyTotals['approved_chargeback_amount_eur'], $amountInEur, 8);
         } else {
             $currencyTotals['declined_chargeback_count']++;
-            $currencyTotals['declined_chargeback_amount'] += $amount;
-            $currencyTotals['declined_chargeback_amount_eur'] += ($amount * $effectiveRate);
+            $currencyTotals['declined_chargeback_amount'] = bcadd($currencyTotals['declined_chargeback_amount'], $amount, 8);
+            // Use BCMath for multiplication
+            $amountInEur = bcmul($amount, (string)$effectiveRate, 8);
+            // Use BCMath for addition
+            $currencyTotals['declined_chargeback_amount_eur'] = bcadd($currencyTotals['declined_chargeback_amount_eur'], $amountInEur, 8);
         }
 
         $currencyTotals['total_chargeback_count']++;
@@ -298,9 +310,12 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
     ): void
     {
         if ($transactionStatus === 'PROCESSING') {
+            $currencyTotals['processing_payout_amount'] = bcadd($currencyTotals['processing_payout_amount'], $amount, 8);
+            // Use BCMath for multiplication
+            $amountInEur = bcmul($amount, (string)$effectiveRate, 8);
+            // Use BCMath for addition
+            $currencyTotals['processing_payout_amount_eur'] = bcadd($currencyTotals['processing_payout_amount_eur'], $amountInEur, 8);
             $currencyTotals['processing_payout_count']++;
-            $currencyTotals['processing_payout_amount'] += $amount;
-            $currencyTotals['processing_payout_amount_eur'] += ($amount * $effectiveRate);
         } elseif ($transactionStatus === 'APPROVED') {
             $currencyTotals['approved_payout_count']++;
             $currencyTotals['approved_payout_amount'] += $amount;
@@ -332,8 +347,11 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
     ): void
     {
         if ($transactionStatus === 'APPROVED') {
-            $currencyTotals['total_sales'] += $amount;
-            $currencyTotals['total_sales_eur'] += ($amount * $effectiveRate);
+            $currencyTotals['total_sales'] = bcadd($currencyTotals['total_sales'], $amount, 8);
+            // Use BCMath for multiplication
+            $amountInEur = bcmul($amount, (string)$effectiveRate, 8);
+            // Use BCMath for addition
+            $currencyTotals['total_sales_eur'] = bcadd($currencyTotals['total_sales_eur'], $amountInEur, 8);
             $currencyTotals['transaction_sales_count']++;
         } elseif ($transactionStatus === 'DECLINED') {
             $currencyTotals['total_declined_sales'] += $amount;
@@ -355,8 +373,13 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
         float $effectiveRate
     ): void
     {
-        $currencyTotals['total_refunds'] += $amount;
-        $currencyTotals['total_refunds_eur'] += ($amount * $effectiveRate);
+
+        $currencyTotals['total_refunds'] = bcadd($currencyTotals['total_refunds'], $amount, 8);
+        // Use BCMath for multiplication
+        $amountInEur = bcmul($amount, (string)$effectiveRate, 8);
+        // Use BCMath for addition
+        $currencyTotals['total_refunds_eur'] = bcadd($currencyTotals['total_refunds_eur'], $amountInEur, 8);
+
         $currencyTotals['transaction_refunds_count']++;
     }
 
@@ -374,8 +397,10 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
         foreach ($totals as $currency => &$currencyData) {
             if ($currencyData['total_sales'] > 0) {
                 // First, calculate the raw exchange rate from totals
-                $rawExchangeRate = ($currencyData['total_sales'] - $currencyData['total_refunds'] ?? 0) / round($currencyData['total_sales_eur'] - $currencyData['total_refunds_eur'] ?? 0, 0);
-
+                // First, calculate the raw exchange rate from totals
+                $total_sales = bcsub($currencyData['total_sales'], ($currencyData['total_refunds'] ?? 0), 8);
+                $total_sales_eur = bcsub($currencyData['total_sales_eur'], ($currencyData['total_refunds_eur'] ?? 0), 8);
+                $rawExchangeRate = bcdiv($total_sales, $total_sales_eur, 8);
                 // Store the raw exchange rate (for reference)
                 $currencyData['raw_exchange_rate'] = $rawExchangeRate;
 
@@ -406,19 +431,20 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
     private function recalculateEurValues(array &$currencyData): void
     {
         // Use the final exchange rate to recalculate all EUR values
-        $exchangeRate = $currencyData['exchange_rate'];
+        $exchangeRate = (string)$currencyData['exchange_rate'];
 
         // Recalculate all EUR values based on their original currency values
-        $currencyData['total_sales_eur'] = $currencyData['total_sales'] / $exchangeRate;
-        $currencyData['total_declined_sales_eur'] = $currencyData['total_declined_sales'] / $exchangeRate;
-        $currencyData['total_refunds_eur'] = $currencyData['total_refunds'] / $exchangeRate;
-        $currencyData['processing_chargeback_amount_eur'] = $currencyData['processing_chargeback_amount'] / $exchangeRate;
-        $currencyData['approved_chargeback_amount_eur'] = $currencyData['approved_chargeback_amount'] / $exchangeRate;
-        $currencyData['declined_chargeback_amount_eur'] = $currencyData['declined_chargeback_amount'] / $exchangeRate;
-        $currencyData['total_payout_amount_eur'] = $currencyData['total_payout_amount'] / $exchangeRate;
-        $currencyData['processing_payout_amount_eur'] = $currencyData['processing_payout_amount'] / $exchangeRate;
-        $currencyData['approved_payout_amount_eur'] = $currencyData['approved_payout_amount'] / $exchangeRate;
-        $currencyData['declined_payout_amount_eur'] = $currencyData['declined_payout_amount'] / $exchangeRate;
+        $currencyData['total_sales_eur'] = bcdiv($currencyData['total_sales'], $exchangeRate, 8);
+        $currencyData['total_declined_sales_eur'] = bcdiv($currencyData['total_declined_sales'], $exchangeRate, 8);
+        $currencyData['total_refunds_eur'] = bcdiv($currencyData['total_refunds'], $exchangeRate, 8);
+        $currencyData['processing_chargeback_amount_eur'] = bcdiv($currencyData['processing_chargeback_amount'], $exchangeRate, 8);
+        $currencyData['approved_chargeback_amount_eur'] = bcdiv($currencyData['approved_chargeback_amount'], $exchangeRate, 8);
+        $currencyData['declined_chargeback_amount_eur'] = bcdiv($currencyData['declined_chargeback_amount'], $exchangeRate, 8);
+        $currencyData['total_payout_amount_eur'] = bcdiv($currencyData['total_payout_amount'], $exchangeRate, 8);
+        $currencyData['processing_payout_amount_eur'] = bcdiv($currencyData['processing_payout_amount'], $exchangeRate, 8);
+        $currencyData['approved_payout_amount_eur'] = bcdiv($currencyData['approved_payout_amount'], $exchangeRate, 8);
+        $currencyData['declined_payout_amount_eur'] = bcdiv($currencyData['declined_payout_amount'], $exchangeRate, 8);
+
     }
 
     /**
