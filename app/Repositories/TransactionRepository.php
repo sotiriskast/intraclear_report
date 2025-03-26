@@ -110,9 +110,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
     public function calculateTransactionTotals(mixed $transactions, array $exchangeRates, int $merchantId): array
     {
         // Get the merchant-specific exchange rate markup but don't apply it yet
-        $rateMarkup = $this->getMerchantExchangeRateMarkup($merchantId);
         $totals = $this->initializeTotalsArray($transactions);
-
         foreach ($transactions as $transaction) {
             $currency = $transaction->currency;
             $rate = $this->getDailyExchangeRate($transaction, $exchangeRates);
@@ -376,7 +374,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
         foreach ($totals as $currency => &$currencyData) {
             if ($currencyData['total_sales'] > 0) {
                 // First, calculate the raw exchange rate from totals
-                $rawExchangeRate = ($currencyData['total_sales'] - $currencyData['total_refunds'] ?? 0) / ($currencyData['total_sales_eur'] - $currencyData['total_refunds_eur'] ?? 0);
+                $rawExchangeRate = ($currencyData['total_sales'] - $currencyData['total_refunds'] ?? 0) / round($currencyData['total_sales_eur'] - $currencyData['total_refunds_eur'] ?? 0, 0);
 
                 // Store the raw exchange rate (for reference)
                 $currencyData['raw_exchange_rate'] = $rawExchangeRate;
