@@ -75,7 +75,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
             ->whereBetween('transactions.added', [$dateRange['start'], $dateRange['end']]);
 
         if ($currency) {
-            $query->where('transactions.currency', $currency);
+            $query->where('transactions.bank_currency', $currency);
         }
         $results = $query->get();
         $this->logger->log('info', 'Found transactions', ['count' => $results->count()]);
@@ -109,9 +109,8 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
      */
     public function calculateTransactionTotals(mixed $transactions, array $exchangeRates, int $merchantId): array
     {
-        // Get the merchant-specific exchange rate markup
+        // Get the merchant-specific exchange rate markup but don't apply it yet
         $rateMarkup = $this->getMerchantExchangeRateMarkup($merchantId);
-
         $totals = $this->initializeTotalsArray($transactions);
 
         foreach ($transactions as $transaction) {
@@ -119,19 +118,17 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
             $rate = $this->getDailyExchangeRate($transaction, $exchangeRates);
             $amount = $transaction->amount / 100; // Convert from cents
 
-            // Apply the merchant-specific rate markup instead of the constant
-            $effectiveRate = $currency === 'EUR' ? $rate : ($rate * $rateMarkup);
-
+            // Use the base rate without markup for per-transaction calculations
             $this->processTransactionByType(
                 $totals[$currency],
                 $transaction,
                 $amount,
-                $effectiveRate,
+                $rate, // Using base rate without markup
                 $rate
             );
         }
-
-        $this->calculateFinalExchangeRates($totals, $exchangeRates);
+        // Pass the markup to calculateFinalExchangeRates
+        $this->calculateFinalExchangeRates($totals, $exchangeRates, $merchantId);
 
         return $totals;
     }
@@ -371,18 +368,59 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
      * @param array $totals
      * @param array $exchangeRates
      */
-    private function calculateFinalExchangeRates(array &$totals, array $exchangeRates): void
+    private function calculateFinalExchangeRates(array &$totals, array $exchangeRates, int $merchantId): void
     {
+        // Get the merchant-specific exchange rate markup
+        $rateMarkup = $this->getMerchantExchangeRateMarkup($merchantId);
+
         foreach ($totals as $currency => &$currencyData) {
             if ($currencyData['total_sales'] > 0) {
-                $currencyData['exchange_rate'] = $currencyData['total_sales_eur'] / $currencyData['total_sales'];
+                // First, calculate the raw exchange rate from totals
+                $rawExchangeRate = $currencyData['total_sales'] / $currencyData['total_sales_eur'];
+
+                // Store the raw exchange rate (for reference)
+                $currencyData['raw_exchange_rate'] = $rawExchangeRate;
+
+                if ($currency !== 'EUR') {
+                    // Apply the markup to the final exchange rate and round to 2 decimal places
+                    $currencyData['exchange_rate'] = round($rawExchangeRate * $rateMarkup, 2);
+
+                    // Recalculate all EUR values using the final exchange rate
+                    $this->recalculateEurValues($currencyData);
+                } else {
+                    // For EUR, keep the exchange rate as 1.0
+                    $currencyData['exchange_rate'] = 1.0;
+                }
             } else {
                 // If there are no sales, use the last known exchange rate or default to 1.0 for EUR
-                $currencyData['exchange_rate'] = $currency === 'EUR'
-                    ? 1.0
-                    : $this->getLastKnownExchangeRate($currency, $exchangeRates);
+                $baseRate = $currency === 'EUR' ? 1.0 : $this->getLastKnownExchangeRate($currency, $exchangeRates);
+                $currencyData['raw_exchange_rate'] = $baseRate;
+
+                if ($currency !== 'EUR') {
+                    $currencyData['exchange_rate'] = round($baseRate * $rateMarkup, 2);
+                } else {
+                    $currencyData['exchange_rate'] = 1.0;
+                }
             }
         }
+    }
+
+    private function recalculateEurValues(array &$currencyData): void
+    {
+        // Use the final exchange rate to recalculate all EUR values
+        $exchangeRate = $currencyData['exchange_rate'];
+
+        // Recalculate all EUR values based on their original currency values
+        $currencyData['total_sales_eur'] = $currencyData['total_sales'] / $exchangeRate;
+        $currencyData['total_declined_sales_eur'] = $currencyData['total_declined_sales'] / $exchangeRate;
+        $currencyData['total_refunds_eur'] = $currencyData['total_refunds'] / $exchangeRate;
+        $currencyData['processing_chargeback_amount_eur'] = $currencyData['processing_chargeback_amount'] / $exchangeRate;
+        $currencyData['approved_chargeback_amount_eur'] = $currencyData['approved_chargeback_amount'] / $exchangeRate;
+        $currencyData['declined_chargeback_amount_eur'] = $currencyData['declined_chargeback_amount'] / $exchangeRate;
+        $currencyData['total_payout_amount_eur'] = $currencyData['total_payout_amount'] / $exchangeRate;
+        $currencyData['processing_payout_amount_eur'] = $currencyData['processing_payout_amount'] / $exchangeRate;
+        $currencyData['approved_payout_amount_eur'] = $currencyData['approved_payout_amount'] / $exchangeRate;
+        $currencyData['declined_payout_amount_eur'] = $currencyData['declined_payout_amount'] / $exchangeRate;
     }
 
     /**
@@ -433,14 +471,15 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
             ->whereIn('from_currency', $currencies)
             ->where('to_currency', 'EUR')
             ->whereBetween('added', [$dateRange['start'], $dateRange['end']])
+            ->orderBy('brand', 'desc')
             ->get();
 
         // Create a lookup array with currency_brand_date as key
         $rateMap = [];
         foreach ($rates as $rate) {
             $key = $rate->from_currency . '_' . strtoupper($rate->brand) . '_' . $rate->rate_date;
-            $rateMap['buy' . $key] = $rate->buy;
-            $rateMap['sell' . $key] = $rate->sell;
+            $rateMap['BUY_' . $key] = $rate->buy;
+            $rateMap['SELL_' . $key] = $rate->sell;
         }
 
         return $rateMap;
@@ -466,8 +505,8 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
 
         // Determine rate type based on transaction type
         $rateType = match ($transactionType) {
-            'REFUND', 'PARTIAL REFUND', 'CHARGEBACK' => 'buy',
-            default => 'sell' // Default to buy rate for other transaction types
+            'REFUND', 'PARTIAL REFUND', 'CHARGEBACK' => 'BUY_',
+            default => 'SELL_'
         };
 
         $key = $rateType . "{$transaction->currency}_{$cardType}_{$date}";
