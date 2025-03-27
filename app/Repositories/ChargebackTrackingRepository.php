@@ -124,34 +124,40 @@ readonly class ChargebackTrackingRepository implements ChargebackTrackingReposit
         $settledDate ??= Carbon::now();
 
         DB::transaction(function () use ($chargebackIds, $settledDate) {
-            ChargebackTracking::whereIn('id', $chargebackIds['approved'])
-                ->update([
-                    'settled' => true,
-                    'settled_date' => $settledDate,
+            // First, check if the keys exist before using them
+            if (isset($chargebackIds['approved']) && !empty($chargebackIds['approved'])) {
+                ChargebackTracking::whereIn('id', $chargebackIds['approved'])
+                    ->update([
+                        'settled' => true,
+                        'settled_date' => $settledDate,
+                        'current_status' => 'APPROVED',
+                        'status_changed_date' => Carbon::now(),
+                    ]);
+
+                $this->logger->log('info', 'Chargebacks marked as settled', [
+                    'chargeback_count' => count($chargebackIds['approved']),
+                    'settled_date' => $settledDate->toDateTimeString(),
                     'current_status' => 'APPROVED',
                     'status_changed_date' => Carbon::now(),
-
                 ]);
-            $this->logger->log('info', 'Chargebacks marked as settled', [
-                'chargeback_count' => count($chargebackIds['approved']),
-                'settled_date' => $settledDate->toDateTimeString(),
-                'current_status' => 'APPROVED',
-                'status_changed_date' => Carbon::now(),
-            ]);
-            ChargebackTracking::whereIn('id', $chargebackIds['declined'])
-                ->update([
-                    'settled' => true,
-                    'settled_date' => $settledDate,
+            }
+
+            if (isset($chargebackIds['declined']) && !empty($chargebackIds['declined'])) {
+                ChargebackTracking::whereIn('id', $chargebackIds['declined'])
+                    ->update([
+                        'settled' => true,
+                        'settled_date' => $settledDate,
+                        'current_status' => 'DECLINED',
+                        'status_changed_date' => Carbon::now(),
+                    ]);
+
+                $this->logger->log('info', 'Chargebacks marked as settled', [
+                    'chargeback_count' => count($chargebackIds['declined']),
+                    'settled_date' => $settledDate->toDateTimeString(),
                     'current_status' => 'DECLINED',
                     'status_changed_date' => Carbon::now(),
-
                 ]);
-            $this->logger->log('info', 'Chargebacks marked as settled', [
-                'chargeback_count' => count($chargebackIds['declined']),
-                'settled_date' => $settledDate->toDateTimeString(),
-                'current_status' => 'DECLINED',
-                'status_changed_date' => Carbon::now(),
-            ]);
+            }
 
         });
     }

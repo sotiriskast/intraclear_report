@@ -25,7 +25,8 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
      */
     public function __construct(
         private ChargebackProcessorInterface $chargebackProcessor,
-        private DynamicLogger                $logger
+        private DynamicLogger                $logger,
+        private MerchantRepository           $merchantRepository
 
     )
     {
@@ -60,7 +61,9 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
                 'transactions.shop_id',
                 'transactions.customer_id',
                 'transactions.added',
-                'transactions.bank_amount as amount',
+//                'transactions.bank_amount as amount',
+                DB::raw('CAST(transactions.bank_amount AS DECIMAL(12,2)) as amount'),
+
 //                DB::raw('transactions.bank_amount / 100 as amount'), // Convert from cents directly in SQL
 
                 'transactions.bank_currency as currency',
@@ -74,6 +77,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
             ->join('shop', 'transactions.shop_id', '=', 'shop.id')
             ->leftJoin('customer_card', 'transactions.card_id', '=', 'customer_card.card_id')
             ->where('transactions.account_id', $merchantId)
+//            ->where('customer_card.card_type', '!=', null)
             ->whereBetween('transactions.added', [$dateRange['start'], $dateRange['end']]);
 
         if ($currency) {
@@ -94,7 +98,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
     private function getMerchantExchangeRateMarkup(int $merchantId): float
     {
         $markup = DB::table('merchant_settings')
-            ->where('merchant_id', $merchantId)
+            ->where('merchant_id', $this->merchantRepository->getMerchantIdByAccountId($merchantId))
             ->value('exchange_rate_markup');
 
         // Fallback to default if not found
@@ -116,19 +120,29 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
         foreach ($transactions as $transaction) {
             $currency = $transaction->currency;
             $rate = $this->getDailyExchangeRate($transaction, $exchangeRates);
-//            $amount = $transaction->amount / 100; // Convert from cents
+
+            // Ensure amount is properly converted to numeric value
+            if (is_string($transaction->amount)) {
+                $transaction->amount = (float)$transaction->amount;
+            }
+
+            // Convert to standard units (dividing by 100) with proper decimal precision
             $amountInStandardUnits = bcmul($transaction->amount, '0.01', 8);
 
-            // Use the base rate without markup for per-transaction calculations
+            // Format EUR amount with proper decimal precision from the start
+            $amountInEur = bcmul($amountInStandardUnits, (string)$rate, 8);
+
+            // Process transaction with both original and EUR amounts
             $this->processTransactionByType(
                 $totals[$currency],
                 $transaction,
                 $amountInStandardUnits,
-                $rate, // Using base rate without markup
+                $amountInEur,
                 $rate
             );
         }
-        // Pass the markup to calculateFinalExchangeRates
+
+        // Calculate final exchange rates with markup
         $this->calculateFinalExchangeRates($totals, $exchangeRates, $merchantId);
 
         return $totals;
@@ -196,7 +210,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
         array &$currencyTotals,
         mixed $transaction,
         float $amount,
-        float $effectiveRate,
+        float $amountInEur,
         float $rate
     ): void
     {
@@ -209,7 +223,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
                     $currencyTotals,
                     $transaction,
                     $amount,
-                    $effectiveRate,
+                    $amountInEur,
                     $transactionStatus,
                     $rate
                 );
@@ -219,7 +233,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
                 $this->processPayoutTransaction(
                     $currencyTotals,
                     $amount,
-                    $effectiveRate,
+                    $amountInEur,
                     $transactionStatus
                 );
                 break;
@@ -228,7 +242,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
                 $this->processSaleTransaction(
                     $currencyTotals,
                     $amount,
-                    $effectiveRate,
+                    $amountInEur,
                     $transactionStatus
                 );
                 break;
@@ -238,7 +252,8 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
                 $this->processRefundTransaction(
                     $currencyTotals,
                     $amount,
-                    $effectiveRate
+                    $amountInEur,
+                    $transactionStatus
                 );
                 break;
         }
@@ -258,7 +273,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
         array  &$currencyTotals,
         mixed  $transaction,
         float  $amount,
-        float  $effectiveRate,
+        float  $amountInEur,
         string $transactionStatus,
         float  $rate
     ): void
@@ -271,23 +286,17 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
         if ($transactionStatus === 'PROCESSING') {
             $currencyTotals['processing_chargeback_count']++;
             $currencyTotals['processing_chargeback_amount'] = bcadd($currencyTotals['processing_chargeback_amount'], $amount, 8);
-            // Use BCMath for multiplication
-            $amountInEur = bcmul($amount, (string)$effectiveRate, 8);
-            // Use BCMath for addition
+            // Use pre-calculated EUR amount
             $currencyTotals['processing_chargeback_amount_eur'] = bcadd($currencyTotals['processing_chargeback_amount_eur'], $amountInEur, 8);
         } elseif ($transactionStatus === 'APPROVED') {
             $currencyTotals['approved_chargeback_count']++;
             $currencyTotals['approved_chargeback_amount'] = bcadd($currencyTotals['approved_chargeback_amount'], $amount, 8);
-            // Use BCMath for multiplication
-            $amountInEur = bcmul($amount, (string)$effectiveRate, 8);
-            // Use BCMath for addition
+            // Use pre-calculated EUR amount
             $currencyTotals['approved_chargeback_amount_eur'] = bcadd($currencyTotals['approved_chargeback_amount_eur'], $amountInEur, 8);
         } else {
             $currencyTotals['declined_chargeback_count']++;
             $currencyTotals['declined_chargeback_amount'] = bcadd($currencyTotals['declined_chargeback_amount'], $amount, 8);
-            // Use BCMath for multiplication
-            $amountInEur = bcmul($amount, (string)$effectiveRate, 8);
-            // Use BCMath for addition
+            // Use pre-calculated EUR amount
             $currencyTotals['declined_chargeback_amount_eur'] = bcadd($currencyTotals['declined_chargeback_amount_eur'], $amountInEur, 8);
         }
 
@@ -305,30 +314,28 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
     private function processPayoutTransaction(
         array  &$currencyTotals,
         float  $amount,
-        float  $effectiveRate,
+        float  $amountInEur,
         string $transactionStatus
     ): void
     {
         if ($transactionStatus === 'PROCESSING') {
             $currencyTotals['processing_payout_amount'] = bcadd($currencyTotals['processing_payout_amount'], $amount, 8);
-            // Use BCMath for multiplication
-            $amountInEur = bcmul($amount, (string)$effectiveRate, 8);
-            // Use BCMath for addition
+            // Use pre-calculated EUR amount
             $currencyTotals['processing_payout_amount_eur'] = bcadd($currencyTotals['processing_payout_amount_eur'], $amountInEur, 8);
             $currencyTotals['processing_payout_count']++;
         } elseif ($transactionStatus === 'APPROVED') {
             $currencyTotals['approved_payout_count']++;
-            $currencyTotals['approved_payout_amount'] += $amount;
-            $currencyTotals['approved_payout_amount_eur'] += ($amount * $effectiveRate);
+            $currencyTotals['approved_payout_amount'] = bcadd($currencyTotals['approved_payout_amount'], $amount, 8);
+            $currencyTotals['approved_payout_amount_eur'] = bcadd($currencyTotals['approved_payout_amount_eur'], $amountInEur, 8);
         } else {
             $currencyTotals['declined_payout_count']++;
-            $currencyTotals['declined_payout_amount'] += $amount;
-            $currencyTotals['declined_payout_amount_eur'] += ($amount * $effectiveRate);
+            $currencyTotals['declined_payout_amount'] = bcadd($currencyTotals['declined_payout_amount'], $amount, 8);
+            $currencyTotals['declined_payout_amount_eur'] = bcadd($currencyTotals['declined_payout_amount_eur'], $amountInEur, 8);
         }
 
         $currencyTotals['total_payout_count']++;
-        $currencyTotals['total_payout_amount'] += $amount;
-        $currencyTotals['total_payout_amount_eur'] += ($amount * $effectiveRate);
+        $currencyTotals['total_payout_amount'] = bcadd($currencyTotals['total_payout_amount'], $amount, 8);
+        $currencyTotals['total_payout_amount_eur'] = bcadd($currencyTotals['total_payout_amount_eur'], $amountInEur, 8);
     }
 
     /**
@@ -336,26 +343,24 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
      *
      * @param array $currencyTotals
      * @param float $amount
-     * @param float $effectiveRate
+     * @param float $amountInEur
      * @param string $transactionStatus
      */
     private function processSaleTransaction(
         array  &$currencyTotals,
         float  $amount,
-        float  $effectiveRate,
+        float  $amountInEur,
         string $transactionStatus
     ): void
     {
         if ($transactionStatus === 'APPROVED') {
             $currencyTotals['total_sales'] = bcadd($currencyTotals['total_sales'], $amount, 8);
-            // Use BCMath for multiplication
-            $amountInEur = bcmul($amount, (string)$effectiveRate, 8);
-            // Use BCMath for addition
+            // Use pre-calculated EUR amount
             $currencyTotals['total_sales_eur'] = bcadd($currencyTotals['total_sales_eur'], $amountInEur, 8);
             $currencyTotals['transaction_sales_count']++;
         } elseif ($transactionStatus === 'DECLINED') {
-            $currencyTotals['total_declined_sales'] += $amount;
-            $currencyTotals['total_declined_sales_eur'] += ($amount * $effectiveRate);
+            $currencyTotals['total_declined_sales'] = bcadd($currencyTotals['total_declined_sales'], $amount, 8);
+            $currencyTotals['total_declined_sales_eur'] = bcadd($currencyTotals['total_declined_sales_eur'], $amountInEur, 8);
             $currencyTotals['transaction_declined_count']++;
         }
     }
@@ -365,22 +370,23 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
      *
      * @param array $currencyTotals
      * @param float $amount
-     * @param float $effectiveRate
+     * @param float $amountInEur
+     * @param string $transactionStatus
      */
     private function processRefundTransaction(
-        array &$currencyTotals,
-        float $amount,
-        float $effectiveRate
+        array  &$currencyTotals,
+        float  $amount,
+        float  $amountInEur,
+        string $transactionStatus
     ): void
     {
-
-        $currencyTotals['total_refunds'] = bcadd($currencyTotals['total_refunds'], $amount, 8);
-        // Use BCMath for multiplication
-        $amountInEur = bcmul($amount, (string)$effectiveRate, 8);
-        // Use BCMath for addition
-        $currencyTotals['total_refunds_eur'] = bcadd($currencyTotals['total_refunds_eur'], $amountInEur, 8);
-
-        $currencyTotals['transaction_refunds_count']++;
+        // Only process approved refunds
+        if ($transactionStatus === 'APPROVED') {
+            $currencyTotals['total_refunds'] = bcadd($currencyTotals['total_refunds'], $amount, 8);
+            // Use pre-calculated EUR amount
+            $currencyTotals['total_refunds_eur'] = bcadd($currencyTotals['total_refunds_eur'], $amountInEur, 8);
+            $currencyTotals['transaction_refunds_count']++;
+        }
     }
 
     /**
@@ -395,9 +401,11 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
         $rateMarkup = $this->getMerchantExchangeRateMarkup($merchantId);
 
         foreach ($totals as $currency => &$currencyData) {
+            // Determine the decimal precision for this currency's exchange rate
+            $precision = ($currency === 'JPY') ? 2 : 4;
+
             if ($currencyData['total_sales'] > 0) {
-                // First, calculate the raw exchange rate from totals
-                // First, calculate the raw exchange rate from totals
+                // Calculate the raw exchange rate from totals
                 $total_sales = bcsub($currencyData['total_sales'], ($currencyData['total_refunds'] ?? 0), 8);
                 $total_sales_eur = bcsub($currencyData['total_sales_eur'], ($currencyData['total_refunds_eur'] ?? 0), 8);
                 $rawExchangeRate = bcdiv($total_sales, $total_sales_eur, 8);
@@ -405,8 +413,8 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
                 $currencyData['raw_exchange_rate'] = $rawExchangeRate;
 
                 if ($currency !== 'EUR') {
-                    // Apply the markup to the final exchange rate and round to 2 decimal places
-                    $currencyData['exchange_rate'] = round($rawExchangeRate * $rateMarkup, 2);
+                    // Apply the markup to the final exchange rate and round to the currency-specific precision
+                    $currencyData['exchange_rate'] = round($rawExchangeRate * $rateMarkup, $precision);
 
                     // Recalculate all EUR values using the final exchange rate
                     $this->recalculateEurValues($currencyData);
@@ -420,7 +428,8 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
                 $currencyData['raw_exchange_rate'] = $baseRate;
 
                 if ($currency !== 'EUR') {
-                    $currencyData['exchange_rate'] = round($baseRate * $rateMarkup, 2);
+                    // Round to the currency-specific precision
+                    $currencyData['exchange_rate'] = round($baseRate * $rateMarkup, $precision);
                 } else {
                     $currencyData['exchange_rate'] = 1.0;
                 }
@@ -523,8 +532,12 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
             return 1.0;
         }
 
+        // Ensure amount is properly converted to numeric value
+        if (is_string($transaction->amount)) {
+            $transaction->amount = (float)$transaction->amount;
+        }
+
         $date = Carbon::parse($transaction->added)->format('Y-m-d');
-        $cardType = strtoupper($transaction->card_type ?? 'UNKNOWN');
         $transactionType = mb_strtoupper($transaction->transaction_type);
 
         // Determine rate type based on transaction type
@@ -533,26 +546,37 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
             default => 'SELL_'
         };
 
+        // For transactions with a card_type (we're now confident it won't be null)
+        $cardType = strtoupper($transaction->card_type);
         $key = $rateType . "{$transaction->currency}_{$cardType}_{$date}";
 
-        if (!isset($exchangeRates[$key])) {
-            $this->logger->log('warning', 'No specific exchange rate found for transaction', [
-                'currency' => $transaction->currency,
-                'card_type' => $cardType,
-                'date' => $date,
-                'rate_type' => $rateType,
-            ]);
+        if (isset($exchangeRates[$key])) {
+            return $exchangeRates[$key];
+        }
 
-            // Try fallback to any rate for this currency+date combination
-            foreach ($exchangeRates as $rateKey => $rate) {
-                if (str_contains($rateKey, "{$transaction->currency}_") &&
-                    str_contains($rateKey, "_{$date}") &&
-                    str_starts_with($rateKey, $rateType)) {
-                    return $rate;
-                }
+        $this->logger->log('warning', 'No specific exchange rate found for transaction', [
+            'currency' => $transaction->currency,
+            'card_type' => $cardType,
+            'date' => $date,
+            'rate_type' => $rateType,
+        ]);
+
+        // Try fallback to any card type for this currency and date
+        foreach ($exchangeRates as $rateKey => $rate) {
+            if (str_contains($rateKey, "{$transaction->currency}_") &&
+                str_contains($rateKey, "_{$date}") &&
+                str_starts_with($rateKey, $rateType)) {
+                return $rate;
             }
         }
 
-        return $exchangeRates[$key] ?? 1.0;
+        // If still no match, try any rate for this currency and rate type
+        foreach ($exchangeRates as $rateKey => $rate) {
+            if (str_starts_with($rateKey, $rateType . $transaction->currency . '_')) {
+                return $rate;
+            }
+        }
+
+        return 1.0; // Ultimate fallback
     }
 }
