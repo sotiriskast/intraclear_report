@@ -76,6 +76,7 @@ readonly class SummaryExcelFormater
 
     /**
      * Get summary items with calculated values
+     * FX Rate functionality removed
      *
      * @param array $currencyData Currency-specific data
      * @return array Array of summary items with labels and values
@@ -109,8 +110,6 @@ readonly class SummaryExcelFormater
                 $this->calculator->getGrossAmount($currencyData),
                 $this->calculator->getGrossAmountEur($currencyData)
             ],
-//            ['Miscellaneous Adjustment', 0, 0],
-//            ['Previous Balance Amount', null, 0],
             ['Rolling reserve amount released',
                 $this->calculator->getReleasedReserve($currencyData),
                 $this->calculator->getReleasedReserveEur($currencyData)
@@ -119,16 +118,11 @@ readonly class SummaryExcelFormater
                 $this->calculator->getStatementTotal($currencyData),
                 $this->calculator->getStatementTotalEur($currencyData)
             ],
-//            ["Previous Balance Amount {$currency}", null, null],
             ["Total Amount {$currency}",
                 $this->calculator->getTotalAmount($currencyData),
                 $this->calculator->getTotalAmountEur($currencyData)
             ],
-            ["Foreign Exchange fee {$currency}",
-                $this->calculator->getFxFee($currencyData),
-                $this->calculator->getFxFeeEur($currencyData)
-            ],
-            ['', null, null],
+            // FX Fee row removed
             ['Total Amount Paid',
                 $this->calculator->getTotalAmountPaid($currencyData),
                 $this->calculator->getTotalAmountPaidEur($currencyData)
