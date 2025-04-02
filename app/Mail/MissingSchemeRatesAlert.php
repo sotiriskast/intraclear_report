@@ -51,7 +51,7 @@ class MissingSchemeRatesAlert extends Mailable
             Carbon::parse($this->dateRange['end'])->format('M d, Y');
 
         return $this->subject('🚨 ALERT: Missing Scheme Rates for ' . $currencies . ' (' . $dateRange . ')')
-            ->markdown('emails.settlements.missing-scheme-rates-alert')
+            ->view('emails.settlements.missing-scheme-rates-alert')
             ->with([
                 'missingRates' => $this->missingRates,
                 'dateRange' => $this->dateRange
