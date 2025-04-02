@@ -2,6 +2,7 @@
 
 namespace App\Services\Settlement;
 
+use App\Exceptions\MissingSchemeRatesException;
 use App\Repositories\Interfaces\TransactionRepositoryInterface;
 use App\Services\DynamicLogger;
 use App\Services\Settlement\Chargeback\Interfaces\ChargebackSettlementInterface;
@@ -89,27 +90,17 @@ readonly class SettlementService
                 'transaction_count' => $transactions->count(),
             ]);
             // Validate scheme rates for the date range and currency
-            $validation = $this->schemeRateValidator->validateSchemeRates($dateRange, [$currency]);
-
-            if (!$validation['status']) {
-                $missingDetails = [];
-
-                // Format missing rate details for error message
-                foreach ($validation['missing_rates'] as $curr => $brandData) {
-                    $brandDetails = [];
-                    foreach ($brandData as $brand => $dates) {
-                        $brandDetails[] = $brand . " (" . count($dates) . " dates missing)";
-                    }
-                    $missingDetails[] = $curr . ": " . implode(", ", $brandDetails);
-                }
-
-                $errorMessage = "Missing scheme rates detected: " . implode("; ", $missingDetails);
-                $this->logger->log('error', $errorMessage, [
+            try {
+                $this->schemeRateValidator->validateSchemeRates($dateRange, [$currency]);
+            } catch (MissingSchemeRatesException $e) {
+                $this->logger->log('error', $e->getMessage(), [
                     'merchant_id' => $merchantId,
-                    'missing_details' => $validation['missing_rates'],
+                    'missing_rates' => $e->getMissingRates(),
+                    'date_range' => $e->getDateRange(),
                 ]);
 
-                throw new Exception($errorMessage);
+                // Re-throw to stop processing
+                throw $e;
             }
             // Fetch and calculate exchange rates
             $exchangeRates = $this->transactionRepository->getExchangeRates(

@@ -2,6 +2,7 @@
 
 namespace App\Services\Settlement;
 
+use App\Exceptions\MissingSchemeRatesException;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Support\Facades\DB;
@@ -84,14 +85,27 @@ class SchemeRateValidationService
                 }
             }
 
-            // If there are missing rates, send an alert
+            // If there are missing rates, send an alert and throw exception
             if (!empty($missingRates)) {
                 $this->sendMissingRatesAlert($missingRates, $dateRange, $recipients);
 
-                return [
-                    'status' => false,
-                    'missing_rates' => $missingRates
-                ];
+                // Format error message
+                $missingDetails = [];
+                foreach ($missingRates as $curr => $brandData) {
+                    $brandDetails = [];
+                    foreach ($brandData as $brand => $dates) {
+                        $brandDetails[] = $brand . " (" . count($dates) . " dates missing)";
+                    }
+                    $missingDetails[] = $curr . ": " . implode(", ", $brandDetails);
+                }
+
+                $errorMessage = "Missing scheme rates detected: " . implode("; ", $missingDetails);
+
+                throw new MissingSchemeRatesException(
+                    $errorMessage,
+                    $missingRates,
+                    $dateRange
+                );
             }
 
             return [
@@ -99,6 +113,9 @@ class SchemeRateValidationService
                 'missing_rates' => []
             ];
 
+        } catch (MissingSchemeRatesException $e) {
+            // Re-throw the missing scheme rates exception
+            throw $e;
         } catch (\Exception $e) {
             $this->logger->log('error', 'Failed to validate scheme rates', [
                 'error' => $e->getMessage(),
@@ -107,14 +124,9 @@ class SchemeRateValidationService
                 'currencies' => $currencies
             ]);
 
-            return [
-                'status' => false,
-                'error' => $e->getMessage(),
-                'missing_rates' => []
-            ];
+            throw $e;
         }
     }
-
     /**
      * Send alert email for missing scheme rates
      *
