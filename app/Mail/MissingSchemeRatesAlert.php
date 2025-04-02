@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
@@ -45,8 +46,11 @@ class MissingSchemeRatesAlert extends Mailable
     public function build()
     {
         $currencies = implode(', ', array_keys($this->missingRates));
+        $dateRange = Carbon::parse($this->dateRange['start'])->format('M d') .
+            ' - ' .
+            Carbon::parse($this->dateRange['end'])->format('M d, Y');
 
-        return $this->subject('ALERT: Missing Scheme Rates for ' . $currencies)
+        return $this->subject('🚨 ALERT: Missing Scheme Rates for ' . $currencies . ' (' . $dateRange . ')')
             ->markdown('emails.settlements.missing-scheme-rates-alert')
             ->with([
                 'missingRates' => $this->missingRates,
