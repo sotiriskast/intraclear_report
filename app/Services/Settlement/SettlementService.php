@@ -7,6 +7,7 @@ use App\Services\DynamicLogger;
 use App\Services\Settlement\Chargeback\Interfaces\ChargebackSettlementInterface;
 use App\Services\Settlement\Fee\FeeService;
 use App\Services\Settlement\Reserve\RollingReserveHandler;
+use Exception;
 
 /**
  * SettlementService manages the generation of merchant settlements.
@@ -42,6 +43,8 @@ readonly class SettlementService
         private RollingReserveHandler $rollingReserveHandler,
         private DynamicLogger $logger,
         private FeeService $feeService,
+        private SchemeRateValidationService $schemeRateValidator,
+
 
     ) {}
 
@@ -79,12 +82,35 @@ readonly class SettlementService
                 $dateRange,
                 $currency
             );
+
             $this->logger->log('info', 'Retrieved merchant transactions', [
                 'merchant_id' => $merchantId,
                 'currency' => $currency,
                 'transaction_count' => $transactions->count(),
             ]);
+            // Validate scheme rates for the date range and currency
+            $validation = $this->schemeRateValidator->validateSchemeRates($dateRange, [$currency]);
 
+            if (!$validation['status']) {
+                $missingDetails = [];
+
+                // Format missing rate details for error message
+                foreach ($validation['missing_rates'] as $curr => $brandData) {
+                    $brandDetails = [];
+                    foreach ($brandData as $brand => $dates) {
+                        $brandDetails[] = $brand . " (" . count($dates) . " dates missing)";
+                    }
+                    $missingDetails[] = $curr . ": " . implode(", ", $brandDetails);
+                }
+
+                $errorMessage = "Missing scheme rates detected: " . implode("; ", $missingDetails);
+                $this->logger->log('error', $errorMessage, [
+                    'merchant_id' => $merchantId,
+                    'missing_details' => $validation['missing_rates'],
+                ]);
+
+                throw new Exception($errorMessage);
+            }
             // Fetch and calculate exchange rates
             $exchangeRates = $this->transactionRepository->getExchangeRates(
                 $dateRange,

@@ -27,6 +27,7 @@ use App\Services\Settlement\Fee\FeeFrequencyHandler;
 use App\Services\Settlement\Fee\FeeService;
 use App\Services\Settlement\Fee\StandardFeeHandler;
 use App\Services\Settlement\Reserve\RollingReserveHandler;
+use App\Services\Settlement\SchemeRateValidationService;
 use App\Services\Settlement\SettlementService;
 use App\Services\ZipExportService;
 use Illuminate\Contracts\Debug\ExceptionHandler;
@@ -119,9 +120,12 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(RollingReserveHandler::class),
                 $app->make(DynamicLogger::class),
                 $app->make(FeeService::class),
+                $app->make(SchemeRateValidationService::class),
             );
         });
-
+        $this->app->singleton(SchemeRateValidationService::class, function ($app) {
+            return new SchemeRateValidationService($app->make(DynamicLogger::class));
+        });
         /**
          * ------------------------------------------------
          * Command Bindings

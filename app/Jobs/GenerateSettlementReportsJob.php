@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Mail\SettlementReportFailed;
 use Carbon\Carbon;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -9,6 +10,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Mail;
 
 class GenerateSettlementReportsJob implements ShouldQueue
 {
@@ -30,7 +32,7 @@ class GenerateSettlementReportsJob implements ShouldQueue
      *
      * @var int
      */
-    public $backoff = 60;
+    public $backoff = 86400; // 24 hours = 86400 seconds
 
     public function __construct($startDate, $endDate, $merchantId = null, $currency = null)
     {
@@ -47,7 +49,7 @@ class GenerateSettlementReportsJob implements ShouldQueue
      */
     public $timeout = 3600;
 
-    public function handle()
+    public function handle(): void
     {
         $command = 'intraclear:settlement-generate';
         $parameters = [];
@@ -64,6 +66,35 @@ class GenerateSettlementReportsJob implements ShouldQueue
         }
         Artisan::call($command, $parameters);
 
+    }
+    /**
+     * Handle a job failure.
+     *
+     * @param  \Throwable  $exception
+     * @return void
+     */
+    public function failed(\Throwable $exception): void
+    {
+        // Get recipients from config
+        $recipients = collect(config('settlement.report_recipients', []))
+            ->filter()
+            ->values();
 
+        if ($recipients->isNotEmpty()) {
+            // Send email notification about the failure
+            $jobDetails = [
+                'job_id' => $this->job->getJobId(),
+                'attempts' => $this->attempts(),
+                'start_date' => $this->startDate,
+                'end_date' => $this->endDate,
+                'merchant_id' => $this->merchantId,
+                'error' => $exception->getMessage(),
+                'trace' => $exception->getTraceAsString(),
+            ];
+
+            foreach ($recipients as $recipient) {
+                Mail::to($recipient)->send(new SettlementReportFailed($jobDetails));
+            }
+        }
     }
 }
