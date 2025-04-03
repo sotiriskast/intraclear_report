@@ -193,6 +193,16 @@ class RollingReserveRepository implements RollingReserveRepositoryInterface
             ->map(fn($item) => round($item->total_amount / 100, 2))
             ->toArray();
 
+        // Get pending reserves Eur
+        $pendingEur = clone $query;
+        $pendingReservesEur = $pendingEur->where('status', 'pending')
+            ->selectRaw('original_currency, SUM(reserve_amount_eur) as total_eur')
+            ->groupBy('original_currency')
+            ->get()
+            ->keyBy('original_currency')
+            ->map(fn($item) => round($item->total_eur / 100, 2))
+            ->toArray();
+
         // Get upcoming releases (next 30 days)
         $releaseableDate = now()->addDays(30);
         $upcoming = clone $query;
@@ -214,6 +224,7 @@ class RollingReserveRepository implements RollingReserveRepositoryInterface
 
         return [
             'pending_reserves' => $pendingReserves,
+            'pending_reserves_eur' => $pendingReservesEur,
             'pending_count' => $counts['pending'] ?? 0,
             'released_count' => $counts['released'] ?? 0,
             'upcoming_releases' => $upcomingReleases

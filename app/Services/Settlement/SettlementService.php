@@ -2,11 +2,13 @@
 
 namespace App\Services\Settlement;
 
+use App\Exceptions\MissingSchemeRatesException;
 use App\Repositories\Interfaces\TransactionRepositoryInterface;
 use App\Services\DynamicLogger;
 use App\Services\Settlement\Chargeback\Interfaces\ChargebackSettlementInterface;
 use App\Services\Settlement\Fee\FeeService;
 use App\Services\Settlement\Reserve\RollingReserveHandler;
+use Exception;
 
 /**
  * SettlementService manages the generation of merchant settlements.
@@ -42,6 +44,8 @@ readonly class SettlementService
         private RollingReserveHandler $rollingReserveHandler,
         private DynamicLogger $logger,
         private FeeService $feeService,
+        private SchemeRateValidationService $schemeRateValidator,
+
 
     ) {}
 
@@ -79,12 +83,25 @@ readonly class SettlementService
                 $dateRange,
                 $currency
             );
+
             $this->logger->log('info', 'Retrieved merchant transactions', [
                 'merchant_id' => $merchantId,
                 'currency' => $currency,
                 'transaction_count' => $transactions->count(),
             ]);
+            // Validate scheme rates for the date range and currency
+            try {
+                $this->schemeRateValidator->validateSchemeRates($dateRange, [$currency]);
+            } catch (MissingSchemeRatesException $e) {
+                $this->logger->log('error', $e->getMessage(), [
+                    'merchant_id' => $merchantId,
+                    'missing_rates' => $e->getMissingRates(),
+                    'date_range' => $e->getDateRange(),
+                ]);
 
+                // Re-throw to stop processing
+                throw $e;
+            }
             // Fetch and calculate exchange rates
             $exchangeRates = $this->transactionRepository->getExchangeRates(
                 $dateRange,
@@ -98,7 +115,8 @@ readonly class SettlementService
             // Calculate transaction totals
             $totals = $this->transactionRepository->calculateTransactionTotals(
                 $transactions,
-                $exchangeRates
+                $exchangeRates,
+                $merchantId
             );
             $this->logger->log('info', 'Calculated transaction totals', [
                 'merchant_id' => $merchantId,
@@ -165,6 +183,7 @@ readonly class SettlementService
                 'rolling_reserved_percentage' => $reserveProcessing['reserved_percentage'],
                 'chargebackSettlement' => $chargebackSettlements,
                 'exchange_rate' => $currencyTotals['exchange_rate'] ?? 1.0,
+                'fx_rate' => $currencyTotals['fx_rate'] ?? 0,
             ];
 
         } catch (\Exception $e) {

@@ -226,7 +226,7 @@ class ExcelExportService
                 'Refund Fee' => $fee['transactionData']['transaction_refunds_count'] ?? 0,
                 'Chargeback Fee' => $fee['transactionData']['total_chargeback_count'] ?? 0,
                 'Transaction Fee' => $fee['transactionData']['transaction_sales_count'] ?? 0,
-                'Payout Fee' => $fee['transactionData']['total_payout_count'] ?? 0, // Add this line
+                'Payout Fee' => $fee['transactionData']['total_payout_count'] ?? 0,
                 default => ''
             };
             $this->currentSheet->setCellValue('D' . $this->currentRow, $count);
@@ -237,7 +237,7 @@ class ExcelExportService
                 $this->currentSheet->setCellValue('E' . $this->currentRow, '');
             }
             // Calculate original currency amount
-            $originalAmount = $fee['fee_amount'] / $fee['transactionData']['exchange_rate'];
+            $originalAmount = $fee['fee_amount'] * $fee['transactionData']['exchange_rate'];
             $this->currentSheet->setCellValue('F' . $this->currentRow, $originalAmount);
             $this->currentSheet->setCellValue('G' . $this->currentRow, $fee['fee_amount']); // EUR amount
 

@@ -24,13 +24,15 @@ readonly class TransactionData
     public const TOTAL_PAYOUT_COUNT = 'total_payout_count';
     public const PROCESSING_PAYOUT_AMOUNT = 'total_payout_amount';
     public const PROCESSING_PAYOUT_AMOUNT_EUR = 'total_payout_amount_eur';
-    public const PROCESSING_PAYOUT_COUNT = 'total_payout_count';
+    public const PROCESSING_PAYOUT_COUNT = 'processing_payout_count';
     public const APPROVED_PAYOUT_AMOUNT = 'approved_payout_amount';
     public const APPROVED_PAYOUT_AMOUNT_EUR = 'approved_payout_amount_eur';
+    public const DECLINED_PAYOUT_COUNT = 'declined_payout_count';
     public const DECLINED_PAYOUT_AMOUNT = 'declined_payout_amount';
     public const DECLINED_PAYOUT_AMOUNT_EUR = 'declined_payout_amount_eur';
     public const CURRENCY = 'currency';
     public const EXCHANGE_RATE = 'exchange_rate';
+    public const FX_RATE = 'fx_rate';
 
     public function __construct(
         public float  $totalSalesEur = 0,
@@ -56,11 +58,13 @@ readonly class TransactionData
         public float  $processingPayoutAmountEur = 0,
         public float  $approvedPayoutAmount = 0,
         public float  $approvedPayoutAmountEur = 0,
+        public float  $declinedPayoutCount = 0,
         public float  $declinedPayoutAmount = 0,
         public float  $declinedPayoutAmountEur = 0,
 
         public string $currency = 'EUR',
-        public float  $exchangeRate = 1.0
+        public float  $exchangeRate = 1.0,
+        public float  $fxRate = 0,
     )
     {
     }
@@ -96,10 +100,12 @@ readonly class TransactionData
             processingPayoutAmountEur: $data[self::PROCESSING_PAYOUT_AMOUNT_EUR] ?? 0,
             approvedPayoutAmount: $data[self::APPROVED_PAYOUT_AMOUNT] ?? 0,
             approvedPayoutAmountEur: $data[self::APPROVED_PAYOUT_AMOUNT_EUR] ?? 0,
+            declinedPayoutCount: $data[self::DECLINED_PAYOUT_COUNT] ?? 0,
             declinedPayoutAmount: $data[self::DECLINED_PAYOUT_AMOUNT] ?? 0,
             declinedPayoutAmountEur: $data[self::DECLINED_PAYOUT_AMOUNT_EUR] ?? 0,
             currency: $data[self::CURRENCY] ?? 'EUR',
-            exchangeRate: $data[self::EXCHANGE_RATE] ?? 1.0
+            exchangeRate: $data[self::EXCHANGE_RATE] ?? 1.0,
+            fxRate: $data[self::FX_RATE] ?? 0
         );
     }
 
@@ -119,10 +125,22 @@ readonly class TransactionData
             self::PROCESSING_CHARGEBACK_COUNT => $this->processingChargebackCount,
             self::PROCESSING_CHARGEBACK_AMOUNT => $this->processingChargebackAmount,
             self::PROCESSING_CHARGEBACK_AMOUNT_EUR => $this->processingChargebackAmountEur,
+            self::APPROVED_CHARGEBACK_COUNT => $this->approvedChargebackCount,
             self::APPROVED_CHARGEBACK_AMOUNT => $this->approvedChargebackAmount,
+            self::DECLINED_CHARGEBACK_COUNT => $this->declinedChargebackCount,
             self::DECLINED_CHARGEBACK_AMOUNT => $this->declinedChargebackAmount,
+            self::TOTAL_PAYOUT_COUNT => $this->totalPayoutCount,
+            self::PROCESSING_PAYOUT_COUNT => $this->processingPayoutCount,
+            self::PROCESSING_PAYOUT_AMOUNT => $this->processingPayoutAmount,
+            self::PROCESSING_PAYOUT_AMOUNT_EUR => $this->processingPayoutAmountEur,
+            self::APPROVED_PAYOUT_AMOUNT => $this->approvedPayoutAmount,
+            self::APPROVED_PAYOUT_AMOUNT_EUR => $this->approvedPayoutAmountEur,
+            self::DECLINED_PAYOUT_COUNT => $this->declinedPayoutCount,
+            self::DECLINED_PAYOUT_AMOUNT => $this->declinedPayoutAmount,
+            self::DECLINED_PAYOUT_AMOUNT_EUR => $this->declinedPayoutAmountEur,
             self::CURRENCY => $this->currency,
             self::EXCHANGE_RATE => $this->exchangeRate,
+            self::FX_RATE => $this->fxRate,
         ];
     }
 }

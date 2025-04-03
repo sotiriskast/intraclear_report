@@ -114,21 +114,23 @@ readonly class FeeRepository implements FeeRepositoryInterface
      * Get fee applications within a specified date range
      *
      * @param int $merchantId Merchant ID
-     * @param int $feeTypeId Fee type ID
+     * @param int|null $feeTypeId Fee type ID (optional)
      * @param string $startDate Start date (Y-m-d)
      * @param string $endDate End date (Y-m-d)
      * @return array Array of fee history records
      */
     public function getFeeApplicationsInDateRange(
         int $merchantId,
-        int $feeTypeId,
+        ?int $feeTypeId,
         string $startDate,
         string $endDate
     ): array {
-        return FeeHistory::where('merchant_id', $merchantId)
-            ->where('fee_type_id', $feeTypeId)
-            ->whereBetween('applied_date', [$startDate, $endDate])
-            ->orderBy('applied_date', 'asc')
+        $query = FeeHistory::query()->where('merchant_id', $merchantId)
+            ->whereBetween('applied_date', [$startDate, $endDate]);
+        if ($feeTypeId !== null) {
+            $query->where('fee_type_id', $feeTypeId);
+        }
+        return $query->orderBy('applied_date', 'asc')
             ->get()
             ->toArray();
     }

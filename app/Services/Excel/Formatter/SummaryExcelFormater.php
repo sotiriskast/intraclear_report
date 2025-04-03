@@ -76,6 +76,7 @@ readonly class SummaryExcelFormater
 
     /**
      * Get summary items with calculated values
+     * FX Rate functionality removed
      *
      * @param array $currencyData Currency-specific data
      * @return array Array of summary items with labels and values
@@ -109,26 +110,24 @@ readonly class SummaryExcelFormater
                 $this->calculator->getGrossAmount($currencyData),
                 $this->calculator->getGrossAmountEur($currencyData)
             ],
-//            ['Miscellaneous Adjustment', 0, 0],
-//            ['Previous Balance Amount', null, 0],
             ['Rolling reserve amount released',
                 $this->calculator->getReleasedReserve($currencyData),
                 $this->calculator->getReleasedReserveEur($currencyData)
             ],
+
             ["Statement Total ",
                 $this->calculator->getStatementTotal($currencyData),
                 $this->calculator->getStatementTotalEur($currencyData)
             ],
-//            ["Previous Balance Amount {$currency}", null, null],
             ["Total Amount {$currency}",
                 $this->calculator->getTotalAmount($currencyData),
                 $this->calculator->getTotalAmountEur($currencyData)
             ],
-            ["Foreign Exchange fee {$currency}",
+            ["FX Rate Fee ({$this->formatFxRatePercent($currencyData['fx_rate'])})",
                 $this->calculator->getFxFee($currencyData),
                 $this->calculator->getFxFeeEur($currencyData)
             ],
-            ['', null, null],
+            // FX Fee row removed
             ['Total Amount Paid',
                 $this->calculator->getTotalAmountPaid($currencyData),
                 $this->calculator->getTotalAmountPaidEur($currencyData)
@@ -158,5 +157,15 @@ readonly class SummaryExcelFormater
             ->getBorders()
             ->getAllBorders()
             ->setBorderStyle(Border::BORDER_THIN);
+    }
+    /**
+     * Format FX rate markup as percentage with two decimal places
+     *
+     * @param int $value The FX rate markup value in basis points
+     * @return string Formatted percentage with two decimal places
+     */
+    private function formatFxRatePercent(int $value): string
+    {
+        return number_format($value / 100, 2) . '%';
     }
 }

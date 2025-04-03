@@ -5,10 +5,12 @@ namespace App\Livewire;
 use App\Models\Merchant;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Lazy;
+use Livewire\Attributes\Title;
 use Livewire\Component;
 use Livewire\WithPagination;
 #[Lazy]
-#[Layout('layouts.app')]
+#[Layout('layouts.app', ['header' => 'Merchants'])]
+#[Title('Merchants')]
 class MerchantManagement extends Component
 {
     use WithPagination;
@@ -29,7 +31,7 @@ class MerchantManagement extends Component
                     ->orWhere('email', 'like', '%'.$this->search.'%')
                     ->orWhere('phone', 'like', '%'.$this->search.'%');
             });
-        })->latest()->paginate(15);
+        })->orderBy('account_id','desc')->paginate(15);
 
         return view('livewire.merchant-management', [
             'merchants' => $merchants,

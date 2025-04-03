@@ -49,8 +49,8 @@ interface FeeRepositoryInterface
      * Get fee applications within a date range
      */
     public function getFeeApplicationsInDateRange(
-        int    $merchantId,
-        int    $feeTypeId,
+        int $merchantId,
+        ?int $feeTypeId,
         string $startDate,
         string $endDate
     ): array;

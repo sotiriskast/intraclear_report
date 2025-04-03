@@ -5,9 +5,11 @@ namespace App\Livewire;
 use App\Models\Merchant;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Lazy;
+use Livewire\Attributes\Title;
 use Livewire\Component;
 #[Lazy]
-#[Layout('layouts.app')]
+#[Layout('layouts.app', ['header' => 'Merchant Details'])]
+#[Title('Merchant Details')]
 class MerchantView extends Component
 {
     public $merchant;
@@ -27,7 +29,10 @@ class MerchantView extends Component
     {
         return redirect()->route('merchant.api', $this->merchant->id);
     }
-
+    public function viewAnalytics()
+    {
+        return redirect()->route('merchant.analytics', $this->merchant->id);
+    }
     public function render()
     {
         return view('livewire.merchant-view', [

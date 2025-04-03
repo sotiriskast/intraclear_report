@@ -9,6 +9,7 @@ use App\Services\DynamicLogger;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Lazy;
 use Livewire\Attributes\On;
+use Livewire\Attributes\Title;
 use Livewire\Component;
 // Add this import
 use Livewire\WithPagination;
@@ -19,7 +20,8 @@ use Spatie\Permission\Models\Role;
  *
  * Handles creation, editing, updating, and deletion of users.
  */
-#[Layout('layouts.app')]#[Lazy]
+#[Layout('layouts.app', ['header' => 'User Management'])]
+#[Title('User Management')]#[Lazy]
 class UserManagement extends Component
 {
     use WithPagination;

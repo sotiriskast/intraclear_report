@@ -67,11 +67,11 @@
 
                             <div class="mt-2 space-y-1">
                                 <p class="text-xs text-gray-700">
-                                    Period: {{ \Carbon\Carbon::parse($report->start_date)->format('Y-m-d') }}
-                                    to {{ \Carbon\Carbon::parse($report->end_date)->format('Y-m-d') }}
+                                    Period: {{ \Carbon\Carbon::parse($report->start_date)->format('d/m/Y') }}
+                                    to {{ \Carbon\Carbon::parse($report->end_date)->format('d/m/Y') }}
                                 </p>
                                 <p class="text-xs text-gray-700">
-                                    Generated: {{ \Carbon\Carbon::parse($report->created_at)->format('Y-m-d H:i:s') }}
+                                    Generated: {{ \Carbon\Carbon::parse($report->created_at)->format('d/m/Y H:i:s') }}
                                 </p>
                             </div>
                         </div>
@@ -119,14 +119,14 @@
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="text-sm text-gray-900">
-                                        {{ \Carbon\Carbon::parse($report->start_date)->format('Y-m-d') }}
+                                        {{ \Carbon\Carbon::parse($report->start_date)->format('d/m/Y') }}
                                         to
-                                        {{ \Carbon\Carbon::parse($report->end_date)->format('Y-m-d') }}
+                                        {{ \Carbon\Carbon::parse($report->end_date)->format('d/m/Y') }}
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="text-sm text-gray-900">
-                                        {{ \Carbon\Carbon::parse($report->created_at)->format('Y-m-d H:i:s') }}
+                                        {{ \Carbon\Carbon::parse($report->created_at)->format('d/m/Y H:i:s') }}
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class FeeHistory extends Model
 {
@@ -20,8 +21,8 @@ class FeeHistory extends Model
     protected $casts = [
         'applied_date' => 'datetime',
     ];
-
-    public function feeType()
+    protected $with = ['feeType'];
+    public function feeType(): BelongsTo
     {
         return $this->belongsTo(FeeType::class);
     }

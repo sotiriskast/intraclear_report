@@ -7,7 +7,15 @@
         {{ __('Add additional security to your account using two factor authentication.') }}
     </x-slot>
 
+
     <x-slot name="content">
+        @if (session('error'))
+            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+                <strong class="font-bold">Warning:</strong>
+                <span class="block sm:inline">{{ session('error') }}</span>
+            </div>
+        @endif
+
         <h3 class="text-lg font-medium text-gray-900">
             @if ($this->enabled)
                 @if ($showingConfirmation)
@@ -50,13 +58,14 @@
 
                 @if ($showingConfirmation)
                     <div class="mt-4">
-                        <x-label for="code" value="{{ __('Code') }}" />
+                        <x-label for="code" value="{{ __('Code') }}"/>
 
-                        <x-input id="code" type="text" name="code" class="block mt-1 w-1/2" inputmode="numeric" autofocus autocomplete="one-time-code"
-                            wire:model="code"
-                            wire:keydown.enter="confirmTwoFactorAuthentication" />
+                        <x-input id="code" type="text" name="code" class="block mt-1 w-1/2" inputmode="numeric"
+                                 autofocus autocomplete="one-time-code"
+                                 wire:model="code"
+                                 wire:keydown.enter="confirmTwoFactorAuthentication"/>
 
-                        <x-input-error for="code" class="mt-2" />
+                        <x-input-error for="code" class="mt-2"/>
                     </div>
                 @endif
             @endif

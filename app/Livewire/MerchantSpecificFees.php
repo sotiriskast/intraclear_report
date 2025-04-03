@@ -7,10 +7,12 @@ use App\Models\Merchant;
 use App\Models\MerchantFee;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Lazy;
+use Livewire\Attributes\Title;
 use Livewire\Component;
 use Livewire\WithPagination;
 #[Lazy]
-#[Layout('layouts.app')]
+#[Layout('layouts.app', ['header' => 'Merchant Fee Details'])]
+#[Title('Merchant Fee Details')]
 class MerchantSpecificFees extends Component
 {
     use WithPagination;

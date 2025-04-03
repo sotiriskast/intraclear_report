@@ -10,9 +10,13 @@ use App\Repositories\ChargebackTrackingRepository;
 use App\Repositories\FeeRepository;
 use App\Repositories\Interfaces\ChargebackTrackingRepositoryInterface;
 use App\Repositories\Interfaces\TransactionRepositoryInterface;
+use App\Repositories\MerchantRepository;
+use App\Repositories\MerchantSettingRepository;
 use App\Repositories\RoleRepository;
 use App\Repositories\RollingReserveRepository;
 use App\Repositories\TransactionRepository;
+use App\Services\ExchangeRateService;
+use App\Services\Transaction\TransactionTotalsCalculator;
 use App\Services\DynamicLogger;
 use App\Services\ExcelExportService;
 use App\Services\MerchantSyncService;
@@ -25,9 +29,11 @@ use App\Services\Settlement\Fee\FeeFrequencyHandler;
 use App\Services\Settlement\Fee\FeeService;
 use App\Services\Settlement\Fee\StandardFeeHandler;
 use App\Services\Settlement\Reserve\RollingReserveHandler;
+use App\Services\Settlement\SchemeRateValidationService;
 use App\Services\Settlement\SettlementService;
 use App\Services\ZipExportService;
 use Illuminate\Contracts\Debug\ExceptionHandler;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -106,6 +112,10 @@ class AppServiceProvider extends ServiceProvider
          * ------------------------------------------------
          */
 
+        // Register new services 
+        $this->app->singleton(ExchangeRateService::class);
+        $this->app->singleton(TransactionTotalsCalculator::class);
+        
         $this->app->singleton(ExcelExportService::class);
 
         // Replace the simple singleton with a proper binding for SettlementService
@@ -116,9 +126,12 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(RollingReserveHandler::class),
                 $app->make(DynamicLogger::class),
                 $app->make(FeeService::class),
+                $app->make(SchemeRateValidationService::class),
             );
         });
-
+        $this->app->singleton(SchemeRateValidationService::class, function ($app) {
+            return new SchemeRateValidationService($app->make(DynamicLogger::class));
+        });
         /**
          * ------------------------------------------------
          * Command Bindings
@@ -151,6 +164,8 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(FeeFrequencyHandler::class),
                 $app->make(CustomFeeHandler::class),
                 $app->make(StandardFeeHandler::class),
+                $app->make(MerchantRepository::class),
+                $app->make(MerchantSettingRepository::class),
             );
         });
 
@@ -169,6 +184,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        if (env('APP_USE_HTTPS')=='dev') {
+            URL::forceScheme('https');
+        }
     }
 }

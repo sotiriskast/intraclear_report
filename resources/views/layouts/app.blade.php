@@ -10,7 +10,9 @@
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet"/>
-
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <!-- Scripts -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
@@ -106,9 +108,17 @@
                 </button>
 
                 <!-- Page Title -->
-                @if (isset($header))
+                @hasSection('header')
                     <div class="ml-4">
-                        {{ $header }}
+                        @yield('header')
+                    </div>
+                @else
+                    <div class="ml-4">
+                        @if (isset($header) && is_string($header))
+                            <h2 class="text-2xl font-bold text-gray-800">{{ $header }}</h2>
+                        @elseif (isset($header))
+                            {{ $header }}
+                        @endif
                     </div>
                 @endif
             </div>
@@ -125,5 +135,6 @@
 
 @stack('modals')
 @livewireScripts
+@stack('scripts')
 </body>
 </html>

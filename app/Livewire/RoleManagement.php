@@ -8,12 +8,14 @@ use App\Services\DynamicLogger;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Lazy;
+use Livewire\Attributes\Title;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
-#[AllowDynamicProperties] #[Lazy] #[Layout('layouts.app')]
+#[AllowDynamicProperties] #[Lazy] #[Layout('layouts.app', ['header' => 'Role Management'])]
+#[Title('Role Management')]
 class RoleManagement extends Component
 {
     use WithPagination;
