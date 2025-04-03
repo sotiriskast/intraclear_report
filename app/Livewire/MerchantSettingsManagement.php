@@ -58,7 +58,7 @@ class MerchantSettingsManagement extends Component
 
     private $merchantRepository;
 
-
+    public $fxRateMarkup = 0;
     protected function rules()
     {
         return [
@@ -77,6 +77,7 @@ class MerchantSettingsManagement extends Component
             'setupFee' => 'required|numeric|min:0',
             'setupFeeCharged' => 'boolean',
             'exchangeRateMarkup' => 'required|numeric',
+            'fxRateMarkup' => 'required|numeric|min:0',
         ];
     }
 
@@ -128,6 +129,7 @@ class MerchantSettingsManagement extends Component
             'setup_fee' => round($this->setupFee * 100),
             'setup_fee_charged' => $this->setupFeeCharged,
             'exchange_rate_markup' => $this->exchangeRateMarkup,
+            'fx_rate_markup' => round($this->fxRateMarkup * 100),
 
         ]);
 
@@ -156,6 +158,7 @@ class MerchantSettingsManagement extends Component
         $this->setupFeeCharged = $setting->setup_fee_charged;
         $this->showCreateModal = true;
         $this->exchangeRateMarkup = $setting->exchange_rate_markup;
+        $this->fxRateMarkup = $setting->fx_rate_markup / 100;
     }
 
     public function update()
@@ -178,6 +181,7 @@ class MerchantSettingsManagement extends Component
             'setup_fee' => round($this->setupFee * 100),
             'setup_fee_charged' => $this->setupFeeCharged,
             'exchange_rate_markup' => $this->exchangeRateMarkup,
+            'fx_rate_markup' => round($this->fxRateMarkup * 100),
 
         ]);
 
@@ -212,6 +216,7 @@ class MerchantSettingsManagement extends Component
             'showCreateModal',
             'editSettingId',
             'exchangeRateMarkup',
+            'fxRateMarkup',
 
         ]);
     }
@@ -225,6 +230,17 @@ class MerchantSettingsManagement extends Component
     {
         // This removes trailing zeros
         return rtrim(rtrim(number_format($value, 4, '.', ''), '0'), '.');
+    }
+    /**
+     * Format FX rate markup as percentage with two decimal places
+     *
+     * @param int $value The FX rate markup value in basis points
+     * @return string Formatted percentage with two decimal places
+     */
+    public function formatFxRateMarkup($value)
+    {
+        // Convert from basis points to percentage with exactly two decimal places
+        return number_format($value / 100, 2) . '%';
     }
     public function render()
     {

@@ -31,6 +31,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
      * Default precision for financial calculations
      */
     private const int DEFAULT_PRECISION = 8;
+    private const int DEFAULT_FX_RATE = 0;
 
     /**
      * Currency-specific precision settings
@@ -307,6 +308,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
                 'declined_payout_amount_eur' => 0.0,
                 'currency' => $currency,
                 'exchange_rate' => 0.0,
+                'fx_rate' => 0,
             ];
         }
 
@@ -501,6 +503,26 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
         }
     }
 
+    private function getMerchantFXRateMarkup(int $merchantId): int
+    {
+        try {
+            $internalMerchantId = $this->merchantRepository->getMerchantIdByAccountId($merchantId);
+
+            $markup = DB::table('merchant_settings')
+                ->where('merchant_id', $internalMerchantId)
+                ->value('fx_rate_markup');
+            return $markup ?? self::DEFAULT_FX_RATE;
+
+        } catch (Exception $e) {
+            $this->logger->log('warning', 'Failed to retrieve FX rate markup, using default', [
+                'merchant_id' => $merchantId,
+                'error' => $e->getMessage()
+            ]);
+
+            return self::DEFAULT_FX_RATE;
+        }
+    }
+
     /**
      * Calculate final exchange rates for each currency with merchant-specific markup
      *
@@ -521,7 +543,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
                 // Calculate the exchange rate from existing data
                 $netSales = $currencyData['total_sales'] - ($currencyData['total_refunds'] ?? 0);
                 $netSalesEur = $currencyData['total_sales_eur'] - ($currencyData['total_refunds_eur'] ?? 0);
-
+                $currencyData['fx_rate'] = $this->getMerchantFXRateMarkup($merchantId);
                 // Avoid division by zero
                 if ($netSalesEur > 0) {
                     $rawExchangeRate = $netSales / $netSalesEur;

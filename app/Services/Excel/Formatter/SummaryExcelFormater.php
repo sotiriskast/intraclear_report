@@ -114,6 +114,7 @@ readonly class SummaryExcelFormater
                 $this->calculator->getReleasedReserve($currencyData),
                 $this->calculator->getReleasedReserveEur($currencyData)
             ],
+
             ["Statement Total ",
                 $this->calculator->getStatementTotal($currencyData),
                 $this->calculator->getStatementTotalEur($currencyData)
@@ -121,6 +122,10 @@ readonly class SummaryExcelFormater
             ["Total Amount {$currency}",
                 $this->calculator->getTotalAmount($currencyData),
                 $this->calculator->getTotalAmountEur($currencyData)
+            ],
+            ["FX Rate Fee ({$this->formatFxRatePercent($currencyData['fx_rate'])})",
+                $this->calculator->getFxFee($currencyData),
+                $this->calculator->getFxFeeEur($currencyData)
             ],
             // FX Fee row removed
             ['Total Amount Paid',
@@ -152,5 +157,15 @@ readonly class SummaryExcelFormater
             ->getBorders()
             ->getAllBorders()
             ->setBorderStyle(Border::BORDER_THIN);
+    }
+    /**
+     * Format FX rate markup as percentage with two decimal places
+     *
+     * @param int $value The FX rate markup value in basis points
+     * @return string Formatted percentage with two decimal places
+     */
+    private function formatFxRatePercent(int $value): string
+    {
+        return number_format($value / 100, 2) . '%';
     }
 }

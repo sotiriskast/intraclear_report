@@ -187,24 +187,39 @@ readonly class SummaryCalculator
         return $this->getStatementTotalEur($data);
     }
     /**
-     * Calculate total Fx Rate Fee (Now returns 0 as FX Rate functionality is removed)
+     * Calculate total Fx Rate Fee
      *
      * @param array $data data
      * @return float Get Fx Rate Fee
      */
     public function getFxFee(array $data): float
     {
-        return 0;
+        $fxRateMarkup = $data['fx_rate'] ?? 0;
+        if ($fxRateMarkup <= 0 || $data['currency'] === 'EUR') {
+            return 0;
+        }
+
+        // Calculate FX fee based on non-EUR transactions
+        $amount = $this->getTotalAmount($data);
+        return $amount * ($fxRateMarkup / 10000); // Divide by 10000 since markup is stored as basis points
     }
+
     /**
-     * Calculate total Fx Rate Fee in EUR (Now returns 0 as FX Rate functionality is removed)
+     * Calculate total Fx Rate Fee in EUR
      *
      * @param array $data data
      * @return float Get Fx Rate Fee in EUR
      */
     public function getFxFeeEur(array $data): float
     {
-        return 0;
+        $fxRateMarkup = $data['fx_rate'] ?? 0;
+        if ($fxRateMarkup <= 0 || $data['currency'] === 'EUR') {
+            return 0;
+        }
+
+        // Calculate FX fee based on non-EUR transactions
+        $amount = $this->getTotalAmountEur($data);
+        return $amount * ($fxRateMarkup / 10000); // Divide by 10000 since markup is stored as basis points
     }
     /**
      * Calculate total Amount Paid (Now same as TotalAmount since FX fee is removed)
@@ -214,7 +229,7 @@ readonly class SummaryCalculator
      */
     public function getTotalAmountPaid(array $data): float
     {
-        return $this->getTotalAmount($data);
+        return $this->getTotalAmount($data) - $this->getFxFee($data);
     }
     /**
      * Calculate total Amount Paid in EUR (Now same as TotalAmountEur since FX fee is removed)
@@ -224,7 +239,7 @@ readonly class SummaryCalculator
      */
     public function getTotalAmountPaidEur(array $data): float
     {
-        return $this->getTotalAmountEur($data);
+        return $this->getTotalAmountEur($data) - $this->getFxFeeEur($data);
     }
     /**
      * Calculate total Release Amount from rolling reserve
@@ -255,7 +270,7 @@ readonly class SummaryCalculator
      */
     private function calculateFees(array $fees, float $rate): float
     {
-        return collect($fees)->sum('fee_amount') / $rate;
+        return collect($fees)->sum('fee_amount') * $rate;
     }
     /**
      * Calculate reserve amount

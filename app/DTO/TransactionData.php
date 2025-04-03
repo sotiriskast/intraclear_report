@@ -32,6 +32,7 @@ readonly class TransactionData
     public const DECLINED_PAYOUT_AMOUNT_EUR = 'declined_payout_amount_eur';
     public const CURRENCY = 'currency';
     public const EXCHANGE_RATE = 'exchange_rate';
+    public const FX_RATE = 'fx_rate';
 
     public function __construct(
         public float  $totalSalesEur = 0,
@@ -62,7 +63,8 @@ readonly class TransactionData
         public float  $declinedPayoutAmountEur = 0,
 
         public string $currency = 'EUR',
-        public float  $exchangeRate = 1.0
+        public float  $exchangeRate = 1.0,
+        public float  $fxRate = 0,
     )
     {
     }
@@ -102,7 +104,8 @@ readonly class TransactionData
             declinedPayoutAmount: $data[self::DECLINED_PAYOUT_AMOUNT] ?? 0,
             declinedPayoutAmountEur: $data[self::DECLINED_PAYOUT_AMOUNT_EUR] ?? 0,
             currency: $data[self::CURRENCY] ?? 'EUR',
-            exchangeRate: $data[self::EXCHANGE_RATE] ?? 1.0
+            exchangeRate: $data[self::EXCHANGE_RATE] ?? 1.0,
+            fxRate: $data[self::FX_RATE] ?? 0
         );
     }
 
@@ -137,6 +140,7 @@ readonly class TransactionData
             self::DECLINED_PAYOUT_AMOUNT_EUR => $this->declinedPayoutAmountEur,
             self::CURRENCY => $this->currency,
             self::EXCHANGE_RATE => $this->exchangeRate,
+            self::FX_RATE => $this->fxRate,
         ];
     }
 }

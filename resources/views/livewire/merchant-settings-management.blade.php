@@ -82,7 +82,7 @@
                                 <p>Declined Fee: {{ number_format($setting->transaction_fee / 100, 2) }} EUR</p>
                                 <p>Setup Fee: {{ number_format($setting->setup_fee / 100, 2) }} EUR</p>
                                 <p>Exchange Rate Markup: {{ $this->formatExchangeRate($setting->exchange_rate_markup) }}</p>
-
+                                <p>FX Rate Markup: {{ number_format($setting->fx_rate_markup / 100, 2) }}%</p>
                             </div>
                         </div>
                     @endforeach
@@ -104,6 +104,9 @@
                             </th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 FX Markup
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                FX Rate
                             </th>
                                 <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Actions
@@ -132,6 +135,11 @@
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="text-sm text-gray-900">
                                         {{ $this->formatExchangeRate($setting->exchange_rate_markup) }}
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm text-gray-900">
+                                        {{ number_format($setting->fx_rate_markup / 100, 2) }}%
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -298,6 +306,14 @@
                                      wire:model="exchangeRateMarkup"/>
                             <p class="mt-1 text-xs text-gray-500">Default: 1.01 (1% markup). Determines the exchange rate adjustment for non-EUR transactions.</p>
                             <x-input-error for="exchangeRateMarkup" class="mt-2"/>
+                        </div>
+                        <!-- FX Rate Markup -->
+                        <div>
+                            <x-label for="fxRateMarkup" value="{{ __('FX Rate Markup (%)') }}"/>
+                            <x-input id="fxRateMarkup" type="number" step="0.01" class="mt-1 block w-full"
+                                     wire:model="fxRateMarkup"/>
+                            <p class="mt-1 text-xs text-gray-500">Percentage markup applied to currency exchange (e.g., 1.00 for 1%)</p>
+                            <x-input-error for="fxRateMarkup" class="mt-2"/>
                         </div>
                         <div>
                             <label class="flex items-center">

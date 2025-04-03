@@ -183,6 +183,7 @@ readonly class SettlementService
                 'rolling_reserved_percentage' => $reserveProcessing['reserved_percentage'],
                 'chargebackSettlement' => $chargebackSettlements,
                 'exchange_rate' => $currencyTotals['exchange_rate'] ?? 1.0,
+                'fx_rate' => $currencyTotals['fx_rate'] ?? 0,
             ];
 
         } catch (\Exception $e) {
