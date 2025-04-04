@@ -22,15 +22,15 @@
                 </a>
             </div>
             <!-- Search -->
-            <div class="bg-white shadow w-full max-w-md ml-auto my-4">
+            <div class="bg-white shadow-sm w-full max-w-md ml-auto my-4">
                 <div class="relative">
                     <x-input
                         type="text"
                         wire:model.live.debounce.300ms="search"
                         placeholder="Search reports..."
                         class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5
-                        bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400
-                        focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                        bg-white placeholder-gray-500 focus:outline-hidden focus:placeholder-gray-400
+                        focus:border-blue-300 focus:ring-3 focus:ring-blue-200 focus:ring-opacity-50"
                     />
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -41,7 +41,7 @@
             </div>
 
             <!-- Reports List -->
-            <div class="bg-white rounded-lg shadow">
+            <div class="bg-white rounded-lg shadow-sm">
                 <!-- Mobile/Tablet View - Card Layout -->
                 <div class="block lg:hidden">
                     @forelse($reports as $report)

@@ -7,7 +7,7 @@ const MerchantSelector = ({ merchants, selectedMerchant, setSelectedMerchant, lo
         </label>
         <select
             id="merchant-select"
-            className="mt-1 block w-full rounded-md border-gray-300 focus:ring-blue-500"
+            className="mt-1 block w-full rounded-md border-zinc-300 ring-1 ring-inset ring-zinc-300 focus:ring-2 focus:ring-blue-500"
             value={selectedMerchant?.toString() || ''}
             onChange={(e) => setSelectedMerchant(e.target.value ? Number(e.target.value) : null)}
             disabled={loading}

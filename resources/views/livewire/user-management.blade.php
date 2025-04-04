@@ -1,7 +1,7 @@
 <div>
     {{-- Header --}}
     <x-slot name="header">
-        <h2 class="text-2xl font-bold text-gray-800">
+        <h2 class="text-2xl font-bold text-zinc-800">
             {{ __('User Management') }}
         </h2>
     </x-slot>
@@ -15,7 +15,7 @@
                          x-data="{ show: true }"
                          x-show="show"
                          x-transition.duration.300ms>
-                        <div class="flex-shrink-0">
+                        <div class="shrink-0">
                             <svg class="h-5 w-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
@@ -36,7 +36,7 @@
                          x-data="{ show: true }"
                          x-show="show"
                          x-transition.duration.300ms>
-                        <div class="flex-shrink-0">
+                        <div class="shrink-0">
                             <svg class="h-5 w-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
@@ -65,13 +65,13 @@
             </div>
 
             {{-- Users List --}}
-            <div class="bg-white rounded-lg shadow">
+            <div class="bg-white rounded-lg shadow-sm">
                 <div class="block lg:hidden">
                     @foreach($users as $user)
-                        <div class="border-b last:border-b-0 px-4 py-4 hover:bg-gray-50">
+                        <div class="border-b last:border-b-0 px-4 py-4 hover:bg-zinc-50">
                             {{-- User Info --}}
                             <div class="flex items-center mb-2">
-                                <div class="flex-shrink-0 h-10 w-10 mr-4">
+                                <div class="shrink-0 h-10 w-10 mr-4">
                                     <div class="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center">
                                         <span class="text-indigo-700 font-medium text-sm">
                                             {{ substr($user->name, 0, 2) }}
@@ -79,13 +79,13 @@
                                     </div>
                                 </div>
                                 <div class="flex-1">
-                                    <p class="text-sm font-medium text-gray-900">{{ $user->name }}</p>
-                                    <p class="text-xs text-gray-500">{{ $user->email }}</p>
+                                    <p class="text-sm font-medium text-zinc-900">{{ $user->name }}</p>
+                                    <p class="text-xs text-zinc-500">{{ $user->email }}</p>
                                 </div>
                                 {{-- Action Buttons --}}
                                 <div class="flex space-x-2">
                                     <button wire:click="editUser({{ $user->id }})"
-                                            class="text-gray-600 hover:text-indigo-600">
+                                            class="text-zinc-600 hover:text-indigo-600">
                                         <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                                   d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -118,29 +118,29 @@
 
                 {{-- Desktop View Table --}}
                 <div class="hidden lg:block overflow-x-auto max-h-[600px]">
-                    <table class="min-w-full divide-y divide-gray-200">
+                    <table class="min-w-full divide-y divide-zinc-200">
                         {{-- Table Header --}}
-                        <thead class="bg-gray-50">
+                        <thead class="bg-zinc-50">
                         <tr>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">
                                 User Details
                             </th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider hidden sm:table-cell">
                                 Roles
                             </th>
-                            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-zinc-500 uppercase tracking-wider">
                                 Actions
                             </th>
                         </tr>
                         </thead>
                         {{-- Table Body --}}
-                        <tbody class="bg-white divide-y divide-gray-200">
+                        <tbody class="bg-white divide-y divide-zinc-200">
                         @foreach($users as $user)
-                            <tr class="hover:bg-gray-50">
+                            <tr class="hover:bg-zinc-50">
                                 {{-- User Details --}}
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="flex items-center">
-                                        <div class="flex-shrink-0 h-10 w-10">
+                                        <div class="shrink-0 h-10 w-10">
                                             <div class="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center">
                                                     <span class="text-indigo-700 font-medium text-sm">
                                                         {{ substr($user->name, 0, 2) }}
@@ -148,8 +148,8 @@
                                             </div>
                                         </div>
                                         <div class="ml-4">
-                                            <div class="text-sm font-medium text-gray-900">{{ $user->name }}</div>
-                                            <div class="text-sm text-gray-500">{{ $user->email }}</div>
+                                            <div class="text-sm font-medium text-zinc-900">{{ $user->name }}</div>
+                                            <div class="text-sm text-zinc-500">{{ $user->email }}</div>
                                         </div>
                                     </div>
                                 </td>
@@ -168,7 +168,7 @@
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                     <div class="flex justify-end gap-2">
                                         <button wire:click="$dispatch('edit-user', { userId: {{ $user->id }} })"
-                                                class="text-gray-600 hover:text-indigo-600">
+                                                class="text-zinc-600 hover:text-indigo-600">
                                             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                                       d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -191,7 +191,7 @@
                 </div>
 
                 {{-- Pagination --}}
-                <div class="px-6 py-4 border-t border-gray-200">
+                <div class="px-6 py-4 border-t border-zinc-200">
                     {{ $users->links() }}
                 </div>
             </div>
@@ -206,7 +206,7 @@
                                       d="{{ $isEditing ? 'M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z' : 'M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z' }}" />
                             </svg>
                         </div>
-                        <h3 class="text-lg font-medium text-gray-900">
+                        <h3 class="text-lg font-medium text-zinc-900">
                             {{ $isEditing ? 'Edit User Details' : 'Create New User' }}
                         </h3>
                     </div>
@@ -242,16 +242,16 @@
                             <x-label value="{{ __('Role Assignment') }}" />
                             <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 @foreach($roles as $role)
-                                    <label class="relative flex items-center p-4 rounded-lg border cursor-pointer hover:bg-gray-50">
+                                    <label class="relative flex items-center p-4 rounded-lg border cursor-pointer hover:bg-zinc-50">
                                         <input type="radio"
                                                wire:model="selectedRole"
                                                value="{{ $role->id }}"
-                                               class="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500">
+                                               class="h-4 w-4 text-indigo-600 border-zinc-300 focus:ring-indigo-500">
                                         <div class="ml-4">
-                                            <span class="block text-sm font-medium text-gray-900">
+                                            <span class="block text-sm font-medium text-zinc-900">
                                                 {{ ucfirst($role->name) }}
                                             </span>
-                                            <span class="block text-sm text-gray-500">
+                                            <span class="block text-sm text-zinc-500">
                                                 {{ $role->name === 'admin' ? 'Full system access and control' : 'Standard user capabilities' }}
                                             </span>
                                         </div>

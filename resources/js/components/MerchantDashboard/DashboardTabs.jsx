@@ -29,10 +29,10 @@ const DashboardTabs = ({ reserveData = {}, feeHistory = [], upcomingReleases = [
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
-                            className={`w-1/3 py-4 px-4 text-center border-b-2 font-medium text-sm transition-colors duration-200 focus:outline-none ${
+                            className={`w-1/3 py-4 px-4 text-center border-b-2 font-medium text-sm transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
                                 activeTab === tab
                                     ? 'border-blue-500 text-blue-600 bg-blue-50'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50 hover:border-gray-300'
+                                    : 'border-transparent text-zinc-500 hover:text-zinc-700 hover:bg-zinc-50 hover:border-zinc-300'
                             }`}
                             aria-selected={activeTab === tab}
                         >
@@ -63,14 +63,14 @@ const DashboardTabs = ({ reserveData = {}, feeHistory = [], upcomingReleases = [
                 {activeTab === 'fees' && (
                     <div className="flex flex-col space-y-8">
                         {/* Fee Distribution Chart - Full width */}
-                        <div className="w-full bg-gray-50 p-4 rounded-lg shadow-sm border border-gray-200">
+                        <div className="w-full bg-zinc-50 p-4 rounded-lg shadow-sm border border-zinc-200">
                             <FeeDistributionChart
                                 feeHistory={feeHistory}
                             />
                         </div>
 
                         {/* Fee History Chart - Full width */}
-                        <div className="w-full bg-gray-50 p-4 rounded-lg shadow-sm border border-gray-200">
+                        <div className="w-full bg-zinc-50 p-4 rounded-lg shadow-sm border border-zinc-200">
                             <FeeHistoryChart
                                 feeHistory={feeHistory}
                             />

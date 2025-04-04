@@ -14,7 +14,7 @@
                          x-data="{ show: true }"
                          x-show="show"
                          x-transition.duration.300ms>
-                        <div class="flex-shrink-0">
+                        <div class="shrink-0">
                             <svg class="h-5 w-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                       d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -45,7 +45,7 @@
             </div>
 
             <!-- Merchant Fees List -->
-            <div class="bg-white rounded-lg shadow">
+            <div class="bg-white rounded-lg shadow-sm">
                 <!-- Mobile/Tablet View - Card Layout -->
                 <div class="block lg:hidden">
                     @foreach($merchantFees as $fee)
@@ -210,7 +210,7 @@
                             <x-label for="selectedMerchantId" value="{{ __('Merchant') }}"/>
                             <select wire:model="selectedMerchantId"
                                     id="selectedMerchantId"
-                                    class="mt-1 block w-full border-gray-300 focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 rounded-md shadow-sm">
+                                    class="mt-1 block w-full border-gray-300 focus:border-indigo-300 focus:ring-3 focus:ring-indigo-200 focus:ring-opacity-50 rounded-md shadow-xs">
                                 <option value="">Select a Merchant</option>
                                 @foreach($merchants as $merchant)
                                     <option value="{{ $merchant->id }}">{{ $merchant->name }}</option>
@@ -223,7 +223,7 @@
                             <x-label for="selectedFeeTypeId" value="{{ __('Fee Type') }}"/>
                             <select wire:model="selectedFeeTypeId"
                                     id="selectedFeeTypeId"
-                                    class="mt-1 block w-full border-gray-300 focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 rounded-md shadow-sm">
+                                    class="mt-1 block w-full border-gray-300 focus:border-indigo-300 focus:ring-3 focus:ring-indigo-200 focus:ring-opacity-50 rounded-md shadow-xs">
                                 <option value="">Select a Fee Type</option>
                                 @foreach($feeTypes as $feeType)
                                     <option value="{{ $feeType->id }}">

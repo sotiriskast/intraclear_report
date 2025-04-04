@@ -197,10 +197,10 @@ const MerchantDashboard = ({ merchantId: initialMerchantId }) => {
     }
 
     return (
-        <div className="w-full max-w-7xl mx-auto p-4 space-y-6 bg-gray-50 min-h-screen">
-            <div className="bg-white p-4 rounded-lg shadow-sm border mb-6">
+        <div className="w-full max-w-7xl mx-auto p-4 space-y-6 bg-zinc-50 min-h-svh">
+            <div className="bg-white p-4 rounded-lg shadow-sm border border-zinc-200 mb-6">
                 <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                    <h2 className="text-xl font-bold text-gray-800">Merchant Rolling Reserve Dashboard</h2>
+                    <h2 className="text-xl font-bold text-zinc-800">Merchant Rolling Reserve Dashboard</h2>
                     <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
                         <MerchantSelector
                             merchants={merchants}

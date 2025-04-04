@@ -108,8 +108,8 @@ const SummaryCards = ({ upcomingReleases = [], reserveData = {}, feeHistory = []
     return (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             {/* Next Release Card */}
-            <div className="bg-white shadow rounded-lg p-4">
-                <h3 className="text-sm font-medium text-gray-500">Next Release Amount</h3>
+            <div className="bg-white shadow-sm rounded-lg p-4 border border-zinc-200">
+                <h3 className="text-sm font-medium text-zinc-500">Next Release Amount</h3>
                 <div className="mt-2 space-y-1">
                     {Object.entries(nextReleases).map(([currency, data]) => (
                         <div key={currency} className="flex justify-between items-center">
@@ -118,7 +118,7 @@ const SummaryCards = ({ upcomingReleases = [], reserveData = {}, feeHistory = []
                         </div>
                     ))}
                 </div>
-                <p className="text-xs text-gray-500 mt-2">
+                <p className="text-xs text-zinc-500 mt-2">
                     {nextReleases[currencies[0]]?.month
                         ? `Expected in ${nextReleases[currencies[0]].month} ${nextReleases[currencies[0]].year}`
                         : 'No upcoming releases'
@@ -127,8 +127,8 @@ const SummaryCards = ({ upcomingReleases = [], reserveData = {}, feeHistory = []
             </div>
 
             {/* Total Pending Reserve Card */}
-            <div className="bg-white shadow rounded-lg p-4">
-                <h3 className="text-sm font-medium text-gray-500">Total Pending Reserve</h3>
+            <div className="bg-white shadow-sm rounded-lg p-4 border border-zinc-200">
+                <h3 className="text-sm font-medium text-zinc-500">Total Pending Reserve</h3>
                 <div className="mt-2 space-y-1">
                     {Object.entries(pendingReserves).map(([currency, amount]) => (
                         <div key={currency} className="flex justify-between items-center">
@@ -136,28 +136,28 @@ const SummaryCards = ({ upcomingReleases = [], reserveData = {}, feeHistory = []
                             <span className="text-base font-bold">{amount}</span>
                         </div>
                     ))}
-                    <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-200">
-                        <span className="text-sm font-medium text-gray-700">Total EUR:</span>
+                    <div className="flex justify-between items-center mt-2 pt-2 border-t border-zinc-200">
+                        <span className="text-sm font-medium text-zinc-700">Total EUR:</span>
                         <span className="text-base font-bold text-blue-600">
                             {totalReservedEur}
                         </span>
                     </div>
                 </div>
-                <p className="text-xs text-gray-500 mt-2">Currently held in reserve</p>
+                <p className="text-xs text-zinc-500 mt-2">Currently held in reserve</p>
             </div>
 
             {/* Total Released Card */}
-            <div className="bg-white shadow rounded-lg p-4">
-                <h3 className="text-sm font-medium text-gray-500">Total Released</h3>
-                <p className="text-2xl font-bold text-gray-900">{totalReleased} entries</p>
-                <p className="text-xs text-gray-500">Historical releases</p>
+            <div className="bg-white shadow-sm rounded-lg p-4 border border-zinc-200">
+                <h3 className="text-sm font-medium text-zinc-500">Total Released</h3>
+                <p className="text-2xl font-bold text-zinc-900">{totalReleased} entries</p>
+                <p className="text-xs text-zinc-500">Historical releases</p>
             </div>
 
             {/* Total Fees Collected Card */}
-            <div className="bg-white shadow rounded-lg p-4">
-                <h3 className="text-sm font-medium text-gray-500">Total Fees Collected</h3>
-                <p className="text-2xl font-bold text-gray-900">{calculateTotalFees()}</p>
-                <p className="text-xs text-gray-500">For all fee types</p>
+            <div className="bg-white shadow-sm rounded-lg p-4 border border-zinc-200">
+                <h3 className="text-sm font-medium text-zinc-500">Total Fees Collected</h3>
+                <p className="text-2xl font-bold text-zinc-900">{calculateTotalFees()}</p>
+                <p className="text-xs text-zinc-500">For all fee types</p>
             </div>
         </div>
     );

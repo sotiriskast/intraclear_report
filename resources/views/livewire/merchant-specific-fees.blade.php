@@ -11,7 +11,7 @@
             <div class="space-y-4">
                 @if (session()->has('message'))
                     <div class="flex p-4 bg-green-50 rounded-lg border border-green-200">
-                        <div class="flex-shrink-0">
+                        <div class="shrink-0">
                             <svg class="h-5 w-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
@@ -35,7 +35,7 @@
             </div>
 
             <!-- Merchant Fees List -->
-            <div class="bg-white rounded-lg shadow">
+            <div class="bg-white rounded-lg shadow-sm">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                     <tr>
@@ -123,7 +123,7 @@
                         <div>
                             <x-label for="selectedFeeTypeId">Fee Type</x-label>
                             <select wire:model="selectedFeeTypeId"
-                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-xs">
                                 <option value="">Select Fee Type</option>
                                 @foreach($feeTypes as $feeType)
                                     <option value="{{ $feeType->id }}">

@@ -1,6 +1,6 @@
 <div class="flex flex-col h-full">
     <!-- Logo Section -->
-    <div class="flex items-center justify-between h-16 px-4 border-b border-gray-200">
+    <div class="flex items-center justify-between h-16 px-4 border-b border-zinc-200">
         <a href="{{ route('admin.dashboard') }}" class="flex items-center">
             <x-authentication-card-logo class="w-72 h-16"/>
         </a>
@@ -39,8 +39,8 @@
                             @click="open = !open;$dispatch('closeSidebar')"
                             class="w-full flex items-center justify-between px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer
                            {{ collect($item['children'])->contains(fn($child) => request()->routeIs($child['route'] ?? ''))
-                                ? 'bg-gray-100 text-gray-900'
-                                : 'text-gray-600 hover:bg-gray-50' }}"
+                                ? 'bg-zinc-100 text-zinc-900'
+                                : 'text-zinc-600 hover:bg-zinc-50' }}"
 
                         >
                             <div class="flex items-center">

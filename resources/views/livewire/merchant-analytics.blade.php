@@ -20,7 +20,7 @@
         <div class="max-w-7xl mx-auto px-4">
             <!-- Header with Merchant Info and Filters -->
             <div class="mb-6">
-                <div class="bg-white p-4 rounded-lg shadow mb-4">
+                <div class="bg-white p-4 rounded-lg shadow-sm mb-4">
                     <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
                         <div>
                             <h1 class="text-xl font-semibold text-gray-800">{{ $merchant->name }}</h1>
@@ -36,7 +36,7 @@
                                     Loading...
                                 </div>
                             @endif
-                            <select wire:model.live="period" wire:loading.attr="disabled" class="rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                            <select wire:model.live="period" wire:loading.attr="disabled" class="rounded-md border-gray-300 shadow-xs focus:border-indigo-300 focus:ring-3 focus:ring-indigo-200 focus:ring-opacity-50">
                                 <option value="last7days">Last 7 Days</option>
                                 <option value="last30days">Last 30 Days</option>
                                 <option value="last90days">Last 90 Days</option>
@@ -52,28 +52,28 @@
             <!-- Summary Cards -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6" wire:loading.class.delay="opacity-50">
                 <!-- Transactions Card -->
-                <div class="bg-white rounded-lg shadow p-4">
+                <div class="bg-white rounded-lg shadow-sm p-4">
                     <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">Transactions</h3>
                     <p class="text-2xl font-bold text-gray-800">{{ number_format($transactionMetrics['transaction_count']) }}</p>
                     <p class="text-lg text-gray-600">€{{ number_format($transactionMetrics['total_sales_eur'], 2) }}</p>
                 </div>
 
                 <!-- Fees Card -->
-                <div class="bg-white rounded-lg shadow p-4">
+                <div class="bg-white rounded-lg shadow-sm p-4">
                     <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">Fees</h3>
                     <p class="text-2xl font-bold text-gray-800">{{ number_format($feeMetrics['fee_count']) }}</p>
                     <p class="text-lg text-gray-600">€{{ number_format($feeMetrics['total_fees'], 2) }}</p>
                 </div>
 
                 <!-- Rolling Reserve Card -->
-                <div class="bg-white rounded-lg shadow p-4">
+                <div class="bg-white rounded-lg shadow-sm p-4">
                     <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">Rolling Reserve</h3>
                     <p class="text-2xl font-bold text-gray-800">{{ number_format($rollingReserveMetrics['pending_count']) }}</p>
                     <p class="text-lg text-gray-600">€{{ number_format($rollingReserveMetrics['total_reserved_eur'] ?? array_sum($rollingReserveMetrics['pending_reserves_eur'] ?? []), 2) }}</p>
                 </div>
 
                 <!-- Chargebacks Card -->
-                <div class="bg-white rounded-lg shadow p-4">
+                <div class="bg-white rounded-lg shadow-sm p-4">
                     <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">Chargebacks</h3>
                     <p class="text-2xl font-bold text-gray-800">{{ number_format($chargebackMetrics['total_count']) }}</p>
                     <p class="text-lg text-gray-600">€{{ number_format($chargebackMetrics['total_amount_eur'], 2) }}</p>
@@ -81,7 +81,7 @@
             </div>
 
             <!-- Lifetime Metrics -->
-            <div class="bg-white rounded-lg shadow overflow-hidden mb-6" wire:loading.class.delay="opacity-50">
+            <div class="bg-white rounded-lg shadow-sm overflow-hidden mb-6" wire:loading.class.delay="opacity-50">
                 <div class="px-4 py-3 bg-gray-50 border-b border-gray-200">
                     <h3 class="text-lg font-medium text-gray-800">Lifetime Statistics</h3>
                 </div>
@@ -116,7 +116,7 @@
             </div>
 
             <!-- Rolling Reserve Release Schedule - Upcoming Dates -->
-            <div class="bg-white rounded-lg shadow overflow-hidden mb-6" wire:loading.class.delay="opacity-50">
+            <div class="bg-white rounded-lg shadow-sm overflow-hidden mb-6" wire:loading.class.delay="opacity-50">
                 <div class="px-4 py-3 bg-gray-50 border-b border-gray-200">
                     <h3 class="text-lg font-medium text-gray-800">Upcoming Reserve Releases</h3>
                 </div>
@@ -157,40 +157,40 @@
             <!-- Lazy-loading Tabs for Detailed Data -->
             <div x-data="{ activeTab: 'transactions' }" class="mb-6">
                 <!-- Tab Navigation -->
-                <div class="bg-white rounded-t-lg shadow px-4 border-b border-gray-200">
+                <div class="bg-white rounded-t-lg shadow-sm px-4 border-b border-gray-200">
                     <div class="flex overflow-x-auto -mb-px">
                         <button
                             @click="activeTab = 'transactions'"
                             :class="{ 'border-indigo-500 text-indigo-600': activeTab === 'transactions', 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300': activeTab !== 'transactions' }"
-                            class="py-4 px-1 font-medium text-sm border-b-2 whitespace-nowrap mr-8 focus:outline-none"
+                            class="py-4 px-1 font-medium text-sm border-b-2 whitespace-nowrap mr-8 focus:outline-hidden"
                         >
                             Transactions
                         </button>
                         <button
                             @click="activeTab = 'fees'"
                             :class="{ 'border-indigo-500 text-indigo-600': activeTab === 'fees', 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300': activeTab !== 'fees' }"
-                            class="py-4 px-1 font-medium text-sm border-b-2 whitespace-nowrap mr-8 focus:outline-none"
+                            class="py-4 px-1 font-medium text-sm border-b-2 whitespace-nowrap mr-8 focus:outline-hidden"
                         >
                             Fees
                         </button>
                         <button
                             @click="activeTab = 'reserves'"
                             :class="{ 'border-indigo-500 text-indigo-600': activeTab === 'reserves', 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300': activeTab !== 'reserves' }"
-                            class="py-4 px-1 font-medium text-sm border-b-2 whitespace-nowrap mr-8 focus:outline-none"
+                            class="py-4 px-1 font-medium text-sm border-b-2 whitespace-nowrap mr-8 focus:outline-hidden"
                         >
                             Reserves
                         </button>
                         <button
                             @click="activeTab = 'chargebacks'"
                             :class="{ 'border-indigo-500 text-indigo-600': activeTab === 'chargebacks', 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300': activeTab !== 'chargebacks' }"
-                            class="py-4 px-1 font-medium text-sm border-b-2 whitespace-nowrap mr-8 focus:outline-none"
+                            class="py-4 px-1 font-medium text-sm border-b-2 whitespace-nowrap mr-8 focus:outline-hidden"
                         >
                             Chargebacks
                         </button>
                         <button
                             @click="activeTab = 'trends'"
                             :class="{ 'border-indigo-500 text-indigo-600': activeTab === 'trends', 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300': activeTab !== 'trends' }"
-                            class="py-4 px-1 font-medium text-sm border-b-2 whitespace-nowrap focus:outline-none"
+                            class="py-4 px-1 font-medium text-sm border-b-2 whitespace-nowrap focus:outline-hidden"
                         >
                             Trends
                         </button>
@@ -198,7 +198,7 @@
                 </div>
 
                 <!-- Tab Content -->
-                <div class="bg-white rounded-b-lg shadow">
+                <div class="bg-white rounded-b-lg shadow-sm">
                     <!-- Transactions Tab -->
                     <div x-show="activeTab === 'transactions'" wire:loading.class.delay="opacity-50">
                         <div class="px-4 py-3 bg-gray-50 border-b border-gray-200">
