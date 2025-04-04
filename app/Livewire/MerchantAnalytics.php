@@ -599,7 +599,7 @@ class MerchantAnalytics extends Component
                     if ($transactions && $transactions->isNotEmpty()) {
                         $currencies = $transactions->pluck('currency')->unique()->toArray();
                         $exchangeRates = $this->transactionRepository->getExchangeRates($allTimeRange, $currencies);
-                        $totals = $this->transactionRepository->calculateTransactionTotals($transactions, $exchangeRates);
+                        $totals = $this->transactionRepository->calculateTransactionTotals($transactions, $exchangeRates, $this->merchant->account_id);
 
                         foreach ($totals as $currencyTotals) {
                             $totalSalesEur += $currencyTotals['total_sales_eur'];

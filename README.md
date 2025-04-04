@@ -7,6 +7,13 @@
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
 </p>
 
+## Laravel 12 Upgrade
+
+This project has been upgraded to Laravel 12. For details on the upgrade process, see:
+
+- [LARAVEL_12_UPGRADE.md](LARAVEL_12_UPGRADE.md) - Step-by-step upgrade guide
+- [UPGRADE_NOTES.md](UPGRADE_NOTES.md) - Upgrade notes and potential issues
+
 ## About Laravel
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
