@@ -64,13 +64,13 @@ class FeeTypeSeeder extends Seeder
             [
                 'name' => 'Mastercard High Risk Fee',
                 'key' => 'mastercard_high_risk_fee',
-                'frequency_type' => 'monthly',
+                'frequency_type' => 'yearly',
                 'is_percentage' => false,
             ],
             [
                 'name' => 'Visa High Risk Fee',
                 'key' => 'visa_high_risk_fee',
-                'frequency_type' => 'monthly',
+                'frequency_type' => 'yearly',
                 'is_percentage' => false,
             ],
         ];

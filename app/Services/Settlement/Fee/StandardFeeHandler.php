@@ -101,30 +101,26 @@ class StandardFeeHandler implements StandardFeeHandlerInterface
                     if ($feeConfig->condition === null || $this->shouldProcessFee($feeConfig, $settings)) {
                         $amount = $this->getFeeAmount($settings, $feeConfig->key);
 
-                        if ($amount >= 0) {
-                            // Create appropriate calculator based on fee configuration
-                            $calculator = $this->calculatorFactory->createCalculator(
-                                $feeConfig->frequency,
-                                $feeConfig->isPercentage,
-                                $feeConfig->key
-                            );
+                        // Create appropriate calculator based on fee configuration
+                        $calculator = $this->calculatorFactory->createCalculator(
+                            $feeConfig->frequency,
+                            $feeConfig->isPercentage,
+                            $feeConfig->key
+                        );
 
-                            // Calculate the actual fee amount
-                            $feeAmount = $calculator->calculate($transactionData, $amount);
+                        // Calculate the actual fee amount
+                        $feeAmount = $calculator->calculate($transactionData, $amount);
 
-                            if ($feeAmount >= 0) {
-                                // Prepare fee details for return
-                                $standardFees[] = [
-                                    'fee_type' => $feeConfig->name,
-                                    'fee_type_id' => $this->getFeeTypeId($feeConfig->key),
-                                    'fee_rate' => $this->formatRate($amount, $feeConfig->isPercentage),
-                                    'fee_amount' => $feeAmount,
-                                    'frequency' => $feeConfig->frequency,
-                                    'is_percentage' => $feeConfig->isPercentage,
-                                    'transactionData' => $rawTransactionData,
-                                ];
-                            }
-                        }
+                        // Always include all standard fees, even if zero
+                        $standardFees[] = [
+                            'fee_type' => $feeConfig->name,
+                            'fee_type_id' => $this->getFeeTypeId($feeConfig->key),
+                            'fee_rate' => $this->formatRate($amount, $feeConfig->isPercentage),
+                            'fee_amount' => $feeAmount,
+                            'frequency' => $feeConfig->frequency,
+                            'is_percentage' => $feeConfig->isPercentage,
+                            'transactionData' => $rawTransactionData,
+                        ];
                     }
                 } catch (\Exception $e) {
                     $this->logger->log('error', 'Error processing fee', [
