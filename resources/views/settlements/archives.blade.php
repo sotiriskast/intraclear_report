@@ -6,6 +6,7 @@
                     <div class="flex justify-between items-center mb-6">
                         <h2 class="text-2xl font-bold">Settlement Archives</h2>
                         <a href="{{ route('settlements.index') }}"
+                           wire:navigate
                            class="inline-flex items-center px-4 py-2 bg-gray-600 border border-transparent rounded-md font-semibold text-white hover:bg-gray-700">
                             Back to Reports
                         </a>
