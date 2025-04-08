@@ -179,7 +179,8 @@ const FeeHistoryChart = ({ feeHistory = [] }) => {
                                 height={60}
                                 tick={{ fontSize: 13, fontWeight: 'bold' }}
                                 tickMargin={10}
-                                interval={0}
+                                // Display a more reasonable number of ticks when we have a lot of data
+                                interval={formattedData.length > 12 ? Math.floor(formattedData.length / 6) : 0}
                             />
                             {/* Left Y axis for MDR Fee */}
                             <YAxis

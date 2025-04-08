@@ -62,11 +62,20 @@ class MerchantAnalytics extends Component
     {
         $this->merchant = $merchant;
         $this->setDateRange('last30days');
+        $this->isLoading = true; // Set to true initially
 
         // Initialize currencies early
         $this->loadAllCurrencies();
-    }
 
+        // Set a short timeout to turn off the loading state
+        $this->dispatch('setInitialLoadingTimeout');
+    }
+    #[Renderless]
+    public function setInitialLoadingTimeout()
+    {
+        // Set a slightly longer timeout for initial load
+        $this->dispatch('setTimeout', timeout: 1000);
+    }
     // Load all currencies from all data sources upfront
     protected function loadAllCurrencies()
     {
@@ -98,16 +107,26 @@ class MerchantAnalytics extends Component
         }
     }
 
-    public function updatedPeriod($value)
+    public function updatedPeriod($value): void
     {
         $this->isLoading = true;
         $this->setDateRange($value);
-        $this->isLoading = false;
+        $this->dispatch('setLoadingTimeout');
+
     }
 
-    public function updatedCurrency($value)
+    public function updatedCurrency($value): void
     {
         $this->isLoading = false;
+        $this->dispatch('setLoadingTimeout');
+
+
+    }
+    #[Renderless]
+    public function setLoadingTimeout(): void
+    {
+        // We'll use a JavaScript-based timeout via dispatch
+        $this->dispatch('setTimeout', timeout: 800);
     }
 
     public function setDateRange($period)
@@ -179,7 +198,7 @@ class MerchantAnalytics extends Component
                         $exchangeRates = $this->transactionRepository->getExchangeRates($this->dateRange, $currencies);
 
                         // Calculate transaction totals
-                        $totals = $this->transactionRepository->calculateTransactionTotals($transactions, $exchangeRates);
+                        $totals = $this->transactionRepository->calculateTransactionTotals($transactions, $exchangeRates,$this->merchant->account_id);
 
                         // Combine totals from all currencies
                         $summary = [

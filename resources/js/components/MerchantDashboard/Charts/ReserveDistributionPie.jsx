@@ -8,8 +8,14 @@ const ReserveDistributionPie = ({ statistics = {} }) => {
     const [activeIndex, setActiveIndex] = useState(0);
 
     // Safely access statistics properties with default values
-    const pendingCount = statistics?.pending_count || 0;
-    const releasedCount = statistics?.released_count || 0;
+    // Make sure we're dealing with numbers
+    const pendingCount = parseInt(statistics?.pending_count || 0, 10);
+    const releasedCount = parseInt(statistics?.released_count || 0, 10);
+
+    // Log the statistics to help with debugging
+    console.log('Reserve Distribution Statistics:', statistics);
+    console.log('Pending Count:', pendingCount);
+    console.log('Released Count:', releasedCount);
 
     const data = [
         { name: 'Pending', value: pendingCount },
@@ -122,6 +128,11 @@ const ReserveDistributionPie = ({ statistics = {} }) => {
             {pendingCount > 0 && releasedCount === 0 && (
                 <div className="text-xs text-center text-gray-500 mt-2">
                     Note: 100% of reserves ({pendingCount} entries) are in Pending status
+                </div>
+            )}
+            {releasedCount > 0 && pendingCount === 0 && (
+                <div className="text-xs text-center text-gray-500 mt-2">
+                    Note: 100% of reserves ({releasedCount} entries) are in Released status
                 </div>
             )}
         </div>

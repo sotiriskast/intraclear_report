@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import RollingReserveChart from './Charts/RollingReserveChart.jsx';
 import ReserveDistributionPie from './Charts/ReserveDistributionPie.jsx';
 import UpcomingReleasesChart from './Charts/UpcomingReleasesChart.jsx';
@@ -13,6 +13,12 @@ const DashboardTabs = ({ reserveData = {}, feeHistory = [], upcomingReleases = [
         pending_reserves: reserveData?.pending_reserves || {},
         statistics: reserveData?.statistics || { pending_count: 0, released_count: 0 }
     };
+
+    // Debugging to help identify data issues
+    useEffect(() => {
+        console.log('DashboardTabs - Reserve Data:', reserveData);
+        console.log('DashboardTabs - Safe Reserve Data:', safeReserveData);
+    }, [reserveData]);
 
     // Map tabs to more readable text
     const tabLabels = {

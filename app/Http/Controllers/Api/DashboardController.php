@@ -155,23 +155,27 @@ class DashboardController extends Controller
             ->map(fn($item) => round($item->total_amount / 100, 2))
             ->toArray();
 
-        // Get counts by status with a single query
+        // Get counts by status with a single query for ALL time periods
         $counts = DB::table('rolling_reserve_entries')
             ->select('status', DB::raw('COUNT(*) as count'))
             ->groupBy('status')
             ->pluck('count', 'status')
             ->toArray();
 
+        // Make sure the counts are numeric
+        $pendingCount = intval($counts['pending'] ?? 0);
+        $releasedCount = intval($counts['released'] ?? 0);
+
         return [
             'pending_reserves' => $pendingReserves,
             'pending_reserves_eur' => $pendingReservesEur,
-            'total_reserved_eur' => round($totalReservedEur, 2), // Add this line
-            'pending_count' => $counts['pending'] ?? 0,
-            'released_count' => $counts['released'] ?? 0,
+            'total_reserved_eur' => round($totalReservedEur, 2),
+            'pending_count' => $pendingCount,
+            'released_count' => $releasedCount,
             'upcoming_releases' => $upcomingReleases,
             'statistics' => [
-                'pending_count' => $counts['pending'] ?? 0,
-                'released_count' => $counts['released'] ?? 0,
+                'pending_count' => $pendingCount,
+                'released_count' => $releasedCount,
             ],
         ];
     }
@@ -199,18 +203,34 @@ class DashboardController extends Controller
             $query = RollingReserveEntry::query()
                 ->when($merchantId, fn($q) => $q->where('merchant_id', $merchantId))
                 ->when($status, fn($q) => $q->where('status', $status))
-                ->when($currency, fn($q) => $q->where('original_currency', $currency))
-                ->orderBy('created_at', 'desc');
+                ->when($currency, fn($q) => $q->where('original_currency', $currency));
 
             // Calculate total reserved amount in EUR
             $totalReservedEur = (clone $query)
                     ->where('status', 'pending')
                     ->sum('reserve_amount_eur') / 100;
 
+            // Get counts for both statuses regardless of the current filter
+            $countQuery = RollingReserveEntry::query()
+                ->when($merchantId, fn($q) => $q->where('merchant_id', $merchantId))
+                ->when($currency, fn($q) => $q->where('original_currency', $currency))
+                ->selectRaw('status, COUNT(*) as count')
+                ->groupBy('status');
+
+            $counts = $countQuery->pluck('count', 'status')->toArray();
+
+            // Make sure the counts are numeric
+            $pendingCount = intval($counts['pending'] ?? 0);
+            $releasedCount = intval($counts['released'] ?? 0);
+
+            // Apply ordering and get the requested entries
+            $orderQuery = clone $query;
+            $orderQuery->orderBy('created_at', 'desc');
+
             // Use pagination for better performance on large datasets
             $reserves = $request->input('paginate', true)
-                ? $query->paginate($perPage)
-                : $query->get();
+                ? $orderQuery->paginate($perPage)
+                : $orderQuery->get();
 
             // Process and format the reserve entries for frontend
             $formattedReserves = $reserves->map(function ($reserve) {
@@ -218,9 +238,10 @@ class DashboardController extends Controller
                     'id' => $reserve->id,
                     'merchant_id' => $reserve->merchant_id,
                     'status' => $reserve->status,
-                    'amount' => $reserve->original_amount / 100,
+                    // Ensure proper division by 100 for monetary amounts
+                    'amount' => round($reserve->original_amount / 100, 2),
                     'currency' => $reserve->original_currency,
-                    'amount_eur' => $reserve->reserve_amount_eur / 100,
+                    'amount_eur' => round($reserve->reserve_amount_eur / 100, 2),
                     'exchange_rate' => $reserve->exchange_rate,
                     'release' => [
                         'due_date' => Carbon::parse($reserve->release_due_date)->format('Y-m-d'),
@@ -235,14 +256,16 @@ class DashboardController extends Controller
 
             return $this->successResponse([
                 'reserves' => $formattedReserves,
-                'total_reserved_eur' => round($totalReservedEur, 2)
+                'total_reserved_eur' => round($totalReservedEur, 2),
+                'statistics' => [
+                    'pending_count' => $pendingCount,
+                    'released_count' => $releasedCount,
+                ]
             ]);
         } catch (\Exception $e) {
             return $this->errorResponse('Failed to load rolling reserves', $e);
         }
-
     }
-
     /**
      * Get fee history for dashboard
      *
@@ -257,9 +280,10 @@ class DashboardController extends Controller
             }
 
             $merchantId = $request->input('merchant_id');
+            // Default to all-time data if no date range is specified
             $startDate = $request->input('start_date')
                 ? Carbon::parse($request->input('start_date'))
-                : Carbon::now()->subMonths(6);
+                : Carbon::now()->subYears(10); // Go back 10 years to effectively get all data
             $endDate = $request->input('end_date')
                 ? Carbon::parse($request->input('end_date'))
                 : Carbon::now();
@@ -282,7 +306,8 @@ class DashboardController extends Controller
                     'merchant_id' => $fee->merchant_id,
                     'fee_type_id' => $fee->fee_type_id,
                     'fee_type' => $fee->feeType->name ?? $feeTypes[$fee->fee_type_id] ?? 'Unknown',
-                    'fee_amount_eur' => $fee->fee_amount_eur / 100,
+                    // Ensure proper division by 100 for monetary amounts with appropriate rounding
+                    'fee_amount_eur' => round($fee->fee_amount_eur / 100, 2),
                     'applied_date' => Carbon::parse($fee->applied_date)->format('Y-m-d'),
                     'report_reference' => $fee->report_reference,
                 ];

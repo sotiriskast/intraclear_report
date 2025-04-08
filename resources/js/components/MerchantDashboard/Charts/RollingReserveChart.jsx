@@ -28,8 +28,8 @@ const RollingReserveChart = ({ reserveData = {} }) => {
 
     // Create data array and handle very large JPY values
     const data = Object.entries(pendingReserves).map(([currency, amount]) => {
-        // If JPY is much larger than other currencies, scale it down for better visualization
-        let displayAmount = Number(amount || 0);
+        // Ensure we're working with numbers by parsing the values
+        let displayAmount = parseFloat(amount || 0);
         let originalAmount = displayAmount;
 
         // Scale down JPY if it's at least 10x larger than the next largest currency
@@ -37,7 +37,7 @@ const RollingReserveChart = ({ reserveData = {} }) => {
             const otherCurrencyMax = Math.max(
                 ...Object.entries(pendingReserves)
                     .filter(([curr]) => curr !== 'JPY')
-                    .map(([_, value]) => Number(value || 0))
+                    .map(([_, value]) => parseFloat(value || 0))
             );
 
             if (displayAmount > otherCurrencyMax * 10) {
@@ -62,7 +62,11 @@ const RollingReserveChart = ({ reserveData = {} }) => {
                 <div className="bg-white p-3 border-2 shadow-md rounded-md">
                     <p className="font-bold text-lg border-b pb-2 mb-2">{currency}</p>
                     <p className="text-lg">
-                        <span className="font-medium">{originalAmount.toLocaleString()}</span> {currency}
+                        <span className="font-medium">
+                            {currency === 'JPY' 
+                                ? originalAmount.toLocaleString(undefined, { maximumFractionDigits: 0 }) 
+                                : originalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span> {currency}
                     </p>
                     {isScaled && (
                         <p className="text-xs text-gray-500 mt-1">

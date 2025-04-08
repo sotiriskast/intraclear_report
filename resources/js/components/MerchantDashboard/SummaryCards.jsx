@@ -94,11 +94,15 @@ const SummaryCards = ({ upcomingReleases = [], reserveData = {}, feeHistory = []
                     key !== 'fullDate' &&
                     key.endsWith('_EUR')
                 )
-                .reduce((sum, [_, value]) => sum + Number(value || 0), 0);
+                .reduce((sum, [_, value]) => {
+                    // Ensure proper number parsing and addition
+                    return sum + parseFloat(value || 0);
+                }, 0);
 
             return total + monthTotal;
         }, 0);
 
+        // Ensure proper formatting with 2 decimal places
         return formatCurrency(total);
     };
 

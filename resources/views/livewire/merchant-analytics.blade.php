@@ -1,9 +1,4 @@
 <div>
-    <!-- Loading indicator at the top of the page -->
-    <div wire:loading class="fixed top-0 left-0 right-0 bg-blue-600 h-1 z-50">
-        <div class="w-24 h-full bg-blue-300 animate-pulse"></div>
-    </div>
-
     @section('header')
         <h2 class="text-2xl font-bold text-gray-800">
             {{ __('Merchant Analytics') }}
