@@ -61,6 +61,7 @@ class SchemeRateValidationService
                 // Check for each required card brand
                 foreach (self::REQUIRED_CARD_BRANDS as $cardBrand) {
                     // Get dates that have scheme rates for this currency and card brand
+                    // Note: payment_gateway_mysql will always be MariaDB, so we don't need the conditional logic here
                     $existingDates = DB::connection('payment_gateway_mysql')
                         ->table('scheme_rates')
                         ->select(DB::raw('DISTINCT DATE(added) as rate_date'))

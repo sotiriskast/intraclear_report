@@ -52,7 +52,7 @@ class MerchantSyncService
             // Fetch source merchant data from payment gateway
             $sourceData = $this->getSourceData();
             // Start database transaction
-            DB::connection('mariadb')->beginTransaction();
+            DB::connection('pgsql')->beginTransaction();
             // Process each merchant
             foreach ($sourceData as $merchant) {
                 $isNew = ! isset($existingMerchants[$merchant->id]);
@@ -63,7 +63,7 @@ class MerchantSyncService
                     // Retrieve the internal merchant ID using the account_id from the payment gateway
                     // We need this because the merchant table uses an auto-incrementing ID
                     // different from the account_id in the payment gateway
-                    $merchantId = DB::connection('mariadb')
+                    $merchantId = DB::connection('pgsql')
                         ->table('merchants')
                         ->where('account_id', $merchant->id)
                         ->value('id');
@@ -78,7 +78,7 @@ class MerchantSyncService
                 }
             }
             // Commit database transaction
-            DB::connection('mariadb')->commit();
+            DB::connection('pgsql')->commit();
             $this->logger->log('info', 'Merchant sync completed successfully', [
                 'new_merchants' => $stats['new'],
                 'updated_merchants' => $stats['updated'],
@@ -88,7 +88,7 @@ class MerchantSyncService
             return $stats;
         } catch (\Exception $e) {
             // Rollback transaction in case of failure
-            DB::connection('mariadb')->rollBack();
+            DB::connection('pgsql')->rollBack();
             // @todo Send email for not adding merchant
             $this->logger->log('error', 'Merchant sync failed', [
                 'error' => $e->getMessage(),
@@ -149,7 +149,7 @@ class MerchantSyncService
      */
     private function getExistingMerchants(): array
     {
-        return DB::connection('mariadb')
+        return DB::connection('pgsql')
             ->table('merchants')
             ->pluck('id', 'account_id')
             ->toArray();
@@ -186,7 +186,7 @@ class MerchantSyncService
      */
     private function upsertMerchant($merchant): void
     {
-        DB::connection('mariadb')->table('merchants')->updateOrInsert(
+        DB::connection('pgsql')->table('merchants')->updateOrInsert(
             ['account_id' => $merchant->id],
             [
                 'name' => $merchant->corp_name,
