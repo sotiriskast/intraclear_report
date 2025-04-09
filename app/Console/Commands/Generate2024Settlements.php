@@ -59,7 +59,7 @@ class Generate2024Settlements extends Command
 
         // Define all the Monday to Sunday periods in 2024 up to the last completed Sunday
         $periods = [];
-        while ($date->year === $year && $date->lte($lastSunday)) {
+        while ($date->lte($lastSunday)) {
             $monday = $date->copy();
             $sunday = $monday->copy()->addDays(6);
 
@@ -148,6 +148,7 @@ class Generate2024Settlements extends Command
                 // Add a delay between executions to avoid overloading the system
                 if ($index < $totalWeeks - 1) {
                     $delay = $this->option('delay');
+                    $this->newLine();
                     $this->comment("Waiting $delay seconds before next execution...");
                     sleep($delay);
                 }
