@@ -10,4 +10,5 @@ return [
     App\Providers\TelescopeServiceProvider::class,
     App\Providers\RouteServiceProvider::class,
     App\Providers\ApiServiceProvider::class,
+    Modules\Cesop\Providers\CesopServiceProvider::class,
 ];
