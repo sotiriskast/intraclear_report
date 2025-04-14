@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\EmailTestController;
 use App\Http\Controllers\SettlementController;
 use App\Livewire\FeeTypeManagement;
 use App\Livewire\MerchantAnalytics;
@@ -11,7 +12,7 @@ use App\Livewire\MerchantView;
 use App\Livewire\RoleManagement;
 use App\Livewire\UserManagement;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Redis;
+
 
 Route::middleware(['auth:web', 'verified', '2fa.required'
 ])->group(function () {
@@ -74,5 +75,44 @@ Route::middleware(['auth:web', 'verified', '2fa.required'
                 });
             });
         });
+
+        if (app()->environment(['local', 'testing'])) {
+
+            Route::prefix('test-emails')->group(function () {
+                // Dashboard for testing all email types
+                Route::get('/', [EmailTestController::class, 'dashboard'])
+                    ->name('test.email.dashboard');
+
+                // Test route for merchant sync failed email
+                Route::get('/merchant-sync-failed', [EmailTestController::class, 'testMerchantSyncFailed'])
+                    ->name('test.email.sync-failed');
+
+                // Test route for new merchant created email
+                Route::get('/new-merchant-created', [EmailTestController::class, 'testNewMerchantCreated'])
+                    ->name('test.email.new-merchant');
+
+                // Preview routes for email templates
+                Route::prefix('preview')->group(function () {
+                    Route::get('/merchant-sync-failed', function () {
+                        return view('emails.settlements.merchant-sync-failed', [
+                            'errorMessage' => 'This is a test error message for merchant sync failure',
+                            'stackTrace' => "Exception: Test Exception\n at MerchantSyncService.php:123\n at SyncController.php:45"
+                        ]);
+                    })->name('preview.email.sync-failed');
+
+                    Route::get('/new-merchant-created', function () {
+                        return view('emails.settlements.new-merchant-created', [
+                            'merchantId' => 12345,
+                            'accountId' => 'ACC_98765',
+                            'name' => 'Test Merchant Corp',
+                            'email' => 'test@testmerchant.com',
+                            'phone' => '555-123-4567',
+                            'isActive' => true,
+                            'timestamp' => now()->format('Y-m-d H:i:s')
+                        ]);
+                    })->name('preview.email.new-merchant');
+                });
+            });
+        }
     });
 });

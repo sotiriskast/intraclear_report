@@ -200,7 +200,7 @@ readonly class SummaryCalculator
         }
 
         // Calculate FX fee based on non-EUR transactions
-        $amount = $this->getTotalAmount($data);
+        $amount = $this->getTotalProcessingAmount($data);
         return $amount * ($fxRateMarkup / 10000); // Divide by 10000 since markup is stored as basis points
     }
 
@@ -218,7 +218,7 @@ readonly class SummaryCalculator
         }
 
         // Calculate FX fee based on non-EUR transactions
-        $amount = $this->getTotalAmountEur($data);
+        $amount = $this->getTotalProcessingAmountEur($data);
         return $amount * ($fxRateMarkup / 10000); // Divide by 10000 since markup is stored as basis points
     }
     /**

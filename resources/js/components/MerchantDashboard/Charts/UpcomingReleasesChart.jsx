@@ -37,8 +37,15 @@ const UpcomingReleasesChart = ({ upcomingReleases = [], currencies = [] }) => {
         // Get start date from first release
         const startDate = new Date(sortedReleases[0].fullDate);
 
-        // Generate 12 weeks of data (about 3 months)
-        for (let i = 0; i < 12; i++) {
+        // Generate data for all upcoming releases (not limited to 12 weeks)
+        // Calculate how many weeks we need based on the releases
+        const endDate = new Date(sortedReleases[sortedReleases.length - 1]?.fullDate || startDate);
+        const weekCount = Math.ceil((endDate - startDate) / (7 * 24 * 60 * 60 * 1000)) + 1;
+        
+        // Generate at least 12 weeks, or more if needed for all data
+        const weeksToGenerate = Math.max(12, weekCount);
+        
+        for (let i = 0; i < weeksToGenerate; i++) {
             const weekStartDate = new Date(startDate);
             weekStartDate.setDate(startDate.getDate() + (i * 7));
 
@@ -344,6 +351,8 @@ const UpcomingReleasesChart = ({ upcomingReleases = [], currencies = [] }) => {
                                 tickMargin={10}
                                 angle={-25}
                                 textAnchor="end"
+                                // Show fewer ticks when we have a lot of data
+                                interval={weeklyData.length > 12 ? Math.ceil(weeklyData.length / 8) : 0}
                             />
                             <YAxis
                                 tickFormatter={formatYAxisTick}
@@ -385,6 +394,8 @@ const UpcomingReleasesChart = ({ upcomingReleases = [], currencies = [] }) => {
                                 tickMargin={10}
                                 angle={-25}
                                 textAnchor="end"
+                                // Show fewer ticks when we have a lot of data
+                                interval={weeklyData.length > 12 ? Math.ceil(weeklyData.length / 8) : 0}
                             />
                             <YAxis
                                 tickFormatter={formatYAxisTick}

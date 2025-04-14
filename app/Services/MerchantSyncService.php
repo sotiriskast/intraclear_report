@@ -4,6 +4,9 @@ namespace App\Services;
 
 use App\Repositories\MerchantSettingRepository;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\MerchantSyncFailed;
+use App\Mail\NewMerchantCreated;
 
 /**
  * MerchantSyncService handles synchronization of merchant data
@@ -13,6 +16,7 @@ use Illuminate\Support\Facades\DB;
  * - Retrieving merchant data from a payment gateway database
  * - Updating or inserting merchant records in the primary database
  * - Logging synchronization statistics and errors
+ * - Sending email notifications for sync failures and new merchants
  */
 class MerchantSyncService
 {
@@ -20,11 +24,11 @@ class MerchantSyncService
      * Create a new MerchantSyncService instance.
      *
      * @param  DynamicLogger  $logger  Logging service for sync-related events
+     * @param  MerchantSettingRepository  $merchantSettingRepository  Repository for merchant settings
      */
     public function __construct(
         private readonly DynamicLogger $logger,
         private MerchantSettingRepository $merchantSettingRepository
-
     ) {}
 
     /**
@@ -74,6 +78,9 @@ class MerchantSyncService
                     if ($merchantId && ! $this->merchantSettingRepository->isExistingForMerchant($merchantId)) {
                         $this->createDefaultSettings($merchantId);
                         $stats['settings_created']++;
+
+                        // Send email notification for new merchant
+                        $this->sendNewMerchantNotification($merchant, $merchantId);
                     }
                 }
             }
@@ -89,12 +96,84 @@ class MerchantSyncService
         } catch (\Exception $e) {
             // Rollback transaction in case of failure
             DB::connection('mariadb')->rollBack();
-            // @todo Send email for not adding merchant
+
+            // Log the error
             $this->logger->log('error', 'Merchant sync failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
+
+            // Send email notification for sync failure
+            $this->sendSyncFailureNotification($e);
+
             throw $e;
+        }
+    }
+
+    /**
+     * Sends an email notification when merchant sync fails.
+     *
+     * @param \Exception $exception The exception that caused the failure
+     * @return void
+     */
+    private function sendSyncFailureNotification(\Exception $exception): void
+    {
+        try {
+            $adminEmail = config('app.admin_email');
+
+            // Validate that we have a valid email address
+            if (empty($adminEmail) || !filter_var($adminEmail, FILTER_VALIDATE_EMAIL)) {
+                $this->logger->log('warning', 'Cannot send sync failure notification - no valid admin email configured', [
+                    'config_value' => $adminEmail
+                ]);
+                return;
+            }
+
+            Mail::to($adminEmail)
+                ->send(new MerchantSyncFailed($exception->getMessage(), $exception->getTraceAsString()));
+
+            $this->logger->log('info', 'Merchant sync failure notification email sent');
+        } catch (\Exception $e) {
+            $this->logger->log('error', 'Failed to send merchant sync failure notification email', [
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Sends an email notification when a new merchant is created.
+     *
+     * @param object $merchant The merchant data
+     * @param int $merchantId The internal merchant ID
+     * @return void
+     */
+    private function sendNewMerchantNotification($merchant, int $merchantId): void
+    {
+        try {
+            $adminEmail = config('app.admin_email');
+
+            // Validate that we have a valid email address
+            if (empty($adminEmail) || !filter_var($adminEmail, FILTER_VALIDATE_EMAIL)) {
+                $this->logger->log('warning', 'Cannot send new merchant notification - no valid admin email configured', [
+                    'merchant_id' => $merchantId,
+                    'config_value' => $adminEmail
+                ]);
+                return;
+            }
+
+            Mail::to($adminEmail)
+                ->send(new NewMerchantCreated($merchant, $merchantId));
+
+            $this->logger->log('info', 'New merchant notification email sent', [
+                'merchant_id' => $merchantId,
+                'account_id' => $merchant->id,
+                'name' => $merchant->corp_name,
+            ]);
+        } catch (\Exception $e) {
+            $this->logger->log('error', 'Failed to send new merchant notification email', [
+                'merchant_id' => $merchantId,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 

@@ -14,7 +14,7 @@
                          x-data="{ show: true }"
                          x-show="show"
                          x-transition.duration.300ms>
-                        <div class="flex-shrink-0">
+                        <div class="shrink-0">
                             <svg class="h-5 w-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
@@ -35,7 +35,7 @@
                          x-data="{ show: true }"
                          x-show="show"
                          x-transition.duration.300ms>
-                        <div class="flex-shrink-0">
+                        <div class="shrink-0">
                             <svg class="h-5 w-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
@@ -64,7 +64,7 @@
             </div>
 
             <!-- Roles List -->
-            <div class="bg-white rounded-lg shadow">
+            <div class="bg-white rounded-lg shadow-sm">
                 <!-- Mobile/Tablet View - Card Layout -->
                 <div class="block lg:hidden">
                     @foreach($roles as $role)
@@ -204,7 +204,7 @@
                                             <input type="checkbox"
                                                    wire:model="selectedPermissions"
                                                    value="{{ $permission->id }}"
-                                                   class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                                                   class="h-4 w-4 text-indigo-600 border-gray-300 rounded-sm focus:ring-indigo-500">
                                         </div>
                                         <div class="ml-3">
                                             <span class="block text-sm font-medium text-gray-900">

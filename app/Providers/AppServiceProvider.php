@@ -15,8 +15,6 @@ use App\Repositories\MerchantSettingRepository;
 use App\Repositories\RoleRepository;
 use App\Repositories\RollingReserveRepository;
 use App\Repositories\TransactionRepository;
-use App\Services\ExchangeRateService;
-use App\Services\Transaction\TransactionTotalsCalculator;
 use App\Services\DynamicLogger;
 use App\Services\ExcelExportService;
 use App\Services\MerchantSyncService;
@@ -112,10 +110,6 @@ class AppServiceProvider extends ServiceProvider
          * ------------------------------------------------
          */
 
-        // Register new services 
-        $this->app->singleton(ExchangeRateService::class);
-        $this->app->singleton(TransactionTotalsCalculator::class);
-        
         $this->app->singleton(ExcelExportService::class);
 
         // Replace the simple singleton with a proper binding for SettlementService

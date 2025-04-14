@@ -40,7 +40,7 @@
         }
     }"
     x-init="initSidebar()"
-    class="min-h-screen bg-gray-100 flex"
+    class="min-h-svh bg-zinc-100 flex"
 >
     <!-- Sidebar Backdrop (Mobile/Tablet only) -->
     <div
@@ -52,24 +52,24 @@
         x-transition:leave-start="opacity-100"
         x-transition:leave-end="opacity-0"
         @click="closeSidebar()"
-        class="fixed inset-0 bg-gray-600 bg-opacity-75 z-40 lg:hidden"
+        class="fixed inset-0 bg-zinc-600/75 z-40 lg:hidden"
     ></div>
 
     <!-- Sidebar -->
     <aside
-        class="fixed top-0 left-0 z-40 h-full bg-white border-r border-gray-200 w-64 transform transition-transform duration-300 ease-in-out lg:z-20"
+        class="fixed top-0 left-0 z-40 h-full bg-white border-r border-zinc-200 w-64 transform transition-transform duration-300 ease-in-out lg:z-20"
         :class="{
             '-translate-x-full': !sidebarOpen,
             'translate-x-0': sidebarOpen
         }"
     >
         <!-- Close Button (visible only on mobile) -->
-        <div class="flex items-center justify-between h-16 px-4 border-b border-gray-200 lg:hidden">
+        <div class="flex items-center justify-between h-16 px-4 border-b border-zinc-200 lg:hidden">
             <button
                 @click="closeSidebar()"
-                class="text-gray-500 hover:text-gray-900 focus:outline-none"
+                class="text-zinc-500 hover:text-zinc-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 rounded-md p-1"
             >
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                         stroke-linecap="round"
                         stroke-linejoin="round"
@@ -90,14 +90,14 @@
         }"
         class="flex-1 transition-all duration-300 lg:ml-64"
     >
-        <div class="sticky top-0 z-30 bg-white shadow">
+        <div class="sticky top-0 z-30 bg-white shadow-sm">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center h-16">
                 <!-- Toggle Button -->
                 <button
                     @click="toggleSidebar()"
-                    class="inline-flex items-center justify-center p-2 rounded-md text-gray-500 hover:text-gray-900 hover:bg-gray-100 focus:outline-none focus:bg-gray-100 focus:text-gray-900 transition-all duration-200"
+                    class="inline-flex items-center justify-center p-2 rounded-md text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:bg-zinc-100 focus-visible:text-zinc-900 transition-all duration-200"
                 >
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path
                             stroke-linecap="round"
                             stroke-linejoin="round"
@@ -115,7 +115,7 @@
                 @else
                     <div class="ml-4">
                         @if (isset($header) && is_string($header))
-                            <h2 class="text-2xl font-bold text-gray-800">{{ $header }}</h2>
+                            <h2 class="text-2xl font-bold text-zinc-800">{{ $header }}</h2>
                         @elseif (isset($header))
                             {{ $header }}
                         @endif

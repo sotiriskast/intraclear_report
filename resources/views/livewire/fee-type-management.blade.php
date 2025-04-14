@@ -14,7 +14,7 @@
                          x-data="{ show: true }"
                          x-show="show"
                          x-transition.duration.300ms>
-                        <div class="flex-shrink-0">
+                        <div class="shrink-0">
                             <svg class="h-5 w-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
@@ -43,7 +43,7 @@
             </div>
 
             <!-- Fee Types List -->
-            <div class="bg-white rounded-lg shadow">
+            <div class="bg-white rounded-lg shadow-sm">
                 <!-- Mobile/Tablet View - Card Layout -->
                 <div class="block lg:hidden">
                     @foreach($feeTypes as $feeType)
@@ -202,7 +202,7 @@
                             <x-label for="frequency_type" value="{{ __('Frequency Type') }}" />
                             <select wire:model="frequency_type"
                                     id="frequency_type"
-                                    class="mt-1 block w-full border-gray-300 focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 rounded-md shadow-sm">
+                                    class="mt-1 block w-full border-gray-300 focus:border-indigo-300 focus:ring-3 focus:ring-indigo-200 focus:ring-opacity-50 rounded-md shadow-xs">
                                 <option value="transaction">Per Transaction</option>
                                 <option value="daily">Daily</option>
                                 <option value="weekly">Weekly</option>

@@ -33,8 +33,7 @@ readonly class FeeService
         private CustomFeeHandlerInterface $customFeeHandler,
         private StandardFeeHandlerInterface $standardFeeHandler,
         private MerchantRepository $merchantRepository,
-        private MerchantSettingRepository $merchantSettingRepository, // Add this dependency
-
+        private MerchantSettingRepository $merchantSettingRepository,
     ) {}
 
     /**
@@ -58,20 +57,56 @@ readonly class FeeService
         try {
             $calculatedFees = [];
             $actualMerchantId = $this->merchantRepository->getMerchantIdByAccountId($merchantId);
+            $isSetupFeeApplied = false;
+            $setupFeeId = 4; // Setup fee type ID
+
+            // Check if this is a new merchant with no setup fee charged yet
+            $isNewMerchant = $this->isNewMerchant($actualMerchantId);
 
             // Process standard fees (e.g., MDR, transaction fees, etc.)
             $standardFees = $this->standardFeeHandler->getStandardFees($merchantId, $transactionData);
+
+            // First pass to check if setup fee is being applied
             foreach ($standardFees as $fee) {
-                // Check if fee should be applied based on its frequency
-                if ($this->frequencyHandler->shouldApplyFee(
+                if ($fee['fee_type_id'] === $setupFeeId &&
+                    $this->frequencyHandler->shouldApplyFee(
+                        $fee['frequency'],
+                        $merchantId,
+                        $fee['fee_type_id'],
+                        $dateRange
+                    )) {
+                    $isSetupFeeApplied = true;
+                    break;
+                }
+            }
+
+            // Process all standard fees
+            foreach ($standardFees as $fee) {
+                $shouldApply = $this->frequencyHandler->shouldApplyFee(
                     $fee['frequency'],
                     $merchantId,
                     $fee['fee_type_id'],
                     $dateRange
-                )) {
+                );
+
+                // If setup fee is being applied, apply all standard fees regardless of frequency
+                // but only for new merchants
+                if ($isSetupFeeApplied && $isNewMerchant) {
+                    $shouldApply = true;
+                    $this->logger->log('info', 'Applying fee as part of initial setup', [
+                        'merchant_id' => $actualMerchantId,
+                        'merchant_account_id' => $merchantId,
+                        'fee_type_id' => $fee['fee_type_id'],
+                        'fee_type' => $fee['fee_type'],
+                    ]);
+                }
+
+                if ($shouldApply) {
                     $calculatedFees[] = $fee;
-                    $this->logFeeApplication($this->merchantRepository->getMerchantIdByAccountId($merchantId), $fee, $transactionData, $fee['fee_amount'], $dateRange);
-                    if ($fee['fee_type'] === 'Setup Fee' || $fee['fee_type_id'] === 4) {
+                    $this->logFeeApplication($actualMerchantId, $fee, $transactionData, $fee['fee_amount'], $dateRange);
+
+                    // Update setup fee status if it's the setup fee
+                    if ($fee['fee_type'] === 'Setup Fee' || $fee['fee_type_id'] === $setupFeeId) {
                         $this->updateSetupFeeStatus($actualMerchantId);
                         $this->logger->log('info', 'Setup fee applied and marked as charged', [
                             'merchant_id' => $actualMerchantId,
@@ -81,28 +116,34 @@ readonly class FeeService
                 }
             }
 
-            // Process custom fees (merchant-specific fees)
-            $customFees = $this->customFeeHandler->getCustomFees($merchantId, $transactionData, $dateRange['start']);
-            foreach ($customFees as $fee) {
-                // Check if custom fee should be applied based on its frequency
-                if ($this->frequencyHandler->shouldApplyFee(
-                    $fee['frequency'],
-                    $merchantId,
-                    $fee['fee_type_id'],
-                    $dateRange
-                )) {
-                    $calculatedFees[] = $fee;
-                    $this->logFeeApplication($this->merchantRepository->getMerchantIdByAccountId($merchantId), $fee, $transactionData, $fee['fee_amount'], $dateRange);
+            // Only process custom fees if we're not doing initial setup
+            // or if we want custom fees to be part of initial setup too
+            if (!$isSetupFeeApplied || !$isNewMerchant) {
+                // Process custom fees (merchant-specific fees)
+                $customFees = $this->customFeeHandler->getCustomFees($merchantId, $transactionData, $dateRange['start']);
+                foreach ($customFees as $fee) {
+                    // Check if custom fee should be applied based on its frequency
+                    if ($this->frequencyHandler->shouldApplyFee(
+                        $fee['frequency'],
+                        $merchantId,
+                        $fee['fee_type_id'],
+                        $dateRange
+                    )) {
+                        $calculatedFees[] = $fee;
+                        $this->logFeeApplication($actualMerchantId, $fee, $transactionData, $fee['fee_amount'], $dateRange);
+                    }
                 }
             }
 
             // Log summary of fee calculation
             $this->logger->log('info', 'Fee calculation completed', [
-                'merchant_id' => $this->merchantRepository->getMerchantIdByAccountId($merchantId),
+                'merchant_id' => $actualMerchantId,
                 'merchant_account_id' => $merchantId,
                 'standard_fees_count' => count($standardFees),
-                'custom_fees_count' => count($customFees),
+                'custom_fees_count' => count($customFees ?? []),
                 'total_fees' => count($calculatedFees),
+                'is_setup_fee_applied' => $isSetupFeeApplied,
+                'is_new_merchant' => $isNewMerchant,
             ]);
 
             return $calculatedFees;
@@ -114,6 +155,48 @@ readonly class FeeService
             throw $e;
         }
     }
+
+    /**
+     * Check if this is a new merchant with no previous fee applications
+     *
+     * @param int $merchantId ID of the merchant
+     * @return bool Whether this is a new merchant
+     */
+    private function isNewMerchant(int $merchantId): bool
+    {
+        try {
+            $merchantSettings = $this->merchantSettingRepository->findByMerchant($merchantId);
+
+            // Check if setup fee has been charged before
+            if ($merchantSettings && $merchantSettings->setup_fee_charged) {
+                return false;
+            }
+
+            // Check if any fees have been applied before
+            $anyFeeApplications = $this->feeRepository->hasAnyFeeApplications($merchantId);
+
+            // It's a new merchant if setup_fee_charged is false and no fees applied before
+            $isNew = !$anyFeeApplications;
+
+            $this->logger->log('info', 'Checked if merchant is new', [
+                'merchant_id' => $merchantId,
+                'setup_fee_charged' => $merchantSettings->setup_fee_charged ?? 'not found',
+                'has_previous_fees' => $anyFeeApplications,
+                'is_new_merchant' => $isNew,
+            ]);
+
+            return $isNew;
+        } catch (\Exception $e) {
+            $this->logger->log('error', 'Failed to check if merchant is new', [
+                'merchant_id' => $merchantId,
+                'error' => $e->getMessage(),
+            ]);
+
+            // Default to false in case of error
+            return false;
+        }
+    }
+
     /**
      * Update the merchant settings to mark setup fee as charged
      *

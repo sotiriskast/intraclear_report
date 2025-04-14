@@ -111,6 +111,17 @@ readonly class FeeRepository implements FeeRepositoryInterface
     }
 
     /**
+     * Check if merchant has any fee applications
+     *
+     * @param int $merchantId Merchant ID
+     * @return bool Whether the merchant has any fee applications
+     */
+    public function hasAnyFeeApplications(int $merchantId): bool
+    {
+        return FeeHistory::where('merchant_id', $merchantId)->exists();
+    }
+
+    /**
      * Get fee applications within a specified date range
      *
      * @param int $merchantId Merchant ID

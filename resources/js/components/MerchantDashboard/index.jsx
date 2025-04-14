@@ -57,7 +57,6 @@ const MerchantDashboard = ({ merchantId: initialMerchantId }) => {
             setFeeHistory([]);
             setUpcomingReleases([]);
 
-
             try {
                 // Construct base query parameters
                 // When selectedMerchant is null, we want to fetch all merchants' data
@@ -67,52 +66,54 @@ const MerchantDashboard = ({ merchantId: initialMerchantId }) => {
 
                 // Fetch ALL data concurrently
                 const [reservesResponse, feeResponse] = await Promise.all([
-                    fetchAPI(`/api/v1/dashboard/rolling-reserve?${baseParams}&status=pending`),
+                    fetchAPI(`/api/v1/dashboard/rolling-reserve?${baseParams}`), // Remove &status=pending to get all reserves
                     fetchAPI(`/api/v1/dashboard/fees/history?${baseParams}`)
                 ]);
 
-                // Process Pending Reserves
+                // Process Reserves
                 if (reservesResponse.success) {
                     const reserves = reservesResponse.data.reserves || [];
                     const totalReservedEur = reservesResponse.data.total_reserved_eur || 0;
 
-                    // Aggregate pending reserves by currency
-                    const pendingReserves = {};
-                    const currencyCounts = {
+                    // Get statistics directly from the API response
+                    const statistics = reservesResponse.data.statistics || {
                         pending_count: 0,
                         released_count: 0
                     };
 
+                    // For debugging
+                    console.log('API Response Statistics:', statistics);
+
+                    // Aggregate pending reserves by currency
+                    const pendingReserves = {};
+
                     reserves.forEach(reserve => {
+                        // Only aggregate pending reserves for the chart
+                        if (reserve.status !== 'pending') return;
+
                         const currency = reserve.currency || reserve.original_currency;
 
-                        // Aggregate reserve amounts
+                        // Aggregate reserve amounts - ensure we're dealing with numbers
                         if (!pendingReserves[currency]) {
                             pendingReserves[currency] = 0;
                         }
-                        pendingReserves[currency] += reserve.amount;
-
-                        // Count entries
-                        if (reserve.status === 'pending') {
-                            currencyCounts.pending_count++;
-                        } else if (reserve.status === 'released') {
-                            currencyCounts.released_count++;
-                        }
+                        // Parse as float and add to ensure proper addition
+                        pendingReserves[currency] += parseFloat(reserve.amount || 0);
                     });
 
                     // Update reserve data
                     setReserveData({
                         pending_reserves: pendingReserves,
                         total_reserved_eur: totalReservedEur,
-                        statistics: {
-                            pending_count: currencyCounts.pending_count,
-                            released_count: currencyCounts.released_count
-                        }
+                        statistics: statistics  // Use statistics from API directly
                     });
 
                     // Process Upcoming Releases
                     const byMonth = {};
                     reserves.forEach(release => {
+                        // Only process pending reserves for upcoming releases
+                        if (release.status !== 'pending' || !release.release || !release.release.due_date) return;
+
                         const releaseDate = new Date(release.release.due_date);
                         const monthKey = `${releaseDate.getMonth()}-${releaseDate.getFullYear()}`;
 
@@ -129,12 +130,13 @@ const MerchantDashboard = ({ merchantId: initialMerchantId }) => {
                         }
 
                         const currency = release.currency || release.original_currency || 'EUR';
-                        byMonth[monthKey][currency] += release.amount;
+                        // Ensure we're adding numbers properly
+                        byMonth[monthKey][currency] = (byMonth[monthKey][currency] || 0) + parseFloat(release.amount || 0);
                     });
 
+                    // Show all upcoming releases without limiting to 6
                     const sortedReleases = Object.values(byMonth)
-                        .sort((a, b) => a.fullDate - b.fullDate)
-                        .slice(0, 6);
+                        .sort((a, b) => a.fullDate - b.fullDate);
 
                     setUpcomingReleases(sortedReleases);
                 }
@@ -159,13 +161,14 @@ const MerchantDashboard = ({ merchantId: initialMerchantId }) => {
                         const feeType = fee.fee_type || 'Unknown';
                         const feeKey = `${feeType}_EUR`;
 
+                        // Ensure we're adding numbers properly with proper parsing
                         feesByMonth[monthKey][feeKey] =
-                            (feesByMonth[monthKey][feeKey] || 0) + Number(fee.fee_amount_eur);
+                            (feesByMonth[monthKey][feeKey] || 0) + parseFloat(fee.fee_amount_eur || 0);
                     });
 
+                    // Don't limit to just 6 months, show all history
                     const sortedFees = Object.values(feesByMonth)
-                        .sort((a, b) => a.fullDate - b.fullDate)
-                        .slice(0, 6);
+                        .sort((a, b) => a.fullDate - b.fullDate);
 
                     setFeeHistory(sortedFees);
                 }
@@ -197,10 +200,10 @@ const MerchantDashboard = ({ merchantId: initialMerchantId }) => {
     }
 
     return (
-        <div className="w-full max-w-7xl mx-auto p-4 space-y-6 bg-gray-50 min-h-screen">
-            <div className="bg-white p-4 rounded-lg shadow-sm border mb-6">
+        <div className="w-full max-w-7xl mx-auto p-4 space-y-6 bg-zinc-50 min-h-svh">
+            <div className="bg-white p-4 rounded-lg shadow-sm border border-zinc-200 mb-6">
                 <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                    <h2 className="text-xl font-bold text-gray-800">Merchant Rolling Reserve Dashboard</h2>
+                    <h2 className="text-xl font-bold text-zinc-800">Merchant Rolling Reserve Dashboard</h2>
                     <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
                         <MerchantSelector
                             merchants={merchants}
