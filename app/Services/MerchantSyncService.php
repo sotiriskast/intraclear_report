@@ -55,6 +55,11 @@ class MerchantSyncService
             $existingMerchants = $this->getExistingMerchants();
             // Fetch source merchant data from payment gateway
             $sourceData = $this->getSourceData();
+
+            $this->logger->log('info', 'Found merchants', [
+                'count' => count($sourceData),
+            ]);
+
             // Start database transaction
             DB::connection('mariadb')->beginTransaction();
             // Process each merchant
@@ -235,16 +240,59 @@ class MerchantSyncService
     }
 
     /**
-     * Fetches merchant source data from the payment gateway database.
-     *
-     * Retrieves key merchant information from the account table.
+     * Fetches merchant source data from the payment gateway database,
+     * filtered to only include merchants under Intraclear Bank.
      *
      * @return \Illuminate\Support\Collection Collection of merchant data
      */
     private function getSourceData()
     {
+        // Find the Intraclear bank ID first
+        $intraclearBank = DB::connection('payment_gateway_mysql')
+            ->table('bank')
+            ->where('bank', 'Intraclear')
+            ->first();
+
+        if (!$intraclearBank) {
+            $this->logger->log('warning', 'Intraclear bank not found in the bank table');
+            return collect(); // Return empty collection if Intraclear bank not found
+        }
+
+        $intraclearBankId = $intraclearBank->id;
+
+        $this->logger->log('info', 'Found Intraclear bank', [
+            'bank_id' => $intraclearBankId,
+        ]);
+
+        // Get all bank_keys linked to Intraclear
+        $bankKeysQuery = DB::connection('payment_gateway_mysql')
+            ->table('bank_keys')
+            ->where('bank_id', $intraclearBankId)
+            ->select('id');
+
+        // Get all shops linked to these bank keys
+        $shopIds = DB::connection('payment_gateway_mysql')
+            ->table('shop_bank_keys')
+            ->whereIn('key_id', function($query) use ($intraclearBankId) {
+                $query->select('id')
+                    ->from('bank_keys')
+                    ->where('bank_id', $intraclearBankId);
+            })
+            ->pluck('shop_id')
+            ->unique();
+
+        $this->logger->log('info', 'Found shop IDs linked to Intraclear', [
+            'shop_count' => count($shopIds),
+        ]);
+
+        // Finally, get all merchants (accounts) linked to these shops
         return DB::connection('payment_gateway_mysql')
             ->table('account')
+            ->whereIn('id', function($query) use ($shopIds) {
+                $query->select('account_id')
+                    ->from('shop')
+                    ->whereIn('id', $shopIds);
+            })
             ->select([
                 'id',
                 'corp_name',
