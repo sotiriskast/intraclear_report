@@ -5,9 +5,13 @@ namespace Modules\Cesop\Providers;
 use App\Services\DynamicLogger;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\ServiceProvider;
+use Modules\Cesop\Console\CesopReportCommand;
+use Modules\Cesop\Console\CesopXMLReportCommand;
 use Modules\Cesop\Console\EncryptCesopXml;
 use Modules\Cesop\Console\SaveTaxisNetKey;
 use Modules\Cesop\Console\Test;
+use Modules\Cesop\Services\BinLookupService;
+use Modules\Cesop\Services\CesopReportService;
 use Modules\Cesop\Services\PgpEncryptionService;
 use Modules\Cesop\Services\XmlValidationService;
 use Nwidart\Modules\Traits\PathNamespace;
@@ -46,6 +50,9 @@ class CesopServiceProvider extends ServiceProvider
         $this->app->singleton(XmlValidationService::class, function ($app) {
             return new XmlValidationService($app->make(DynamicLogger::class));
         });
+        $this->app->singleton(CesopReportService::class, function ($app) {
+            return new CesopReportService();
+        });
         $this->app->register(EventServiceProvider::class);
         $this->app->register(RouteServiceProvider::class);
     }
@@ -57,7 +64,8 @@ class CesopServiceProvider extends ServiceProvider
     {
         $this->commands([
             EncryptCesopXml::class,
-            SaveTaxisNetKey::class
+            SaveTaxisNetKey::class,
+            CesopReportCommand::class,
         ]);
     }
 

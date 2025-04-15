@@ -45,7 +45,7 @@ class CesopController extends Controller
      */
     public function index()
     {
-        return view('cesop::index');
+        return view('cesop::encrypt.index');
     }
 
     /**
@@ -112,7 +112,7 @@ class CesopController extends Controller
 
             $this->logger->log('info', "CESOP XML encrypted successfully: {$outputFilename}");
 
-            return redirect()->route('cesop.success')
+            return redirect()->route('cesop.encrypt.success')
                 ->with('success', 'File encrypted successfully')
                 ->with('encrypted_file', $outputFilename);
 
@@ -131,10 +131,10 @@ class CesopController extends Controller
     public function success()
     {
         if (!session('encrypted_file')) {
-            return redirect()->route('cesop.index');
+            return redirect()->route('cesop.encrypt.index');
         }
 
-        return view('cesop::success', [
+        return view('cesop::encrypt.success', [
             'encrypted_file' => session('encrypted_file')
         ]);
     }

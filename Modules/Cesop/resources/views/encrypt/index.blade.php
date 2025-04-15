@@ -15,7 +15,7 @@
                         </div>
                     @endif
 
-                    <form action="{{ route('cesop.upload') }}" method="POST" enctype="multipart/form-data">
+                    <form action="{{ route('cesop.encrypt.upload') }}" method="POST" enctype="multipart/form-data">
                         @csrf
                         <div class="mb-6">
                             <label for="xml_file" class="block text-sm font-medium text-gray-700 mb-2">
