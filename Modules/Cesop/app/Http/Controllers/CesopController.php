@@ -8,25 +8,57 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Modules\Cesop\Services\PgpEncryptionService;
+use Modules\Cesop\Services\XmlValidationService;
 
 class CesopController extends Controller
 {
+    /**
+     * @var PgpEncryptionService
+     */
+    private $pgpService;
 
+    /**
+     * @var XmlValidationService
+     */
+    private $xmlValidator;
 
-    public function __construct(private readonly PgpEncryptionService $pgpService, private DynamicLogger $logger)
-    {
+    /**
+     * @var DynamicLogger
+     */
+    private $logger;
 
+    /**
+     * Constructor
+     */
+    public function __construct(
+        PgpEncryptionService $pgpService,
+        XmlValidationService $xmlValidator,
+        DynamicLogger $logger
+    ) {
+        $this->pgpService = $pgpService;
+        $this->xmlValidator = $xmlValidator;
+        $this->logger = $logger;
     }
 
+    /**
+     * Show the CESOP module index page
+     */
     public function index()
     {
         return view('cesop::index');
     }
 
+    /**
+     * Handle XML file upload and encryption
+     */
     public function upload(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'xml_file' => 'required|file|mimes:xml|max:10240', // 10MB max
+            'quarter' => 'required|integer|min:1|max:4',
+            'year' => 'required|integer|min:2024',
+            'country_code' => 'required|string|size:2',
+            'psp_id' => 'required|string|max:50',
         ]);
 
         if ($validator->fails()) {
@@ -39,17 +71,30 @@ class CesopController extends Controller
             // Store the uploaded XML file
             $xmlPath = $request->file('xml_file')->store('cesop/temp');
 
-            // Validate against CESOP schema before encryption
-            if (!$this->validateXml($xmlPath)) {
+            // Validate against CESOP schema
+            $validationResult = $this->xmlValidator->validateXml($xmlPath);
+
+            if (!$validationResult['isValid']) {
+                // Display first 3 errors to the user
+                $errorMessages = array_slice($validationResult['errors'], 0, 3);
+                $errorMessage = 'The XML file is not valid according to the CESOP schema: ' .
+                    implode('; ', $errorMessages);
+
+                // Clean up the temporary file
+                Storage::delete($xmlPath);
+
                 return redirect()->back()
-                    ->with('error', 'The XML file is not valid according to the CESOP schema.');
+                    ->with('error', $errorMessage)
+                    ->withInput();
             }
 
-            // Determine filename parameters
-            $quarter = $request->input('quarter', 1);
-            $year = $request->input('year', date('Y'));
-            $countryCode = $request->input('country_code', 'CY');
-            $pspId = $request->input('psp_id', 'YOURPSPID');
+            // Extract information from XML or use form inputs
+            $reportingPeriod = $this->xmlValidator->extractReportingPeriod($xmlPath);
+
+            $quarter = $reportingPeriod ? $reportingPeriod['quarter'] : $request->input('quarter');
+            $year = $reportingPeriod ? $reportingPeriod['year'] : $request->input('year');
+            $countryCode = strtoupper($request->input('country_code'));
+            $pspId = $request->input('psp_id');
 
             // Generate filename
             $outputFilename = $this->pgpService->generateCesopFilename(
@@ -65,18 +110,24 @@ class CesopController extends Controller
             // Clean up the temporary file
             Storage::delete($xmlPath);
 
+            $this->logger->log('info', "CESOP XML encrypted successfully: {$outputFilename}");
+
             return redirect()->route('cesop.success')
                 ->with('success', 'File encrypted successfully')
-                ->with('encrypted_file', $encryptedPath);
+                ->with('encrypted_file', $outputFilename);
 
         } catch (\Exception $e) {
             $this->logger->log('error', 'CESOP encryption failed: ' . $e->getMessage());
 
             return redirect()->back()
-                ->with('error', 'Encryption failed: ' . $e->getMessage());
+                ->with('error', 'Encryption failed: ' . $e->getMessage())
+                ->withInput();
         }
     }
 
+    /**
+     * Show success page after encryption
+     */
     public function success()
     {
         if (!session('encrypted_file')) {
@@ -88,35 +139,24 @@ class CesopController extends Controller
         ]);
     }
 
+    /**
+     * Download encrypted file
+     */
     public function download($filename)
     {
+        // Validate filename for security
+        if (!preg_match('/^PMT-Q[1-4]-\d{4}-[A-Z]{2}-[A-Za-z0-9_-]+-\d+-\d+\.pgp$/', $filename)) {
+            abort(400, 'Invalid filename format');
+        }
+
         $path = 'cesop/encrypted/' . $filename;
+
         if (!Storage::exists($path)) {
             abort(404, 'File not found');
         }
+
+        $this->logger->log('info', "CESOP encrypted file downloaded: {$filename}");
+
         return Storage::download($path, $filename);
-    }
-    private function validateXml($xmlPath)
-    {
-        $xsdPath = resource_path('xsd/PaymentData.xsd');
-
-        if (!file_exists($xsdPath)) {
-
-            $this->logger->log('warning','XSD file not found at: ' . $xsdPath);
-
-            return true;
-        }
-        $xml = new \DOMDocument();
-        $xml->load(Storage::path($xmlPath));
-        libxml_use_internal_errors(true);
-        $isValid = $xml->schemaValidate($xsdPath);
-        if (!$isValid) {
-            $errors = libxml_get_errors();
-            foreach ($errors as $error) {
-                $this->logger->log('error','XSD file not found at: ' . $xsdPath);
-            }
-            libxml_clear_errors();
-        }
-        return $isValid;
     }
 }

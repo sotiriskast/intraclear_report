@@ -2,12 +2,14 @@
 
 namespace Modules\Cesop\Providers;
 
+use App\Services\DynamicLogger;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\ServiceProvider;
 use Modules\Cesop\Console\EncryptCesopXml;
 use Modules\Cesop\Console\SaveTaxisNetKey;
 use Modules\Cesop\Console\Test;
 use Modules\Cesop\Services\PgpEncryptionService;
+use Modules\Cesop\Services\XmlValidationService;
 use Nwidart\Modules\Traits\PathNamespace;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -40,6 +42,9 @@ class CesopServiceProvider extends ServiceProvider
     {
         $this->app->singleton(PgpEncryptionService::class, function ($app) {
             return new PgpEncryptionService();
+        });
+        $this->app->singleton(XmlValidationService::class, function ($app) {
+            return new XmlValidationService($app->make(DynamicLogger::class));
         });
         $this->app->register(EventServiceProvider::class);
         $this->app->register(RouteServiceProvider::class);
@@ -128,7 +133,10 @@ class CesopServiceProvider extends ServiceProvider
      */
     public function provides(): array
     {
-        return [];
+        return [
+            PgpEncryptionService::class,
+            XmlValidationService::class
+        ];
     }
 
     private function getPublishableViewPaths(): array
