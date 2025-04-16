@@ -4,7 +4,9 @@ namespace Modules\Cesop\Console;
 
 use Illuminate\Console\Command;
 use Modules\Cesop\Services\CesopReportService;
+use Modules\Cesop\Services\CesopXmlValidator;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Storage;
 
 class CesopReportCommand extends Command
 {
@@ -21,7 +23,9 @@ class CesopReportCommand extends Command
                             {--output=}
                             {--format=console}
                             {--threshold=25}
-                            {--psp-data=}';
+                            {--psp-data=}
+                            {--validate}
+                            {--schema-path=}';
 
     /**
      * The console command description.
@@ -36,15 +40,22 @@ class CesopReportCommand extends Command
     protected $reportService;
 
     /**
+     * @var CesopXmlValidator
+     */
+    protected $xmlValidator;
+
+    /**
      * Create a new command instance.
      *
      * @param CesopReportService $reportService
+     * @param CesopXmlValidator $xmlValidator
      * @return void
      */
-    public function __construct(CesopReportService $reportService)
+    public function __construct(CesopReportService $reportService, CesopXmlValidator $xmlValidator)
     {
         parent::__construct();
         $this->reportService = $reportService;
+        $this->xmlValidator = $xmlValidator;
     }
 
     /**
@@ -54,6 +65,10 @@ class CesopReportCommand extends Command
      */
     public function handle()
     {
+        $this->info('CESOP Report Generator');
+        $this->info('======================');
+        $this->newLine();
+
         // Get command options with defaults
         $quarter = $this->option('quarter') ?: Carbon::now()->subQuarter()->quarter;
         $year = $this->option('year') ?: Carbon::now()->subQuarter()->year;
@@ -62,6 +77,13 @@ class CesopReportCommand extends Command
         $format = $this->option('format') ?: 'console';
         $outputPath = $this->option('output');
         $threshold = $this->option('threshold') ?: 25;
+        $shouldValidate = $this->option('validate') ?: false;
+        $schemaPath = $this->option('schema-path');
+
+        // If schema path provided, set it in the validator
+        if ($schemaPath) {
+            $this->xmlValidator->setSchemaPath($schemaPath);
+        }
 
         // Load PSP data
         $pspData = null;
@@ -77,8 +99,10 @@ class CesopReportCommand extends Command
         $this->info("Generating CESOP report for Q{$quarter} {$year}");
         $this->info("Date range: {$startDate->toDateString()} to {$endDate->toDateString()}");
         $this->info("Transaction threshold: {$threshold}");
+        $this->newLine();
 
         // Generate report using service
+        $this->line('Retrieving transaction data...');
         $result = $this->reportService->generateReport(
             $quarter,
             $year,
@@ -102,9 +126,24 @@ class CesopReportCommand extends Command
 
         // Save the XML file if requested
         if ($format === 'xml' || $this->confirm('Would you like to generate an XML CESOP report?', false)) {
+            $this->line('Generating XML document...');
+
             // Determine output path
             if (!$outputPath) {
-                $outputPath = storage_path("app/cesop_report_q{$quarter}_{$year}_" . date('Ymd_His') . ".xml");
+                $pspCountry = $pspData['country'] ?? config('cesop.psp.country', 'CY');
+                $pspBic = $pspData['bic'] ?? config('cesop.psp.bic', 'ABCDEF12XXX');
+
+                // Create a CESOP-compliant filename
+                $fileName = sprintf(
+                    'PMT-Q%d-%d-%s-%s-1-1.xml',
+                    $quarter,
+                    $year,
+                    $pspCountry,
+                    $pspBic
+                );
+
+                $outputDir = config('cesop.output_path', storage_path('app/cesop'));
+                $outputPath = $outputDir . '/' . $fileName;
             }
 
             // Create directory if it doesn't exist
@@ -117,9 +156,21 @@ class CesopReportCommand extends Command
             file_put_contents($outputPath, $xml);
 
             $this->info("XML CESOP report generated and saved to: {$outputPath}");
+
+            // Validate the XML if requested
+            if ($shouldValidate) {
+                $this->validateXml($outputPath);
+            }
         }
 
         $this->info("CESOP report generation completed successfully for {$stats['processed_shops']} shops.");
+
+        // Show transaction stats
+        $this->line("Total transactions: {$stats['total_transactions']}");
+        $formattedAmount = number_format($stats['total_amount'] / 100, 2);
+        $this->line("Total amount: {$formattedAmount}");
+        $this->newLine();
+
         return 0;
     }
 
@@ -139,10 +190,68 @@ class CesopReportCommand extends Command
         ];
 
         if ($path && file_exists($path)) {
+            $this->line("Loading PSP data from: {$path}");
             $data = json_decode(file_get_contents($path), true);
             return array_merge($defaults, $data);
         }
 
+        $this->line("Using default PSP data");
         return $defaults;
+    }
+
+    /**
+     * Validate XML against CESOP XSD schema using the improved validator
+     *
+     * @param string $xmlPath Path to the XML file
+     * @return void
+     */
+    protected function validateXml(string $xmlPath): void
+    {
+        $this->line('Validating XML against CESOP schema...');
+
+        // Use the improved validator
+        $result = $this->xmlValidator->validateXmlFile($xmlPath);
+
+        if (!$result['valid']) {
+            $this->error("XML validation failed with " . count($result['errors']) . " errors:");
+
+            foreach ($result['errors'] as $error) {
+                $this->error("  - {$error}");
+            }
+
+            if (!empty($result['warnings'])) {
+                $this->warn("Validation warnings:");
+                foreach ($result['warnings'] as $warning) {
+                    $this->warn("  - {$warning}");
+                }
+            }
+
+            // If schema validation failed, run business rule validation
+            $this->line('Performing business rule validation...');
+            $content = file_get_contents($xmlPath);
+            $businessRules = $this->xmlValidator->validateBusinessRules($content);
+
+            if (!$businessRules['valid']) {
+                $this->error("Business rule validation failed with " . count($businessRules['errors']) . " errors:");
+                foreach ($businessRules['errors'] as $error) {
+                    $this->error("  - {$error}");
+                }
+            } else {
+                $this->info("Business rule validation passed!");
+                $this->line("The file may still have schema issues but meets basic CESOP requirements.");
+            }
+
+            $this->warn("Note: Schema validation issues may prevent the file from being accepted by tax authorities.");
+            $this->warn("Please make sure you have the latest XSD schema files from the EU tax authority portal.");
+        } else {
+            $this->info("XML validation successful! The file is compliant with the CESOP schema.");
+
+            if (!empty($result['warnings'])) {
+                $this->warn("Validation warnings:");
+                foreach ($result['warnings'] as $warning) {
+                    $this->warn("  - {$warning}");
+                }
+            }
+        }
     }
 }
