@@ -502,7 +502,7 @@ class CesopReportService
         // Address details - use merchant data or config defaults
         $street = !empty($merchant->address) ? $merchant->address : config('cesop.merchant.street', '');
         if (!empty($street)) {
-            $addressFix->appendChild($dom->createElement('cm:Street', $this->safeXmlString($street)));
+            $addressFix->appendChild($dom->createElement('cm:Street', $this->safeXmlString($street??'')));
         }
 
         // Add building identifier if available
