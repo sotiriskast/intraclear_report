@@ -7,8 +7,9 @@ use App\Services\DynamicLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Modules\Cesop\Services\CesopXmlValidator;
 use Modules\Cesop\Services\PgpEncryptionService;
-use Modules\Cesop\Services\XmlValidationService;
+use ZipArchive;
 
 class CesopController extends Controller
 {
@@ -18,7 +19,7 @@ class CesopController extends Controller
     private $pgpService;
 
     /**
-     * @var XmlValidationService
+     * @var CesopXmlValidator
      */
     private $xmlValidator;
 
@@ -32,7 +33,7 @@ class CesopController extends Controller
      */
     public function __construct(
         PgpEncryptionService $pgpService,
-        XmlValidationService $xmlValidator,
+        CesopXmlValidator $xmlValidator,
         DynamicLogger $logger
     ) {
         $this->pgpService = $pgpService;
@@ -49,7 +50,33 @@ class CesopController extends Controller
     }
 
     /**
-     * Handle XML file upload and encryption
+     * Compress XML file to ZIP
+     *
+     * @param string $xmlPath Path to the XML file
+     * @return string Path to the created ZIP file
+     * @throws \Exception
+     */
+    private function compressToZip(string $xmlPath): string
+    {
+        // Create a new ZIP archive
+        $zip = new ZipArchive();
+        $zipFilename = substr(basename($xmlPath), 0, -4) . '.zip';
+        $zipPath = dirname($xmlPath) . '/' . $zipFilename;
+
+        // Create the ZIP file
+        if ($zip->open($zipPath, ZipArchive::CREATE) !== TRUE) {
+            throw new \Exception('Could not create ZIP file');
+        }
+
+        // Add the XML file to the ZIP
+        $zip->addFile($xmlPath, basename($xmlPath));
+        $zip->close();
+
+        return $zipPath;
+    }
+
+    /**
+     * Handle XML file upload, compress, and encrypt
      */
     public function upload(Request $request)
     {
@@ -70,11 +97,12 @@ class CesopController extends Controller
         try {
             // Store the uploaded XML file
             $xmlPath = $request->file('xml_file')->store('cesop/temp');
+            $fullXmlPath = Storage::path($xmlPath);
 
             // Validate against CESOP schema
-            $validationResult = $this->xmlValidator->validateXml($xmlPath);
+            $validationResult = $this->xmlValidator->validateXmlFile($fullXmlPath);
 
-            if (!$validationResult['isValid']) {
+            if (!$validationResult['valid']) {
                 // Display first 3 errors to the user
                 $errorMessages = array_slice($validationResult['errors'], 0, 3);
                 $errorMessage = 'The XML file is not valid according to the CESOP schema: ' .
@@ -88,39 +116,45 @@ class CesopController extends Controller
                     ->withInput();
             }
 
-            // Extract information from XML or use form inputs
-            $reportingPeriod = $this->xmlValidator->extractReportingPeriod($xmlPath);
+            // Compress XML to ZIP
+            $zipPath = $this->compressToZip($fullXmlPath);
 
-            $quarter = $reportingPeriod ? $reportingPeriod['quarter'] : $request->input('quarter');
-            $year = $reportingPeriod ? $reportingPeriod['year'] : $request->input('year');
+            // Use form inputs directly
+            $quarter = $request->input('quarter');
+            $year = $request->input('year');
             $countryCode = strtoupper($request->input('country_code'));
             $pspId = $request->input('psp_id');
 
-            // Generate filename
+            // Replace file extension to .pgp.zip
             $outputFilename = $this->pgpService->generateCesopFilename(
                 $quarter, $year, $countryCode, $pspId
             );
+            $outputFilename = str_replace('.pgp', '.pgp.zip', $outputFilename);
 
-            // Define output path
+            // Define output path for encrypted ZIP
             $outputPath = 'cesop/encrypted/' . $outputFilename;
 
-            // Encrypt the XML file
-            $encryptedPath = $this->pgpService->encryptXmlFile($xmlPath, $outputPath);
+            // Encrypt the ZIP file (convert to Laravel storage path if needed)
+            $zipStoragePath = 'cesop/temp/' . basename($zipPath);
+            Storage::put($zipStoragePath, file_get_contents($zipPath));
+            $encryptedPath = $this->pgpService->encryptXmlFile($zipStoragePath, $outputPath);
 
-            // Clean up the temporary file
+            // Clean up temporary files
+            unlink($zipPath);
             Storage::delete($xmlPath);
+            Storage::delete($zipStoragePath);
 
-            $this->logger->log('info', "CESOP XML encrypted successfully: {$outputFilename}");
+            $this->logger->log('info', "CESOP XML compressed, encrypted successfully: {$outputFilename}");
 
             return redirect()->route('cesop.encrypt.success')
-                ->with('success', 'File encrypted successfully')
+                ->with('success', 'File compressed and encrypted successfully')
                 ->with('encrypted_file', $outputFilename);
 
         } catch (\Exception $e) {
-            $this->logger->log('error', 'CESOP encryption failed: ' . $e->getMessage());
+            $this->logger->log('error', 'CESOP compression/encryption failed: ' . $e->getMessage());
 
             return redirect()->back()
-                ->with('error', 'Encryption failed: ' . $e->getMessage())
+                ->with('error', 'Compression/Encryption failed: ' . $e->getMessage())
                 ->withInput();
         }
     }
@@ -144,8 +178,8 @@ class CesopController extends Controller
      */
     public function download($filename)
     {
-        // Validate filename for security
-        if (!preg_match('/^PMT-Q[1-4]-\d{4}-[A-Z]{2}-[A-Za-z0-9_-]+-\d+-\d+\.pgp$/', $filename)) {
+        // Validate filename for security (updated to allow .pgp.zip)
+        if (!preg_match('/^PMT-Q[1-4]-\d{4}-[A-Z]{2}-[A-Za-z0-9_-]+-\d+-\d+\.pgp\.zip$/', $filename)) {
             abort(400, 'Invalid filename format');
         }
 
