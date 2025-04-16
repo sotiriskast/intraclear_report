@@ -18,6 +18,12 @@
 
     <!-- Styles -->
     @livewireStyles
+    <script src="//d2wy8f7a9ursnm.cloudfront.net/v8/bugsnag.min.js"></script>
+    <script type="module">
+        import BugsnagPerformance from '//d2wy8f7a9ursnm.cloudfront.net/v1/bugsnag-performance.min.js'
+        Bugsnag.start({ apiKey: '00208b2aaf02f9e1ae62f0fa9f872478' })
+        BugsnagPerformance.start({ apiKey: '00208b2aaf02f9e1ae62f0fa9f872478' })
+    </script>
 </head>
 <body class="font-sans antialiased">
 <div
