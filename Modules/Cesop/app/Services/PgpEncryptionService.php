@@ -18,7 +18,7 @@ class PgpEncryptionService
     {
         try {
             // Load the TaxisNet PGP public key from storage
-            $keyContent = Storage::get('taxisnet_public_key.asc');
+            $keyContent = Storage::disk('local')->get('taxisnet_public_key.asc');
 
             if (!$keyContent) {
                 throw new Exception('TaxisNet public key file not found in storage.');

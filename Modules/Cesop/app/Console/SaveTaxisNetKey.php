@@ -52,7 +52,7 @@ fsDt4rVucM3SxhvENZ/RZFuRz140yXiy0es6Cpj65okFovsaPg9dbIWdPxZtc5ff
 -----END PGP PUBLIC KEY BLOCK-----
 EOD;
 
-        Storage::put('taxisnet_public_key.asc', $publicKey);
+        Storage::disk('local')->put('taxisnet_public_key.asc', $publicKey);
 
         $this->info('TaxisNet public key saved to storage.');
 
