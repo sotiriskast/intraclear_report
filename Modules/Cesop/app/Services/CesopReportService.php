@@ -500,7 +500,7 @@ class CesopReportService
         $address->appendChild($addressFix);
 
         // Address details - use merchant data or config defaults
-        $street = !empty($merchant->address) ? $merchant->address : config('cesop.merchant.street', '');
+        $street = !empty($merchant->address) ? $merchant->address : config('cesop.merchant.street', 'Street');
         if (!empty($street)) {
             $addressFix->appendChild($dom->createElement('cm:Street', $this->safeXmlString($street??'')));
         }
@@ -511,12 +511,12 @@ class CesopReportService
             $addressFix->appendChild($dom->createElement('cm:BuildingIdentifier', $this->safeXmlString($buildingIdentifier)));
         }
 
-        $city = !empty($merchant->city) ? $merchant->city : config('cesop.merchant.city', '');
+        $city = !empty($merchant->city) ? $merchant->city : config('cesop.merchant.city', 'city');
         if (!empty($city)) {
             $addressFix->appendChild($dom->createElement('cm:City', $this->safeXmlString($city)));
         }
 
-        $postCode = !empty($merchant->postal_code) ? $merchant->postal_code : config('cesop.merchant.postcode', '');
+        $postCode = !empty($merchant->postal_code) ? $merchant->postal_code : config('cesop.merchant.postcode', 'postcode');
         if (!empty($postCode)) {
             $addressFix->appendChild($dom->createElement('cm:PostCode', $this->safeXmlString($postCode)));
         }
