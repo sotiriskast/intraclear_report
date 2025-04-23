@@ -68,11 +68,11 @@
                 <!-- Mobile/Tablet View - Card Layout -->
                 <div class="block lg:hidden">
                     @foreach($roles as $role)
+
                         <div class="border-b last:border-b-0 px-4 py-4 hover:bg-gray-50">
                             <div class="flex justify-between items-center mb-2">
                                 <div>
                                     <p class="text-sm font-medium text-gray-900">{{ $role->name }}</p>
-                                    <p class="text-xs text-gray-500">Slug: {{ $role->slug }}</p>
                                 </div>
                                 <div class="flex space-x-2">
                                     <button wire:click="editRole({{ $role->id }})"
@@ -116,9 +116,6 @@
                                 Name
                             </th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Slug
-                            </th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Permissions
                             </th>
                             <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -131,9 +128,6 @@
                             <tr class="hover:bg-gray-50">
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="text-sm font-medium text-gray-900">{{ $role->name }}</div>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm text-gray-500">{{ $role->slug }}</div>
                                 </td>
                                 <td class="px-6 py-4">
                                     <div class="flex flex-wrap gap-2">

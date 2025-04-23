@@ -31,6 +31,8 @@ use App\Services\Settlement\SchemeRateValidationService;
 use App\Services\Settlement\SettlementService;
 use App\Services\ZipExportService;
 use Illuminate\Contracts\Debug\ExceptionHandler;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
@@ -178,8 +180,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        if (env('APP_USE_HTTPS')=='dev') {
+        if (env('APP_USE_HTTPS') == 'dev') {
             URL::forceScheme('https');
         }
+        Model::shouldBeStrict(!$this->app->isProduction());
+        DB::prohibitDestructiveCommands($this->app->isProduction());
     }
 }
