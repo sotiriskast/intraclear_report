@@ -7,8 +7,6 @@ use Modules\Cesop\Http\Controllers\CesopReportController;
 Route::middleware(['auth:web', 'verified'
 ])->group(function () {
     Route::prefix('admin/cesop')->group(function () {
-
-
         Route::get('/encrypt', [CesopController::class, 'index'])->name('cesop.encrypt.index');
         Route::post('/encrypt/upload', [CesopController::class, 'upload'])->name('cesop.encrypt.upload');
         Route::get('/encrypt/success', [CesopController::class, 'success'])->name('cesop.encrypt.success');

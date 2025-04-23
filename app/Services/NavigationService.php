@@ -27,7 +27,22 @@ class NavigationService
                     ],
                 ],
             ],
-
+            'cesop' => [
+                'label' => 'CESOP',
+                'icon' => 'merchant',
+                'children' => [
+                    'cesop_generate' => [
+                        'route' => 'cesop.report.index',
+                        'label' => 'Report',
+                        'permission' => 'manage-cesop',
+                    ],
+                    'cesop_encrypt' => [
+                        'route' => 'cesop.encrypt.index',
+                        'label' => 'Encrypt',
+                        'permission' => 'manage-cesop',
+                    ],
+                ],
+            ],
             'merchant' => [
                 'label' => 'Merchants',
                 'icon' => 'merchant',
@@ -54,6 +69,7 @@ class NavigationService
                     ],
                 ],
             ],
+
             'users' => [
                 'label' => 'Users',
                 'icon' => 'users',

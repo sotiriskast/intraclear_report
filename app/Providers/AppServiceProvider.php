@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Console\Commands\AddPermission;
 use App\Console\Commands\GenerateSettlementReports;
 use App\Console\Commands\ImportMerchants;
 use App\Exceptions\ApiExceptionHandler;
@@ -145,6 +146,11 @@ class AppServiceProvider extends ServiceProvider
             return new ImportMerchants(
                 $app->make(DynamicLogger::class),
                 $app->make(MerchantSyncService::class)
+            );
+        });
+        $this->app->singleton(AddPermission::class, function ($app) {
+            return new AddPermission(
+                $app->make(DynamicLogger::class),
             );
         });
 
