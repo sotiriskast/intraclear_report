@@ -320,8 +320,8 @@ class CesopXmlValidator
         }
 
         // 2. Check the version attribute
-        if (!$root->hasAttribute('version') || $root->getAttribute('version') !== '4.00') {
-            $errors[] = 'Invalid or missing version attribute. Must be exactly "4.00"';
+        if (!$root->hasAttribute('version') || $root->getAttribute('version') !== '4.03') {
+            $errors[] = 'Invalid or missing version attribute. Must be exactly "4.03"';
         }
 
         // 3. Check MessageSpec fields

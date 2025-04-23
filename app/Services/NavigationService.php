@@ -18,7 +18,7 @@ class NavigationService
             ],
             'reports' => [
                 'label' => 'Reports',
-                'icon' => 'merchant',
+                'icon' => 'settlement',
                 'children' => [
                     'settlement_report' => [
                         'route' => 'settlements.index',

@@ -319,7 +319,7 @@ class CesopReportService
         $root->setAttributeNS('http://www.w3.org/2000/xmlns/', 'xmlns:cesop', $cesopNamespace);
         $root->setAttributeNS('http://www.w3.org/2000/xmlns/', 'xmlns:iso', $isoNamespace);
         $root->setAttributeNS('http://www.w3.org/2000/xmlns/', 'xmlns:cm', $cmNamespace);
-        $root->setAttribute('version', '4.00');
+        $root->setAttribute('version', '4.03');
 
         $dom->appendChild($root);
 

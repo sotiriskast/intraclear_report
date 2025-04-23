@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- edited with XMLSpy v2017 rel. 3 sp1 (x64) (http://www.altova.com) by Sutoris (ARHS Developments) -->
+<!-- 
+	+++++++++++++++++++++++++++++++++++++++++++++ HISTORY (common to all XSDs) +++++++++++++++++++++++++++++++++++++
+    This XSD is related to the v4.03 of the Payment Data XSD. Refer to the file PaymentData.xsd for more details about the history of changes.
+	++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+-->
 <xsd:schema xmlns:iso="urn:eu:taxud:isotypes:v1" xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:eu:taxud:isotypes:v1" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.00">
 	<!--  ISO 3166 alpha 2 Country Code 
 
@@ -1929,7 +1933,7 @@ The following disclaimer refers to all uses of the ISO currency code: For practi
 					<xsd:documentation>Saint Helena Pound: SAINT HELENA, ASCENSION AND TRISTAN DA CUNHA</xsd:documentation>
 				</xsd:annotation>
 			</xsd:enumeration>
-			<xsd:enumeration value="SLL">
+			<xsd:enumeration value="SLE">
 				<xsd:annotation>
 					<xsd:documentation>Leone: SIERRA LEONE</xsd:documentation>
 				</xsd:annotation>

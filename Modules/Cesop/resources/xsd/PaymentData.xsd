@@ -1,4 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- 
+	+++++++++++++++++++++++++++++++++++++++++++++ HISTORY (common to all XSDs) +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+	XSD Version		User Guide version		Changes (impacting at least one XSD file)
+	++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+	v4.03           v6.00                   -
+    v4.03			v5.00					CESOP-1336, CESOP-1360, CESOP-1480, CESOP-1541, CESOP-1589, CESOP-1681, CESOP-1694, CESOP-1706
+	v4.02			v4.80					CESOP-1715
+	v4.02			v4.60					CESOP-1113
+	v4.02			v4.40					CESOP-818, CESOP-819, CESOP-821, CESOP-864, CESOP-878, CESOP-930
+	v4.02			v4.20					CESOP-567, CESOP-568, CESOP-903
+	v4.02			v4.00					Initial version of the XSD for CESOP go live
+-->
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:vc="http://www.w3.org/2007/XMLSchema-versioning" xmlns:cesop="urn:ec.europa.eu:taxud:fiscalis:cesop:v1" xmlns:iso="urn:eu:taxud:isotypes:v1" xmlns:cm="urn:eu:taxud:commontypes:v1" targetNamespace="urn:ec.europa.eu:taxud:fiscalis:cesop:v1" elementFormDefault="qualified" vc:minVersion="1.0">
 	<xs:import namespace="urn:eu:taxud:isotypes:v1" schemaLocation="isotypes.xsd"/>
 	<xs:import namespace="urn:eu:taxud:commontypes:v1" schemaLocation="commontypes.xsd"/>
@@ -30,7 +42,7 @@
 					</xs:element>
 				</xs:choice>
 			</xs:sequence>
-			<xs:attribute name="version" type="xs:decimal" use="required" fixed="4.00">
+			<xs:attribute name="version" type="xs:decimal" use="required" fixed="4.03">
 				<xs:annotation>
 					<xs:documentation xml:lang="en">Schema version of the CESOP XSD.</xs:documentation>
 				</xs:annotation>
@@ -47,7 +59,7 @@
 			</xs:element>
 			<xs:element name="MessageType" type="cesop:MessageType_Type">
 				<xs:annotation>
-					<xs:documentation xml:lang="en">The element declares the type of the message like Payment data or Validation result.
+					<xs:documentation xml:lang="en">The element declares the type of the message.
 					 </xs:documentation>
 				</xs:annotation>
 			</xs:element>
@@ -85,7 +97,6 @@
 			<xs:element name="Timestamp" type="cm:dateTimeWithRequiredTimeZone">
 				<xs:annotation>
 					<xs:documentation xml:lang="en">The exact date and time when the PSP has generated the message.
-					Please note that the expected format for the timestamp is the combination of the date, the time of the day as specified in [ISO-8601] and the time zone (i.e. 'YYYY-MM-DDThh:mm:ss.SSSZ' if the time refers to the UTC time zone, otherwise 'YYYY-MM-DDThh:mm:ss.SSS-hh:mm' where hh:mm is the time shift from the UTC time zone).
 					 </xs:documentation>
 				</xs:annotation>
 			</xs:element>
@@ -128,13 +139,13 @@
 		<xs:sequence>
 			<xs:element name="RepresentativeId" type="cesop:PSPId_Type" minOccurs="1">
 				<xs:annotation>
-					<xs:documentation xml:lang="en">Article 243d (1a). The BIC or any other business identifier code that unambiguously identifies the Representative of the Payment Service Provider.
+					<xs:documentation xml:lang="en">Article 243d (1e). The BIC or any other business identifier code that unambiguously identifies, and gives the location of, the payment service provider acting on behalf of the payee where the payee receives funds without having any payment account.
 			 </xs:documentation>
 				</xs:annotation>
 			</xs:element>
 			<xs:element name="Name" type="cm:Name_Type" minOccurs="0" maxOccurs="unbounded">
 				<xs:annotation>
-					<xs:documentation xml:lang="en">The name of the Representative of the Payment Service Provider.
+					<xs:documentation xml:lang="en">The name of the Representative of the Payee.
 			 </xs:documentation>
 				</xs:annotation>
 			</xs:element>
@@ -180,7 +191,7 @@
 			 </xs:documentation>
 				</xs:annotation>
 			</xs:element>
-			<xs:element name="AccountIdentifier" type="cesop:AccountIdentifier_Type" nillable="true" minOccurs="1">
+			<xs:element name="AccountIdentifier" type="cesop:AccountIdentifier_Type" nillable="true" minOccurs="1" maxOccurs="unbounded">
 				<xs:annotation>
 					<xs:documentation xml:lang="en">Article 243d (1d). The IBAN of the payee’s payment account or any other identifier which unambiguously identifies, and gives the location of, the payee.
 					This field is mandatory when funds are transferred to a payment account of the payee.
@@ -197,8 +208,8 @@
 			</xs:element>
 			<xs:element name="Representative" type="cesop:Representative_Type" minOccurs="0">
 				<xs:annotation>
-					<xs:documentation xml:lang="en">Article 243d (1e). The BIC or any other business identifier code that unambiguously identifies, and gives the location of, the payment service provider acting on behalf of the payee where the payee receives funds without having any payment account.
-					This element is mandatory only when the payee receives funds without having a payment account.
+					<xs:documentation xml:lang="en">Article 243d (1e). The payment service provider acting on behalf of the payee where the payee receives funds without having any payment account.
+This element is mandatory only when the payee receives funds without having a payment account.
 			 </xs:documentation>
 				</xs:annotation>
 			</xs:element>
@@ -212,13 +223,13 @@
 	</xs:complexType>
 	<xs:complexType name="ReportedTransaction_Type">
 		<xs:sequence>
-			<xs:element name="TransactionIdentifier" type="cm:StringMin1Max40_Type">
+			<xs:element name="TransactionIdentifier" type="cm:StringMin1Max100_Type">
 				<xs:annotation>
-					<xs:documentation xml:lang="en">Article 243d (2d). Any reference which unambiguously identifies the payment for the PSP. The reference must be unique for the Reporting Period.
+					<xs:documentation xml:lang="en">Article 243d (2d). Any reference which unambiguously identifies the payment for the PSP.
 			 </xs:documentation>
 				</xs:annotation>
 			</xs:element>
-			<xs:element name="CorrTransactionIdentifier" type="cm:StringMin1Max40_Type" minOccurs="0" maxOccurs="1">
+			<xs:element name="CorrTransactionIdentifier" type="cm:StringMin1Max100_Type" minOccurs="0" maxOccurs="1">
 				<xs:annotation>
 					<xs:documentation xml:lang="en">The reference of the correlated transaction. Used, in case of 'transaction refund', to indicate the reference of the related 'received payment'.
 			 </xs:documentation>
@@ -227,7 +238,6 @@
 			<xs:element name="DateTime" type="cm:TransactionDate_Type" minOccurs="1" maxOccurs="unbounded">
 				<xs:annotation>
 					<xs:documentation xml:lang="en">Article 243d (2a). The element expresses the date and the time of the related transaction.
-					Please note that the expected format for the timestamp is the combination of the date, the time of the day as specified in [ISO-8601] and the time zone (i.e. 'YYYY-MM-DDThh:mm:ss.SSSZ' if the time refers to the UTC time zone, otherwise 'YYYY-MM-DDThh:mm:ss.SSS-hh:mm' where hh:mm is the time shift from the UTC time zone).
 			 </xs:documentation>
 				</xs:annotation>
 			</xs:element>
@@ -245,7 +255,7 @@
 			</xs:element>
 			<xs:element name="InitiatedAtPhysicalPremisesOfMerchant" type="xs:boolean">
 				<xs:annotation>
-					<xs:documentation xml:lang="en">Article 243d (2e). Information that the payment is initiated at the physical premises of the merchant. The element has a value 'TRUE' if the payment is initiated at the premises of the merchant. Otherwise, the element has a value 'FALSE'.
+					<xs:documentation xml:lang="en">Article 243d (2e). Information that the payment is initiated at the physical premises of the merchant. The element has a value 'true' (or '1') if the payment is initiated at the premises of the merchant. Otherwise, the element has a value 'false' (or '0').
 			 </xs:documentation>
 				</xs:annotation>
 			</xs:element>
@@ -264,8 +274,8 @@
 		</xs:sequence>
 		<xs:attribute name="IsRefund" type="cm:Refund_Type" use="optional" default="false">
 			<xs:annotation>
-				<xs:documentation xml:lang="en">Article 243d (1g and 1h). The element identifies the refund. Value 'FALSE' represents a 'payment', value 'TRUE' represents a 'payment refund'.
-				This attribute is optional. If not provided, the default value 'FALSE' will be assigned.
+				<xs:documentation xml:lang="en">Article 243d (1g and 1h). The element identifies the refund. Value 'false' (or '0') represents a 'payment', value 'true' (or '1') represents a 'payment refund'.
+				This attribute is optional. If not provided, the default value 'false' will be assigned.
 				</xs:documentation>
 			</xs:annotation>
 		</xs:attribute>
@@ -297,6 +307,11 @@
 						<xs:documentation xml:lang="en">Type of identification number.</xs:documentation>
 					</xs:annotation>
 				</xs:attribute>
+				<xs:attribute name="PSPIdOther" type="cm:StringMin1Max200_Type">
+					<xs:annotation>
+						<xs:documentation xml:lang="en">Specification of the 'Other' PSP Id type.</xs:documentation>
+					</xs:annotation>
+				</xs:attribute>
 			</xs:extension>
 		</xs:simpleContent>
 	</xs:complexType>
@@ -325,6 +340,11 @@
 					<xs:annotation>
 						<xs:documentation xml:lang="en">Type of the location identifier. Must be provided only if an account identifier is provided.
 				</xs:documentation>
+					</xs:annotation>
+				</xs:attribute>
+				<xs:attribute name="accountIdentifierOther" type="cm:StringMin1Max200_Type">
+					<xs:annotation>
+						<xs:documentation xml:lang="en">Specification of the 'Other' Account Identifier type.</xs:documentation>
 					</xs:annotation>
 				</xs:attribute>
 			</xs:extension>
@@ -362,6 +382,12 @@
 			<xs:enumeration value="VLD">
 				<xs:annotation>
 					<xs:documentation xml:lang="en">The message type is 'Validation result message'.
+			 </xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="PNG">
+				<xs:annotation>
+					<xs:documentation xml:lang="en">The message type is 'Ping message'.
 			 </xs:documentation>
 				</xs:annotation>
 			</xs:enumeration>
@@ -431,7 +457,7 @@
 					</xs:documentation>
 				</xs:annotation>
 			</xs:element>
-			<xs:element name="TransactionIdentifier" type="cm:StringMin1Max40_Type" minOccurs="0">
+			<xs:element name="TransactionIdentifier" type="cm:StringMin1Max100_Type" minOccurs="0">
 				<xs:annotation>
 					<xs:documentation xml:lang="en">Transaction identifier, which identifies the erroneous transaction.
 			 </xs:documentation>
@@ -469,277 +495,6 @@
 		</xs:restriction>
 	</xs:simpleType>
 	<xs:simpleType name="ErrorCode_Type">
-		<xs:restriction base="xs:string">
-			<xs:enumeration value="10010">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">MessageRefID is not unique.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="10020">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">The ‘Timestamp’ element refers to a wrong value.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="10030">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">The period is before 01/01/2024.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="10040">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">Wrong CorrMessageRefID.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="10050">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">Wrong format of the MessageRefID.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="10060">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">Wrong format of the CorrMessageRefID.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="10070">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">An initial Payment Data message can only contain new data.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="10080">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">A correction message can only contain corrections and/or deletions.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="10090">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">Wrong MessageType.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="10100">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">The reporting period cannot be updated.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="10110">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">CorrMessageRefId wrongly used in MessageSpec.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="20010">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">DocRefID is not unique within the message.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="20020">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">DocRefID is not unique within the system.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="20030">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">Wrong DocRefID format.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="20040">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">Wrong CorrDocRefId value.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="20050">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">CorrDocRefId for new data.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="20060">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">Missing CorrDocRefId.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="20070">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">CorrDocRefId no longer valid.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="20100">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">Invalid PSP's BIC format.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="20110">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">Missing ReportedPayee.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="30010">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">Business identifier of the Representative is equal to the Business Identifier of the Reporting PSP.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="40010">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">The reported transaction does not represent cross-border payment.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="40020">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">Wrong IBAN format.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="40030">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">IBAN is not valid.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="40040">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">ReportedPayee listed in the No payment data for the requested period message.
-				</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="40050">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">The 'ReportedTransaction' element is missing.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="40060">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">Discrepancy in the 'AccountIdentifier' attributes.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="40070">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">Invalid Representative's BIC format.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="40080">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">Discrepancy between ‘AccountIdentifier’ and ‘Representative’.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="45010">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">Wrong value of the ‘IsRefund’ element in the ‘AmountCurrency’ element.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="45020">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">The Payment data message contains information for multiple periods.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="45030">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">The ‘DateTime’ element refers to a wrong value.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="45040">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">The ‘TransactionIdentifier’ element is not unique within the Payment data message.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="45050">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">The ‘TransactionIdentifier’ element is not unique within the system.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="45060">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">Zero value for ‘Amount’ element.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="45080">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">Same transaction date provided more than once.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="50010">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">The XML message is not well formed.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="50020">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">Failed Decryption.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="50030">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">Failed Decompression.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="50040">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">Failed Signature Check.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="50050">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">Failed Threat Scan.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="50060">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">Failed Virus Scan.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="50070">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">Message size exceeded.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="50080">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">Too many errors detected.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-			<xs:enumeration value="99999">
-				<xs:annotation>
-					<xs:documentation xml:lang="en">Custom error.
-					</xs:documentation>
-				</xs:annotation>
-			</xs:enumeration>
-		</xs:restriction>
+		<xs:restriction base="xs:string"/>
 	</xs:simpleType>
 </xs:schema>
