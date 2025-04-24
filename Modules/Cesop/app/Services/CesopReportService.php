@@ -32,7 +32,14 @@ class CesopReportService
      * @var int
      */
     protected $year;
-
+    /**
+     * CESOP XML namespaces
+     *
+     * @var string
+     */
+    protected $cesopNamespace;
+    protected $isoNamespace;
+    protected $cmNamespace;
     /**
      * Constructor
      */
@@ -43,6 +50,9 @@ class CesopReportService
             'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL',
             'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE'
         ]);
+        $this->cesopNamespace = 'urn:ec.europa.eu:taxud:fiscalis:cesop:v1';
+        $this->isoNamespace = 'urn:eu:taxud:isotypes:v1';
+        $this->cmNamespace = 'urn:eu:taxud:commontypes:v1';
     }
 
     /**
@@ -264,7 +274,7 @@ class CesopReportService
      * @param int $shopId
      * @return object|null
      */
-    protected function getShopDetails(int $shopId)
+    protected function getShopDetails(int $shopId): ?object
     {
         return DB::connection('payment_gateway_mysql')->table('shop')
             ->select('id', 'owner_name','website','email')
@@ -303,78 +313,74 @@ class CesopReportService
      * @param int $quarter
      * @param int $year
      * @return DOMDocument
+     * @throws \DOMException
      */
     protected function initializeXmlDocument(array $pspData, int $quarter, int $year): DOMDocument
     {
         $dom = new DOMDocument('1.0', 'UTF-8');
         $dom->formatOutput = true;
 
-        // Define namespace URIs
-        $cesopNamespace = 'urn:ec.europa.eu:taxud:fiscalis:cesop:v1';
-        $isoNamespace = 'urn:eu:taxud:isotypes:v1';
-        $cmNamespace = 'urn:eu:taxud:commontypes:v1';
-
         // Create root element with proper namespaces
-        $root = $dom->createElementNS($cesopNamespace, 'cesop:CESOP');
-        $root->setAttributeNS('http://www.w3.org/2000/xmlns/', 'xmlns:cesop', $cesopNamespace);
-        $root->setAttributeNS('http://www.w3.org/2000/xmlns/', 'xmlns:iso', $isoNamespace);
-        $root->setAttributeNS('http://www.w3.org/2000/xmlns/', 'xmlns:cm', $cmNamespace);
+        $root = $dom->createElementNS($this->cesopNamespace, 'cesop:CESOP');
+        $root->setAttributeNS('http://www.w3.org/2000/xmlns/', 'xmlns:cesop', $this->cesopNamespace);
+        $root->setAttributeNS('http://www.w3.org/2000/xmlns/', 'xmlns:iso', $this->isoNamespace);
+        $root->setAttributeNS('http://www.w3.org/2000/xmlns/', 'xmlns:cm', $this->cmNamespace);
         $root->setAttribute('version', '4.03');
 
         $dom->appendChild($root);
 
         // Create MessageSpec section with proper namespace
-        $messageSpec = $dom->createElementNS($cesopNamespace, 'cesop:MessageSpec');
+        $messageSpec = $dom->createElementNS($this->cesopNamespace, 'cesop:MessageSpec');
         $root->appendChild($messageSpec);
 
         // All child elements now created with full namespace support
         $messageSpec->appendChild(
-            $dom->createElementNS($cesopNamespace, 'cesop:TransmittingCountry', $pspData['country'])
+            $dom->createElementNS($this->cesopNamespace, 'cesop:TransmittingCountry', $pspData['country'])
         );
 
         $messageSpec->appendChild(
-            $dom->createElementNS($cesopNamespace, 'cesop:MessageType', 'PMT')
+            $dom->createElementNS($this->cesopNamespace, 'cesop:MessageType', 'PMT')
         );
 
         $messageSpec->appendChild(
-            $dom->createElementNS($cesopNamespace, 'cesop:MessageTypeIndic', 'CESOP100')
+            $dom->createElementNS($this->cesopNamespace, 'cesop:MessageTypeIndic', 'CESOP100')
         );
 
         $messageSpec->appendChild(
-            $dom->createElementNS($cesopNamespace, 'cesop:MessageRefId', $this->generateUuid())
+            $dom->createElementNS($this->cesopNamespace, 'cesop:MessageRefId', $this->generateUuid())
         );
 
         // ReportingPeriod section
-        $reportingPeriod = $dom->createElementNS($cesopNamespace, 'cesop:ReportingPeriod');
+        $reportingPeriod = $dom->createElementNS($this->cesopNamespace, 'cesop:ReportingPeriod');
         $messageSpec->appendChild($reportingPeriod);
 
         $reportingPeriod->appendChild(
-            $dom->createElementNS($cesopNamespace, 'cesop:Quarter', (string)$quarter)
+            $dom->createElementNS($this->cesopNamespace, 'cesop:Quarter', (string)$quarter)
         );
 
         $reportingPeriod->appendChild(
-            $dom->createElementNS($cesopNamespace, 'cesop:Year', (string)$year)
+            $dom->createElementNS($this->cesopNamespace, 'cesop:Year', (string)$year)
         );
 
         $messageSpec->appendChild(
-            $dom->createElementNS($cesopNamespace, 'cesop:Timestamp', date('Y-m-d\TH:i:s\Z'))
+            $dom->createElementNS($this->cesopNamespace, 'cesop:Timestamp', date('Y-m-d\TH:i:s\Z'))
         );
 
         // PaymentDataBody section
-        $paymentDataBody = $dom->createElementNS($cesopNamespace, 'cesop:PaymentDataBody');
+        $paymentDataBody = $dom->createElementNS($this->cesopNamespace, 'cesop:PaymentDataBody');
         $root->appendChild($paymentDataBody);
 
         // ReportingPSP section
-        $reportingPSP = $dom->createElementNS($cesopNamespace, 'cesop:ReportingPSP');
+        $reportingPSP = $dom->createElementNS($this->cesopNamespace, 'cesop:ReportingPSP');
         $paymentDataBody->appendChild($reportingPSP);
 
         // PSP ID with BIC attribute
-        $pspId = $dom->createElementNS($cesopNamespace, 'cesop:PSPId', $pspData['bic']);
+        $pspId = $dom->createElementNS($this->cesopNamespace, 'cesop:PSPId', $pspData['bic']);
         $pspId->setAttribute('PSPIdType', 'BIC');
         $reportingPSP->appendChild($pspId);
 
         // PSP Name
-        $pspName = $dom->createElementNS($cesopNamespace, 'cesop:Name', $this->safeXmlString($pspData['name']));
+        $pspName = $dom->createElementNS($this->cesopNamespace, 'cesop:Name', $this->safeXmlString($pspData['name']));
         $pspName->setAttribute('nameType', 'BUSINESS');
         $reportingPSP->appendChild($pspName);
 
@@ -478,72 +484,59 @@ class CesopReportService
         }
 
         // Create ReportedPayee section for this shop
-        $payee = $dom->createElement('cesop:ReportedPayee');
+        $payee = $dom->createElementNS($this->cesopNamespace, 'cesop:ReportedPayee');
         $paymentDataBody->appendChild($payee);
 
-        // Name element - Use actual merchant name
-        $name = $dom->createElement('cesop:Name', $this->safeXmlString(trim($merchant->name)));
+        // ---- Elements must be in the specific order required by the XSD schema ----
+
+        // 1. Name element - Use actual merchant name
+        $name = $dom->createElementNS($this->cesopNamespace, 'cesop:Name', $this->safeXmlString(trim($merchant->name)));
         $name->setAttribute('nameType', 'BUSINESS');
         $payee->appendChild($name);
 
-        // Country element - Use merchant country or default to GB
+        // 2. Country element - Use merchant country or default to GB
         $merchantCountry = config('cesop.merchant.country', 'GB');
-        $payee->appendChild($dom->createElement('cesop:Country', $merchantCountry));
+        $payee->appendChild($dom->createElementNS($this->cesopNamespace, 'cesop:Country', $merchantCountry));
 
-        // Address element - Use merchant address data
-        $address = $dom->createElement('cesop:Address');
+        // 3. Address element - Use merchant address data
+        $address = $dom->createElementNS($this->cesopNamespace, 'cesop:Address');
         $address->setAttribute('legalAddressType', 'CESOP303'); // business address
         $payee->appendChild($address);
 
         // AddressFix element
-        $addressFix = $dom->createElement('cm:AddressFix');
+        $addressFix = $dom->createElementNS($this->cmNamespace, 'cm:AddressFix');
         $address->appendChild($addressFix);
 
         // Address details - use merchant data or config defaults
         $street = !empty($merchant->address) ? $merchant->address : config('cesop.merchant.street', 'Street');
         if (!empty($street)) {
-            $addressFix->appendChild($dom->createElement('cm:Street', $this->safeXmlString($street??'')));
-        }
-
-        // Add building identifier if available
-        $buildingIdentifier = !empty($merchant->building) ? $merchant->building : '';
-        if (!empty($buildingIdentifier)) {
-            $addressFix->appendChild($dom->createElement('cm:BuildingIdentifier', $this->safeXmlString($buildingIdentifier)));
+            $addressFix->appendChild($dom->createElementNS($this->cmNamespace, 'cm:Street', $this->safeXmlString($street??'')));
         }
 
         $city = !empty($merchant->city) ? $merchant->city : config('cesop.merchant.city', 'city');
         if (!empty($city)) {
-            $addressFix->appendChild($dom->createElement('cm:City', $this->safeXmlString($city)));
+            $addressFix->appendChild($dom->createElementNS($this->cmNamespace, 'cm:City', $this->safeXmlString($city)));
         }
 
         $postCode = !empty($merchant->postal_code) ? $merchant->postal_code : config('cesop.merchant.postcode', 'postcode');
         if (!empty($postCode)) {
-            $addressFix->appendChild($dom->createElement('cm:PostCode', $this->safeXmlString($postCode)));
+            $addressFix->appendChild($dom->createElementNS($this->cmNamespace, 'cm:PostCode', $this->safeXmlString($postCode)));
         }
 
-        // Add country code to address
-        $address = $dom->createElement('cesop:Address');
-        $address->setAttribute('legalAddressType', 'CESOP303'); // business address
-        $payee->appendChild($address);
-
-        $address->appendChild($dom->createElement('cm:CountryCode', $merchantCountry));
-
-// AddressFix element
-        $addressFix = $dom->createElement('cm:AddressFix');
-        $address->appendChild($addressFix);
-
-        // Add email if available
-        if (!empty($merchant->email)) {
-            $payee->appendChild($dom->createElement('cesop:EmailAddress', $this->safeXmlString($merchant->email)));
+        // 4. EmailAddress (optional)
+        if (!empty($shop->email)) {
+            $payee->appendChild($dom->createElementNS($this->cesopNamespace, 'cesop:EmailAddress', $this->safeXmlString($shop->email)));
+        } elseif (!empty($merchant->email)) {
+            $payee->appendChild($dom->createElementNS($this->cesopNamespace, 'cesop:EmailAddress', $this->safeXmlString($merchant->email)));
         }
 
-        // Add website if available
-        if (!empty($merchant->website)) {
-            $payee->appendChild($dom->createElement('cesop:WebPage', $this->safeXmlString($merchant->website)));
+        // 5. WebPage (optional)
+        if (!empty($shop->website)) {
+            $payee->appendChild($dom->createElementNS($this->cesopNamespace, 'cesop:WebPage', $this->safeXmlString($shop->website)));
         }
 
-        // TAX identification - Use merchant VAT or tax_id if available
-        $taxId = $dom->createElement('cesop:TAXIdentification');
+        // 6. TAXIdentification (mandatory but can be empty)
+        $taxId = $dom->createElementNS($this->cesopNamespace, 'cesop:TAXIdentification');
         $payee->appendChild($taxId);
 
         // Try to get VAT ID from merchant data
@@ -551,19 +544,20 @@ class CesopReportService
         $vatCountry = substr($merchantCountry, 0, 2);
 
         if (!empty($vatNumber)) {
-            $vatId = $dom->createElement('cm:VATId', $this->safeXmlString($vatNumber));
+            $vatId = $dom->createElementNS($this->cmNamespace, 'cm:VATId', $this->safeXmlString($vatNumber));
             $vatId->setAttribute('issuedBy', $vatCountry);
             $taxId->appendChild($vatId);
         }
 
-        // Account identifier with attributes
-        // Use merchant/shop IBAN if available or leave empty
-        $accountNumber = !empty($shop->iban) ? $shop->iban : (!empty($merchant->iban) ? $merchant->iban : '');
-        $accountId = $dom->createElement('cesop:AccountIdentifier', $this->safeXmlString($accountNumber));
+        // 7. AccountIdentifier (mandatory but can be empty if not available)
+        // For card transactions, use 'Other' as type with appropriate description
+        $accountId = $dom->createElementNS($this->cesopNamespace, 'cesop:AccountIdentifier', '');
         $accountId->setAttribute('CountryCode', $merchantCountry);
-        $accountId->setAttribute('type', 'IBAN');
+        $accountId->setAttribute('type', 'Other');
+        $accountId->setAttribute('accountIdentifierOther', 'CardPayment');
         $payee->appendChild($accountId);
 
+        // 8. ReportedTransaction (optional)
         // Process transactions by card and currency
         foreach ($transactionGroups as $cardId => $currencyGroups) {
             foreach ($currencyGroups as $currency => $cardTransactions) {
@@ -571,15 +565,17 @@ class CesopReportService
             }
         }
 
-        // Add DocSpec element for this payee
-        $docSpec = $dom->createElement('cesop:DocSpec');
+        // 9. Representative (optional) - Omitted in this case
+
+        // 10. DocSpec (mandatory - must come last)
+        $docSpec = $dom->createElementNS($this->cesopNamespace, 'cesop:DocSpec');
         $payee->appendChild($docSpec);
 
         // DocTypeIndic - new data
-        $docSpec->appendChild($dom->createElement('cm:DocTypeIndic', 'CESOP1'));
+        $docSpec->appendChild($dom->createElementNS($this->cmNamespace, 'cm:DocTypeIndic', 'CESOP1'));
 
         // DocRefId - unique identifier for this record
-        $docSpec->appendChild($dom->createElement('cm:DocRefId', $this->generateUuid()));
+        $docSpec->appendChild($dom->createElementNS($this->cmNamespace, 'cm:DocRefId', $this->generateUuid()));
     }
 
     /**
@@ -602,7 +598,6 @@ class CesopReportService
         string      $currency
     )
     {
-
         // Get a representative transaction for data we need
         $representativeTransaction = $cardTransactions->first();
         $isRefund = $representativeTransaction->is_refund ? 'true' : 'false';
@@ -635,37 +630,36 @@ class CesopReportService
         }
 
         // Create the transaction element
-        $transaction = $dom->createElement('cesop:ReportedTransaction');
+        $transaction = $dom->createElementNS($this->cesopNamespace, 'cesop:ReportedTransaction');
         $transaction->setAttribute('IsRefund', $isRefund);
         $payee->appendChild($transaction);
 
         // Transaction identifier
-        $transaction->appendChild($dom->createElement('cesop:TransactionIdentifier', $txId));
+        $transaction->appendChild($dom->createElementNS($this->cesopNamespace, 'cesop:TransactionIdentifier', $txId));
 
         // Date and time
-        $dateTime = $dom->createElement('cesop:DateTime', $this->formatDateTime($reportDate));
+        $dateTime = $dom->createElementNS($this->cesopNamespace, 'cesop:DateTime', $this->formatDateTime($reportDate));
         $dateTime->setAttribute('transactionDateType', 'CESOP701'); // Execution date
         $transaction->appendChild($dateTime);
 
         // Amount with currency
-        $amountElement = $dom->createElement('cesop:Amount', $this->formatAmount($totalAmount));
+        $amountElement = $dom->createElementNS($this->cesopNamespace, 'cesop:Amount', $this->formatAmount($totalAmount));
         $amountElement->setAttribute('currency', $currency);
         $transaction->appendChild($amountElement);
 
         // Payment method - Card payment
-        $paymentMethod = $dom->createElement('cesop:PaymentMethod');
+        $paymentMethod = $dom->createElementNS($this->cesopNamespace, 'cesop:PaymentMethod');
         $transaction->appendChild($paymentMethod);
-        $paymentMethod->appendChild($dom->createElement('cm:PaymentMethodType', 'Card payment'));
+        $paymentMethod->appendChild($dom->createElementNS($this->cmNamespace, 'cm:PaymentMethodType', 'Card payment'));
 
         // Not at physical premises (e-commerce)
-        $transaction->appendChild($dom->createElement('cesop:InitiatedAtPhysicalPremisesOfMerchant', 'false'));
+        $transaction->appendChild($dom->createElementNS($this->cesopNamespace, 'cesop:InitiatedAtPhysicalPremisesOfMerchant', 'false'));
 
         // Add payer Member State with source
-        $payerMS = $dom->createElement('cesop:PayerMS', $payerCountry);
+        $payerMS = $dom->createElementNS($this->cesopNamespace, 'cesop:PayerMS', $payerCountry);
         $payerMS->setAttribute('PayerMSSource', 'Other');
         $transaction->appendChild($payerMS);
     }
-
     /**
      * Get available quarters for report generation
      *
