@@ -19,7 +19,7 @@
 
                     <div class="space-y-4">
                         <p class="text-gray-600">
-                            Your XML file has been encrypted using the TaxisNet PGP public key and is ready for submission.
+                            Your XML file has been zipped and encrypted using the TaxisNet PGP public key and is ready for submission.
                         </p>
 
                         <p class="text-gray-600">

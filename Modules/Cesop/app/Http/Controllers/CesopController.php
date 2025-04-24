@@ -116,7 +116,7 @@ class CesopController extends Controller
                     ->withInput();
             }
 
-            // Compress XML to ZIP
+            // Compress XML to ZIP first
             $zipPath = $this->compressToZip($fullXmlPath);
 
             // Use form inputs directly
@@ -125,18 +125,19 @@ class CesopController extends Controller
             $countryCode = strtoupper($request->input('country_code'));
             $pspId = $request->input('psp_id');
 
-            // Replace file extension to .pgp.zip
+            // Generate filename (remove .zip suffix since encryption will be applied to zip)
             $outputFilename = $this->pgpService->generateCesopFilename(
                 $quarter, $year, $countryCode, $pspId
             );
-            $outputFilename = str_replace('.pgp', '.pgp.zip', $outputFilename);
 
-            // Define output path for encrypted ZIP
+            // Define output path for encrypted file
             $outputPath = 'cesop/encrypted/' . $outputFilename;
 
-            // Encrypt the ZIP file (convert to Laravel storage path if needed)
+            // Convert local zip path to Laravel storage path
             $zipStoragePath = 'cesop/temp/' . basename($zipPath);
             Storage::put($zipStoragePath, file_get_contents($zipPath));
+
+            // Encrypt the ZIP file
             $encryptedPath = $this->pgpService->encryptXmlFile($zipStoragePath, $outputPath);
 
             // Clean up temporary files
@@ -144,17 +145,17 @@ class CesopController extends Controller
             Storage::delete($xmlPath);
             Storage::delete($zipStoragePath);
 
-            $this->logger->log('info', "CESOP XML compressed, encrypted successfully: {$outputFilename}");
+            $this->logger->log('info', "CESOP XML zipped and encrypted successfully: {$outputFilename}");
 
             return redirect()->route('cesop.encrypt.success')
-                ->with('success', 'File compressed and encrypted successfully')
+                ->with('success', 'File zipped and encrypted successfully')
                 ->with('encrypted_file', $outputFilename);
 
         } catch (\Exception $e) {
-            $this->logger->log('error', 'CESOP compression/encryption failed: ' . $e->getMessage());
+            $this->logger->log('error', 'CESOP zip/encryption failed: ' . $e->getMessage());
 
             return redirect()->back()
-                ->with('error', 'Compression/Encryption failed: ' . $e->getMessage())
+                ->with('error', 'Zip/Encryption failed: ' . $e->getMessage())
                 ->withInput();
         }
     }
@@ -178,8 +179,8 @@ class CesopController extends Controller
      */
     public function download($filename)
     {
-        // Validate filename for security (updated to allow .pgp.zip)
-        if (!preg_match('/^PMT-Q[1-4]-\d{4}-[A-Z]{2}-[A-Za-z0-9_-]+-\d+-\d+\.pgp\.zip$/', $filename)) {
+        // Validate filename for security (now just .pgp extension)
+        if (!preg_match('/^PMT-Q[1-4]-\d{4}-[A-Z]{2}-[A-Za-z0-9_-]+-\d+-\d+\.pgp$/', $filename)) {
             abort(400, 'Invalid filename format');
         }
 
