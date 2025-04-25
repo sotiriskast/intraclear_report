@@ -33,10 +33,9 @@ class CesopController extends Controller
      */
     public function __construct(
         PgpEncryptionService $pgpService,
-        CesopXmlValidator    $xmlValidator,
-        DynamicLogger        $logger
-    )
-    {
+        CesopXmlValidator $xmlValidator,
+        DynamicLogger $logger
+    ) {
         $this->pgpService = $pgpService;
         $this->xmlValidator = $xmlValidator;
         $this->logger = $logger;
@@ -98,9 +97,10 @@ class CesopController extends Controller
         try {
             // Store the uploaded XML file
             $xmlPath = $request->file('xml_file')->store('cesop/temp');
+            $fullXmlPath = Storage::path($xmlPath);
 
-            // Validate against CESOP schema using the Storage path
-            $validationResult = $this->xmlValidator->validateXmlFile($xmlPath);
+            // Validate against CESOP schema
+            $validationResult = $this->xmlValidator->validateXmlFile($fullXmlPath);
 
             if (!$validationResult['valid']) {
                 // Display first 3 errors to the user
@@ -115,9 +115,6 @@ class CesopController extends Controller
                     ->with('error', $errorMessage)
                     ->withInput();
             }
-
-            // Get the full system path for creating the ZIP
-            $fullXmlPath = Storage::path($xmlPath);
 
             // Compress XML to ZIP first
             $zipPath = $this->compressToZip($fullXmlPath);
