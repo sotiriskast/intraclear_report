@@ -22,7 +22,7 @@ return [
     |
     */
     'psp' => [
-        'bic' => env('CESOP_PSP_BIC', 'ITRACY2LXXX'), // Business Identifier Code
+        'bic' => env('CESOP_PSP_BIC', 'ITRACY2L'), // Business Identifier Code
         'name' => env('CESOP_PSP_NAME', 'INTRACLEAR LIMITED'), // PSP legal name
         'country' => env('CESOP_PSP_COUNTRY', 'CY'), // ISO country code
         'tax_id' => env('CESOP_PSP_TAX_ID', 'CY10389967P'), // PSP tax ID
