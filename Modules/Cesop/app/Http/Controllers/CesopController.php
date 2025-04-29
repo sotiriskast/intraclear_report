@@ -81,7 +81,7 @@ class CesopController extends Controller
     public function upload(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'xml_file' => 'required|file|mimes:xml|max:10240', // 10MB max
+            'xml_file' => 'required|file|mimes:xml|max:102400', // 100MB max
             'quarter' => 'required|integer|min:1|max:4',
             'year' => 'required|integer|min:2024',
             'country_code' => 'required|string|size:2',

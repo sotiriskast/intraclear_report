@@ -37,7 +37,7 @@ class SettlementController extends Controller
         $this->debugLog('Loading settlement reports index');
 
         try {
-            $reports = DB::connection('mariadb')
+            $reports = DB::connection('pgsql')
                 ->table('settlement_reports')
                 ->select([
                     'settlement_reports.*',
@@ -105,7 +105,7 @@ class SettlementController extends Controller
         $this->debugLog('Loading generate form');
 
         try {
-            $merchants = DB::connection('mariadb')
+            $merchants = DB::connection('pgsql')
                 ->table('merchants')
                 ->where('active', 1)
                 ->select(['account_id', 'name'])
@@ -143,7 +143,7 @@ class SettlementController extends Controller
         $this->debugLog('Loading settlement archives index');
 
         try {
-            $archives = DB::connection('mariadb')
+            $archives = DB::connection('pgsql')
                 ->table('settlement_report_archives')
                 ->orderBy('created_at', 'desc')
                 ->paginate(10);
@@ -172,7 +172,7 @@ class SettlementController extends Controller
     public function download($id): StreamedResponse|RedirectResponse
     {
         try {
-            $report = DB::connection('mariadb')
+            $report = DB::connection('pgsql')
                 ->table('settlement_reports')
                 ->where('id', $id)
                 ->first();
@@ -212,7 +212,7 @@ class SettlementController extends Controller
     public function downloadZip($id): StreamedResponse|RedirectResponse
     {
         try {
-            $archive = DB::connection('mariadb')
+            $archive = DB::connection('pgsql')
                 ->table('settlement_report_archives')
                 ->where('id', $id)
                 ->first();

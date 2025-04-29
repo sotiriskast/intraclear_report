@@ -36,7 +36,7 @@ return new class extends Migration {
             $table->id();
             $table->unsignedBigInteger('merchant_id');
             $table->unsignedBigInteger('fee_type_id');
-            $table->integer('amount'); // Can be percentage or fixed amount
+            $table->bigInteger('amount'); // Can be percentage or fixed amount
             $table->timestamp('effective_from')->useCurrent();
             $table->timestamp('effective_to')->nullable();
             $table->boolean('active')->default(true);
@@ -80,9 +80,9 @@ return new class extends Migration {
         Schema::create('rolling_reserve_entries', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('merchant_id');
-            $table->integer('original_amount');
+            $table->bigInteger('original_amount');
             $table->string('original_currency', 3);
-            $table->integer('reserve_amount_eur');
+            $table->bigInteger('reserve_amount_eur');
             $table->decimal('exchange_rate', 10, 4)->nullable();
             $table->date('period_start');        // Settlement period start
             $table->date('period_end');          // Settlement period end
@@ -103,9 +103,9 @@ return new class extends Migration {
             $table->id();
             $table->unsignedBigInteger('merchant_id');
             $table->unsignedBigInteger('fee_type_id');
-            $table->integer('base_amount');
+            $table->bigInteger('base_amount');
             $table->string('base_currency', 3);
-            $table->integer('fee_amount_eur');
+            $table->bigInteger('fee_amount_eur');
             $table->integer('exchange_rate');
             $table->timestamp('applied_date')->useCurrent();
             $table->string('report_reference')->nullable();

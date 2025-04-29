@@ -40,6 +40,7 @@ class CesopReportService
     protected $cesopNamespace;
     protected $isoNamespace;
     protected $cmNamespace;
+
     /**
      * Constructor
      */
@@ -97,7 +98,7 @@ class CesopReportService
             ];
         }
 
-        // Group transactions by merchant and shop
+        // Group transactions by merchant and shop for processing
         $transactionsByShop = $transactions->groupBy(['merchant_id', 'shop_id']);
 
         // Generate XML document
@@ -133,16 +134,13 @@ class CesopReportService
                     continue;
                 }
 
-                // Group transactions by card and currency
-                $transactionGroups = $shopTransactions->groupBy(['card_id', 'currency']);
-
                 // Add shop data to XML
-                $this->addShopToXml($dom, $root, $merchant, $shop, $shopTransactions, $transactionGroups);
+                $this->addShopToXml($dom, $root, $merchant, $shop, $transactions);
                 $stats['processed_shops']++;
 
                 // Update stats
-                $stats['total_transactions'] += $shopTransactions->sum('transaction_count');
-                $stats['total_amount'] += $shopTransactions->sum('total_amount');
+                $stats['total_transactions'] += $shopTransactions->count();
+                $stats['total_amount'] += $shopTransactions->sum('amount') / 100;
             }
         }
 
@@ -171,8 +169,9 @@ class CesopReportService
         ];
     }
 
+
     /**
-     * Get transaction data for the report
+     * Get transaction data for the report without aggregation
      *
      * @param Carbon $startDate
      * @param Carbon $endDate
@@ -183,6 +182,43 @@ class CesopReportService
      */
     protected function getTransactionsData(Carbon $startDate, Carbon $endDate, int $threshold, array $merchantIds = [], array $shopIds = []): Collection
     {
+        // Step 1: First identify the cards/bin combinations that exceed the threshold
+        $qualifyingCardsQuery = DB::connection('payment_gateway_mysql')
+            ->table('transactions as t')
+            ->join('customer_card as cc', 't.card_id', '=', 'cc.card_id')
+            ->join('binbase as bb', 'cc.first6', '=', 'bb.bin')
+            ->join('shop as s', 't.shop_id', '=', 's.id')
+            ->select(
+                's.account_id as merchant_id',
+                's.id as shop_id',
+                'cc.card_id',
+                DB::raw("COUNT(*) as transaction_count")
+            )
+            ->whereBetween('t.added', [$startDate, $endDate])
+            ->where('t.transaction_status', 'APPROVED')
+            ->whereIn('t.transaction_type', ['Sale', 'Refund'])
+            ->whereIn('bb.isoa2', $this->euCountries);
+
+        // Apply merchant filter if provided
+        if (!empty($merchantIds)) {
+            $qualifyingCardsQuery->whereIn('s.account_id', $merchantIds);
+        }
+
+        // Apply shop filter if provided
+        if (!empty($shopIds)) {
+            $qualifyingCardsQuery->whereIn('s.id', $shopIds);
+        }
+
+        $qualifyingCards = $qualifyingCardsQuery->groupBy(
+            's.account_id',
+            's.id',
+            'cc.card_id'
+        )
+            ->havingRaw("COUNT(*) > {$threshold}")
+            ->pluck('cc.card_id')
+            ->toArray();
+
+        // Step 2: Now fetch all individual transactions for those qualifying cards
         $query = DB::connection('payment_gateway_mysql')
             ->table('transactions as t')
             ->join('customer_card as cc', 't.card_id', '=', 'cc.card_id')
@@ -197,20 +233,18 @@ class CesopReportService
                 'bb.isocountry as isocountry',
                 'bb.isoa2 as isoa2',
                 'bb.bank as binbank',
-                DB::raw("YEAR(t.added) as year"),
-                DB::raw("QUARTER(t.added) as quarter"),
+                't.tid as transaction_id',
+                't.trx_id as trx_id',
+                't.added as transaction_date',
                 't.bank_currency as currency',
-                DB::raw("COUNT(*) as transaction_count"),
-                DB::raw("SUM(t.bank_amount) as total_amount"),
-                DB::raw("MIN(t.added) as first_transaction_date"),
-                DB::raw("MAX(t.added) as last_transaction_date"),
-                DB::raw("MAX(CASE WHEN t.transaction_type = 'Refund' THEN 1 ELSE 0 END) as is_refund")
+                't.bank_amount as amount',
+                DB::raw("CASE WHEN t.transaction_type = 'Refund' THEN 1 ELSE 0 END as is_refund")
             )
             ->whereBetween('t.added', [$startDate, $endDate])
             ->where('t.transaction_status', 'APPROVED')
             ->whereIn('t.transaction_type', ['Sale', 'Refund'])
-            ->whereIn('bb.isoa2', $this->euCountries);
-
+            ->whereIn('bb.isoa2', $this->euCountries)
+            ->whereIn('cc.card_id', $qualifyingCards);
 
         // Apply merchant filter if provided
         if (!empty($merchantIds)) {
@@ -222,25 +256,10 @@ class CesopReportService
             $query->whereIn('s.id', $shopIds);
         }
 
-        return $query->groupBy(
-            's.account_id',
-            's.id',
-            's.owner_name',
-            'cc.card_id',
-            'cc.first6',
-            'bb.isocountry',
-            'bb.isoa2',
-            'bb.bank',
-            DB::raw("YEAR(t.added)"),
-            DB::raw("QUARTER(t.added)"),
-            't.bank_currency'
-        )
-            ->havingRaw("COUNT(*) > {$threshold}")
+        return $query
             ->orderBy('s.account_id')
             ->orderBy('s.id')
-            ->orderBy('year')
-            ->orderBy('quarter')
-            ->orderByDesc('transaction_count')
+            ->orderBy('t.added')
             ->get();
     }
 
@@ -277,7 +296,7 @@ class CesopReportService
     protected function getShopDetails(int $shopId): ?object
     {
         return DB::connection('payment_gateway_mysql')->table('shop')
-            ->select('id', 'owner_name','website','email')
+            ->select('id', 'owner_name', 'website', 'email')
             ->where('id', $shopId)
             ->where('active', 1)
             ->first();
@@ -386,6 +405,7 @@ class CesopReportService
 
         return $dom;
     }
+
     /**
      * Generate a UUID v4 using Ramsey/UUID library if available
      *
@@ -458,7 +478,6 @@ class CesopReportService
      * @param object $merchant
      * @param object $shop
      * @param Collection $transactions
-     * @param Collection $transactionGroups
      * @return void
      */
     protected function addShopToXml(
@@ -466,8 +485,7 @@ class CesopReportService
         DOMElement  $root,
                     $merchant,
                     $shop,
-        Collection  $transactions,
-        Collection  $transactionGroups
+        Collection  $transactions
     )
     {
         // Find the PaymentDataBody element
@@ -510,7 +528,7 @@ class CesopReportService
         // Address details - use merchant data or config defaults
         $street = !empty($merchant->address) ? $merchant->address : config('cesop.merchant.street', 'Street');
         if (!empty($street)) {
-            $addressFix->appendChild($dom->createElementNS($this->cmNamespace, 'cm:Street', $this->safeXmlString($street??'')));
+            $addressFix->appendChild($dom->createElementNS($this->cmNamespace, 'cm:Street', $this->safeXmlString($street ?? '')));
         }
 
         $city = !empty($merchant->city) ? $merchant->city : config('cesop.merchant.city', 'city');
@@ -557,12 +575,14 @@ class CesopReportService
         $accountId->setAttribute('accountIdentifierOther', 'CardPayment');
         $payee->appendChild($accountId);
 
-        // 8. ReportedTransaction (optional)
-        // Process transactions by card and currency
-        foreach ($transactionGroups as $cardId => $currencyGroups) {
-            foreach ($currencyGroups as $currency => $cardTransactions) {
-                $this->addTransactionToXml($dom, $payee, $merchant, $shop, $cardTransactions, $currency);
+        // 8. ReportedTransaction (add each individual transaction)
+        foreach ($transactions as $transaction) {
+            // Only process transactions for the current shop
+            if ($transaction->shop_id != $shop->id) {
+                continue;
             }
+
+            $this->addIndividualTransactionToXml($dom, $payee, $transaction);
         }
 
         // 9. Representative (optional) - Omitted in this case
@@ -572,10 +592,97 @@ class CesopReportService
         $payee->appendChild($docSpec);
 
         // DocTypeIndic - new data
-        $docSpec->appendChild($dom->createElementNS($this->cmNamespace, 'cm:DocTypeIndic', 'CESOP1'));
+        $docSpec->appendChild($dom->createElementNS($this->cmNamespace, 'cm:DocTypeIndic', 'CESOP2'));
 
         // DocRefId - unique identifier for this record
         $docSpec->appendChild($dom->createElementNS($this->cmNamespace, 'cm:DocRefId', $this->generateUuid()));
+    }
+
+    /**
+     * Add an individual transaction to the XML document
+     *
+     * @param DOMDocument $dom
+     * @param DOMElement $payee
+     * @param object $transaction
+     * @return void
+     */
+    protected function addIndividualTransactionToXml(
+        DOMDocument $dom,
+        DOMElement  $payee,
+                    $transaction
+    )
+    {
+        // Check if the transaction's country is an EU country
+        $payerCountry = $transaction->isoa2;
+        if (!in_array($payerCountry, $this->euCountries)) {
+            // If not an EU country, skip this transaction
+            return;
+        }
+
+        $isRefund = $transaction->is_refund ? 'true' : 'false';
+
+        // Get transaction amount - convert to decimal from cents/smaller units
+        $amount = $transaction->amount / 100;
+
+        // Create the transaction element
+        $transactionElement = $dom->createElementNS($this->cesopNamespace, 'cesop:ReportedTransaction');
+        $transactionElement->setAttribute('IsRefund', $isRefund);
+        $payee->appendChild($transactionElement);
+
+        // Transaction identifier - use the real transaction ID from the database
+        $txId = 'TX-' .
+            $transaction->merchant_id . '-' .
+            $transaction->shop_id . '-' .
+            $transaction->transaction_id . '-' .
+            $transaction->trx_id . '-' .
+            $transaction->card_id . '-' .
+            $transaction->currency . '-' .
+            substr(md5(uniqid()), 0, 8);
+        $transactionElement->appendChild(
+            $dom->createElementNS(
+                $this->cesopNamespace,
+                'cesop:TransactionIdentifier',
+                $txId
+            )
+        );
+
+        // Date and time
+        $txDate = Carbon::parse($transaction->transaction_date);
+        $dateTime = $dom->createElementNS(
+            $this->cesopNamespace,
+            'cesop:DateTime',
+            $this->formatDateTime($txDate)
+        );
+        $dateTime->setAttribute('transactionDateType', 'CESOP701'); // Execution date
+        $transactionElement->appendChild($dateTime);
+
+        // Amount with currency
+        $amountElement = $dom->createElementNS(
+            $this->cesopNamespace,
+            'cesop:Amount',
+            $this->formatAmount($amount)
+        );
+        $amountElement->setAttribute('currency', $transaction->currency);
+        $transactionElement->appendChild($amountElement);
+
+        // Payment method - Card payment
+        $paymentMethod = $dom->createElementNS($this->cesopNamespace, 'cesop:PaymentMethod');
+        $transactionElement->appendChild($paymentMethod);
+        $paymentMethod->appendChild($dom->createElementNS($this->cmNamespace, 'cm:PaymentMethodType', 'Card payment'));
+
+        // Not at physical premises (e-commerce)
+        $transactionElement->appendChild(
+            $dom->createElementNS(
+                $this->cesopNamespace,
+                'cesop:InitiatedAtPhysicalPremisesOfMerchant',
+                'false'
+            )
+        );
+
+        // Add payer Member State with source
+        $payerMS = $dom->createElementNS($this->cesopNamespace, 'cesop:PayerMS', $payerCountry);
+        $payerMS->setAttribute('PayerMSSource', 'Other');
+        $transactionElement->appendChild($payerMS);
     }
 
     /**
@@ -660,6 +767,7 @@ class CesopReportService
         $payerMS->setAttribute('PayerMSSource', 'Other');
         $transaction->appendChild($payerMS);
     }
+
     /**
      * Get available quarters for report generation
      *
