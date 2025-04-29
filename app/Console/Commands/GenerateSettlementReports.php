@@ -190,7 +190,7 @@ class GenerateSettlementReports extends Command
      */
     protected function storeZipReference(string $zipPath, array $dateRange, array $reports): void
     {
-        DB::connection('mariadb')
+        DB::connection('pgsql')
             ->table('settlement_report_archives')
             ->insert([
                 'zip_path' => $zipPath,
@@ -209,7 +209,7 @@ class GenerateSettlementReports extends Command
      */
     protected function getMerchants(): array
     {
-        $query = DB::connection('mariadb')
+        $query = DB::connection('pgsql')
             ->table('merchants')
             ->select(['id', 'account_id', 'name'])
             ->where('active', 1);
@@ -283,7 +283,7 @@ class GenerateSettlementReports extends Command
      */
     protected function storeReportReference(int $merchantId, string $filePath, array $dateRange): void
     {
-        DB::connection('mariadb')
+        DB::connection('pgsql')
             ->table('settlement_reports')
             ->insert([
                 'merchant_id' => $merchantId, // Using internal merchant ID

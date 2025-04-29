@@ -133,13 +133,17 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
                 'transactions.shop_id',
                 'transactions.customer_id',
                 'transactions.added',
-                DB::raw('CAST(transactions.bank_amount AS DECIMAL(12,2)) as amount'),
+                DB::raw(DB::connection('payment_gateway_mysql')->getDriverName() === 'pgsql' 
+                    ? 'CAST(transactions.bank_amount AS NUMERIC(12,2)) as amount'
+                    : 'CAST(transactions.bank_amount AS DECIMAL(12,2)) as amount'),
                 'transactions.bank_currency as currency',
                 'transactions.transaction_type',
                 'transactions.transaction_status',
                 'shop.owner_name as shop_owner_name',
                 'customer_card.card_type',
-                DB::raw('DATE(transactions.added) as transaction_date'),
+                DB::raw(DB::connection('payment_gateway_mysql')->getDriverName() === 'pgsql' 
+                    ? 'transactions.added::date as transaction_date'
+                    : 'DATE(transactions.added) as transaction_date'),
             ])
             ->join('shop', 'transactions.shop_id', '=', 'shop.id')
             ->leftJoin('customer_card', 'transactions.card_id', '=', 'customer_card.card_id')
@@ -713,7 +717,9 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
                     'brand',
                     'buy',
                     'sell',
-                    DB::raw('DATE(added) as rate_date'),
+                    DB::raw(DB::connection('payment_gateway_mysql')->getDriverName() === 'pgsql' 
+                        ? 'added::date as rate_date'
+                        : 'DATE(added) as rate_date'),
                 ])
                 ->whereIn('from_currency', $currencies)
                 ->where('to_currency', 'EUR')

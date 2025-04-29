@@ -13,7 +13,7 @@ class TruncateMariaDBTables extends Command
      * @var string
      */
     protected $signature = 'intraclear:truncate-tables
-                            {--connection=mariadb : Database connection to use}
+                            {--connection=pgsql : Database connection to use}
                             {--force : Force truncation without confirmation}';
 
     /**
@@ -48,19 +48,38 @@ class TruncateMariaDBTables extends Command
         $connection = $this->option('connection');
         $force = $this->option('force');
 
-        // Get all tables using DB facade instead of Schema
-        $tables = DB::connection($connection)
-            ->select('SHOW TABLES');
+        // Get all tables based on database type
+        $tables = [];
+        $allTables = [];
 
-        // Extract table names from the result
-        $tableKey = 'Tables_in_' . DB::connection($connection)->getDatabaseName();
-        $allTables = array_map(function($table) use ($tableKey) {
-            return $table->$tableKey;
-        }, $tables);
+        if ($connection === 'mariadb' || $connection === 'mysql' || $connection === 'payment_gateway_mysql') {
+            // MariaDB/MySQL approach
+            $tables = DB::connection($connection)->select('SHOW TABLES');
+            $tableKey = 'Tables_in_' . DB::connection($connection)->getDatabaseName();
+            $allTables = array_map(function($table) use ($tableKey) {
+                return $table->$tableKey;
+            }, $tables);
+        } else {
+            // PostgreSQL approach
+            $tables = DB::connection($connection)->select("
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+            ");
+            $allTables = array_map(function($table) {
+                return $table->table_name;
+            }, $tables);
+        }
 
-        // Filter out protected tables (case-insensitive comparison)
-        $tablesToTruncate = array_filter($allTables, function($table) {
-            return !in_array(strtolower($table), array_map('strtolower', $this->protectedTables));
+        // Filter out protected tables
+        $tablesToTruncate = array_filter($allTables, function($table) use ($connection) {
+            if ($connection === 'pgsql') {
+                // PostgreSQL is case-sensitive
+                return !in_array($table, $this->protectedTables);
+            } else {
+                // MariaDB is case-insensitive
+                return !in_array(strtolower($table), array_map('strtolower', $this->protectedTables));
+            }
         });
 
         if (empty($tablesToTruncate)) {
@@ -82,8 +101,12 @@ class TruncateMariaDBTables extends Command
             return 1;
         }
 
-        // Disable foreign key checks to avoid constraint errors
-        DB::connection($connection)->statement('SET FOREIGN_KEY_CHECKS=0');
+        // Disable foreign key checks based on database type
+        if ($connection === 'mariadb' || $connection === 'mysql' || $connection === 'payment_gateway_mysql') {
+            DB::connection($connection)->statement('SET FOREIGN_KEY_CHECKS=0');
+        } else {
+            DB::connection($connection)->statement('SET session_replication_role = \'replica\'');
+        }
 
         $count = 0;
         $errors = [];
@@ -102,8 +125,12 @@ class TruncateMariaDBTables extends Command
 
         $this->output->progressFinish();
 
-        // Re-enable foreign key checks
-        DB::connection($connection)->statement('SET FOREIGN_KEY_CHECKS=1');
+        // Re-enable foreign key checks based on database type
+        if ($connection === 'mariadb' || $connection === 'mysql' || $connection === 'payment_gateway_mysql') {
+            DB::connection($connection)->statement('SET FOREIGN_KEY_CHECKS=1');
+        } else {
+            DB::connection($connection)->statement('SET session_replication_role = \'origin\'');
+        }
 
         $this->info("Successfully truncated {$count} out of " . count($tablesToTruncate) . " tables.");
 
