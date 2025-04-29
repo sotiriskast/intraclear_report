@@ -257,6 +257,7 @@ Mock test:
   $DPFX exec front bash -c "cd ~ && nvm install --lts"
   $DPFX exec front bash -c "git clone https://oauth2:$GIT_TOKEN@$GIT_PROJECT_URL"
   $DPFX exec front bash -c "mv ./financial_report ./app"
+  $DPFX $TAXISNET_PUB_KEY front:/var/www/app/storage/app/private/taxisnet_public_key.asc
   $DPFX cp $(eval "echo \$ENV_$ENVIRONMENT") front:/var/www/app/.env
   $DPFX exec front bash -c "cd ./app && git checkout $ENVIRONMENT"
   $DPFX exec front bash -c "cd ./app && composer i"
