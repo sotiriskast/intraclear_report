@@ -44,16 +44,16 @@ class PgpEncryptionService
     }
 
     /**
-     * Encrypt an XML content using the TaxisNet PGP public key
+     * Encrypt any content using the TaxisNet PGP public key
      *
-     * @param string $xmlContent The XML content to encrypt
+     * @param string $content The content to encrypt
      * @return string The encrypted content
      */
-    public function encryptXml(string $xmlContent): string
+    public function encrypt(string $content): string
     {
         try {
-            // Create a message object with the XML content
-            $data = new OpenPGP_Message([new OpenPGP_LiteralDataPacket($xmlContent)]);
+            // Create a message object with the content
+            $data = new OpenPGP_Message([new OpenPGP_LiteralDataPacket($content)]);
 
             // Encrypt the message with the public key
             $encrypted = OpenPGP_Crypt_Symmetric::encrypt($this->publicKey, $data);
@@ -69,22 +69,22 @@ class PgpEncryptionService
     }
 
     /**
-     * Encrypt an XML file and save to storage
+     * Encrypt a file and save to storage
      *
-     * @param string $xmlPath Path to the XML file in Laravel storage
+     * @param string $filePath Path to the file in Laravel storage
      * @param string $outputPath Path where to save the encrypted file
      * @return string The path to the encrypted file
      */
-    public function encryptXmlFile(string $xmlPath, string $outputPath): string
+    public function encryptFile(string $filePath, string $outputPath): string
     {
         try {
-            $xmlContent = Storage::get($xmlPath);
+            $fileContent = Storage::get($filePath);
 
-            if (!$xmlContent) {
-                throw new Exception("XML file not found at path: {$xmlPath}");
+            if (!$fileContent) {
+                throw new Exception("File not found at path: {$filePath}");
             }
 
-            $encryptedContent = $this->encryptXml($xmlContent);
+            $encryptedContent = $this->encrypt($fileContent);
 
             // Ensure the directory exists
             $directory = dirname($outputPath);
@@ -100,7 +100,6 @@ class PgpEncryptionService
             throw $e;
         }
     }
-
     /**
      * Generate a proper CESOP filename
      *

@@ -85,7 +85,6 @@ class CesopController extends Controller
             'quarter' => 'required|integer|min:1|max:4',
             'year' => 'required|integer|min:2024',
             'country_code' => 'required|string|size:2',
-            'psp_id' => 'required|string|max:50',
         ]);
 
         if ($validator->fails()) {
@@ -99,7 +98,11 @@ class CesopController extends Controller
             $xmlPath = $request->file('xml_file')->store('cesop/temp');
             $fullXmlPath = Storage::path($xmlPath);
 
-            // Validate against CESOP schema
+            // Get original filename
+            $originalFilename = $request->file('xml_file')->getClientOriginalName();
+            $filenameWithoutExt = pathinfo($originalFilename, PATHINFO_FILENAME);
+
+            // Validate against CESOP schema using the FULL system path
             $validationResult = $this->xmlValidator->validateXmlFile($fullXmlPath);
 
             if (!$validationResult['valid']) {
@@ -116,16 +119,26 @@ class CesopController extends Controller
                     ->withInput();
             }
 
-            // Compress XML to ZIP first
-            $zipPath = $this->compressToZip($fullXmlPath);
+            // Create ZIP with the same name as the original XML
+            $zipFilename = $filenameWithoutExt . '.zip';
+            $tempDir = dirname($fullXmlPath);
+            $zipPath = $tempDir . '/' . $zipFilename;
 
-            // Use form inputs directly
+            // Create ZIP archive
+            $zip = new ZipArchive();
+            if ($zip->open($zipPath, ZipArchive::CREATE) !== TRUE) {
+                throw new \Exception('Could not create ZIP file');
+            }
+            $zip->addFile($fullXmlPath, $originalFilename);
+            $zip->close();
+
+            // Use form inputs and get PSP ID from config
             $quarter = $request->input('quarter');
             $year = $request->input('year');
             $countryCode = strtoupper($request->input('country_code'));
-            $pspId = $request->input('psp_id');
+            $pspId = config('cesop.psp.bic', 'ITRACY2L');
 
-            // Generate filename (remove .zip suffix since encryption will be applied to zip)
+            // Generate filename for the encrypted file
             $outputFilename = $this->pgpService->generateCesopFilename(
                 $quarter, $year, $countryCode, $pspId
             );
@@ -134,12 +147,14 @@ class CesopController extends Controller
             $outputPath = 'cesop/encrypted/' . $outputFilename;
 
             // Convert local zip path to Laravel storage path
-            $zipStoragePath = 'cesop/temp/' . basename($zipPath);
+            $zipStoragePath = 'cesop/temp/' . $zipFilename;
             Storage::put($zipStoragePath, file_get_contents($zipPath));
 
             // Encrypt the ZIP file
-            $encryptedPath = $this->pgpService->encryptXmlFile($zipStoragePath, $outputPath);
-
+            // Change this line in the upload method:
+            // Call the method and store the path but use it in the log
+            $encryptedPath = $this->pgpService->encryptFile($zipStoragePath, $outputPath);
+            $this->logger->log('info', "CESOP XML zipped and encrypted successfully: {$outputFilename}, saved to: {$encryptedPath}");
             // Clean up temporary files
             unlink($zipPath);
             Storage::delete($xmlPath);
