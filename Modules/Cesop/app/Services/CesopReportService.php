@@ -592,7 +592,7 @@ class CesopReportService
         $payee->appendChild($docSpec);
 
         // DocTypeIndic - new data
-        $docSpec->appendChild($dom->createElementNS($this->cmNamespace, 'cm:DocTypeIndic', 'CESOP100'));
+        $docSpec->appendChild($dom->createElementNS($this->cmNamespace, 'cm:DocTypeIndic', 'CESOP1'));
 
         // DocRefId - unique identifier for this record
         $docSpec->appendChild($dom->createElementNS($this->cmNamespace, 'cm:DocRefId', $this->generateUuid()));
