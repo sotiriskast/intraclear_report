@@ -229,7 +229,7 @@ Mock test:
   printf "\n---\nControl configuration on the \"$ENVIRONMENT\" environment.\n---\n"
   sed -i "s/####ENV_NAME####/$ENVIRONMENT/g" ./docker-compose.yaml
   sed -i "s/####ENV_HTTP_PORT####/$(eval "echo \$HTTP_PORT_$ENVIRONMENT")/g" ./docker-compose.yaml
-  sed -i "s/####DB_EXTRA_HOST####/extra_hosts:\n    - \\\"mysql_db:10.5.0.6\\\"    - \\\"postgres_db:10.5.0.7\\\"/g" ./docker-compose.yaml
+  sed -i "s/####DB_EXTRA_HOST####/extra_hosts:\n    - \\\"mysql_db:10.5.0.6\\\"\n    - \\\"postgres_db:10.5.0.7\\\"/g" ./docker-compose.yaml
   sed -i "s/####DB_NETWORK####/db-network:\n    external:\\ true\n    name:\\ finrep_uat_db_br\n/g" ./docker-compose.yaml
   cat ./docker-compose.yaml
   printf "\n---\n\n"
