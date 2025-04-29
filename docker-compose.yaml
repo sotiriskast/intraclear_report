@@ -1,0 +1,57 @@
+---
+services:
+  # ---
+  redis:
+    image: redis:bookworm
+    networks:
+    - backend
+    ports:
+    - "6379:6379/tcp"
+
+  # ---
+  front:
+    image: hub.intraclear.com/cds-runtime-nginx:0.0.2-beta3
+    # build:
+    #   context: ./docker
+    #   args:
+    #     CPU_ARCH: ${CPU_ARCH}
+    command: ["nginx"]
+    restart: always
+    depends_on:
+    - redis
+    volumes:
+    - /app_files/####ENV_NAME####/logs/apache:/var/lib/www-data/log/apache
+    - /app_files/####ENV_NAME####/logs/nginx:/var/lib/www-data/log/nginx
+    - /app_files/####ENV_NAME####/logs/php:/var/lib/www-data/log/php
+    - /app_files/####ENV_NAME####/logs/supervisor:/var/lib/www-data/log/supervisor
+    - /app_files/####ENV_NAME####/logs/laravel:/var/lib/www-data/log/laravel
+
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '1'
+    #       memory: 512M
+    #     reservations:
+    #       cpus: '1'
+    #       memory: 512M
+    ports:
+    - "####ENV_HTTP_PORT####:443"
+    networks:
+    - backend
+    - frontend
+    - db-network
+    ####DB_EXTRA_HOST####
+    
+networks:
+  frontend:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: ####ENV_NAME####-fi
+  backend:
+    driver: bridge
+    internal: true
+    driver_opts:
+      com.docker.network.bridge.name: ####ENV_NAME####-bi
+  ####DB_NETWORK####
+
+...
