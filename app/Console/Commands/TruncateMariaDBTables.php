@@ -52,7 +52,7 @@ class TruncateMariaDBTables extends Command
         $tables = [];
         $allTables = [];
 
-        if ($connection === 'mariadb' || $connection === 'mysql' || $connection === 'payment_gateway_mysql') {
+        if ($connection === 'mariadb' || $connection === 'mysql' || $connection === 'pgsql') {
             // MariaDB/MySQL approach
             $tables = DB::connection($connection)->select('SHOW TABLES');
             $tableKey = 'Tables_in_' . DB::connection($connection)->getDatabaseName();
@@ -62,8 +62,8 @@ class TruncateMariaDBTables extends Command
         } else {
             // PostgreSQL approach
             $tables = DB::connection($connection)->select("
-                SELECT table_name 
-                FROM information_schema.tables 
+                SELECT table_name
+                FROM information_schema.tables
                 WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
             ");
             $allTables = array_map(function($table) {
@@ -102,7 +102,7 @@ class TruncateMariaDBTables extends Command
         }
 
         // Disable foreign key checks based on database type
-        if ($connection === 'mariadb' || $connection === 'mysql' || $connection === 'payment_gateway_mysql') {
+        if ($connection === 'mariadb' || $connection === 'mysql' || $connection === 'pgsql') {
             DB::connection($connection)->statement('SET FOREIGN_KEY_CHECKS=0');
         } else {
             DB::connection($connection)->statement('SET session_replication_role = \'replica\'');
@@ -126,7 +126,7 @@ class TruncateMariaDBTables extends Command
         $this->output->progressFinish();
 
         // Re-enable foreign key checks based on database type
-        if ($connection === 'mariadb' || $connection === 'mysql' || $connection === 'payment_gateway_mysql') {
+        if ($connection === 'mariadb' || $connection === 'mysql' || $connection === 'pgsql') {
             DB::connection($connection)->statement('SET FOREIGN_KEY_CHECKS=1');
         } else {
             DB::connection($connection)->statement('SET session_replication_role = \'origin\'');
