@@ -547,12 +547,10 @@ class CesopReportService
         } elseif (!empty($merchant->email)) {
             $payee->appendChild($dom->createElementNS($this->cesopNamespace, 'cesop:EmailAddress', $this->safeXmlString($merchant->email)));
         }
-
         // 5. WebPage (optional)
         if (!empty($shop->website)) {
             $payee->appendChild($dom->createElementNS($this->cesopNamespace, 'cesop:WebPage', $this->safeXmlString($shop->website)));
         }
-
         // 6. TAXIdentification (mandatory but can be empty)
         $taxId = $dom->createElementNS($this->cesopNamespace, 'cesop:TAXIdentification');
         $payee->appendChild($taxId);
@@ -566,7 +564,6 @@ class CesopReportService
             $vatId->setAttribute('issuedBy', $vatCountry);
             $taxId->appendChild($vatId);
         }
-
         // 7. AccountIdentifier (mandatory but can be empty if not available)
         // For card transactions, use 'Other' as type with appropriate description
         $accountId = $dom->createElementNS($this->cesopNamespace, 'cesop:AccountIdentifier', '');
@@ -574,7 +571,6 @@ class CesopReportService
         $accountId->setAttribute('type', 'Other');
         $accountId->setAttribute('accountIdentifierOther', 'CardPayment');
         $payee->appendChild($accountId);
-
         // 8. ReportedTransaction (add each individual transaction)
         foreach ($transactions as $transaction) {
             // Only process transactions for the current shop
@@ -584,9 +580,7 @@ class CesopReportService
 
             $this->addIndividualTransactionToXml($dom, $payee, $transaction);
         }
-
         // 9. Representative (optional) - Omitted in this case
-
         // 10. DocSpec (mandatory - must come last)
         $docSpec = $dom->createElementNS($this->cesopNamespace, 'cesop:DocSpec');
         $payee->appendChild($docSpec);
