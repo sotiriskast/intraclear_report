@@ -17,7 +17,7 @@ variables:
   ENVIRONMENT: none
   GITLAB_OWNER: "Intraclear Ltd."
   OWNER: "d.slobodchikov@intraclear.com"
-  NODE_VERSION: 22.14
+  NODE_VERSION: "22.14"
 
 
 
