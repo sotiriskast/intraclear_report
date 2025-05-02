@@ -17,6 +17,7 @@ variables:
   ENVIRONMENT: none
   GITLAB_OWNER: "Intraclear Ltd."
   OWNER: "d.slobodchikov@intraclear.com"
+  NODE_VERSION: "22.14"
 
 
 
@@ -254,7 +255,7 @@ Mock test:
   $DPFX cp $NGINX_CONF front:/etc/nginx/nginx.conf
   $DPFX cp $NGINX_DEFAULT_SITE front:/etc/nginx/sites-enabled/default
   $DPFX exec front bash -c "touch /etc/nginx/nginx.empty"
-  $DPFX exec front bash -c "cd ~ && nvm install --lts"
+  $DPFX exec front bash -c "cd ~ && nvm install $NODE_VERSION"
   $DPFX exec front bash -c "git clone https://oauth2:$GIT_TOKEN@$GIT_PROJECT_URL"
   $DPFX exec front bash -c "mv ./financial_report ./app"
   $DPFX cp $TAXISNET_PUB_KEY front:/var/www/app/storage/app/private/taxisnet_public_key.asc
