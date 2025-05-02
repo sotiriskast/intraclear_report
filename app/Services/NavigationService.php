@@ -53,17 +53,17 @@ class NavigationService
                         'permission' => 'manage-merchants', // Permission check will be dynamic
                     ],
                     'merchant_fees' => [
-                        'route' => 'admin.merchant-fees',
+                        'route' => 'admin.merchant-fees.index',
                         'label' => 'Merchant Fees',
                         'permission' => 'manage-merchants-fees', // Permission check will be dynamic
                     ],
                     'fee_type' => [
-                        'route' => 'admin.fee-types',
+                        'route' => 'admin.fee-types.index',
                         'label' => 'Fee Management',
                         'permission' => 'manage-fees', // Permission check will be dynamic
                     ],
                     'settings' => [
-                        'route' => 'admin.merchant-settings',
+                        'route' => 'admin.merchant-settings.index',
                         'label' => 'Merchant Settings',
                         'permission' => 'manage-fees', // Permission check will be dynamic
                     ],
@@ -75,12 +75,12 @@ class NavigationService
                 'icon' => 'users',
                 'children' => [
                     'user_management' => [
-                        'route' => 'admin.users',
+                        'route' => 'admin.users.index',
                         'label' => 'User Management',
                         'permission' => 'manage-users', // Permission check will be dynamic
                     ],
                     'roles' => [
-                        'route' => 'admin.roles',
+                        'route' => 'admin.roles.index',
                         'label' => 'Roles',
                         'permission' => 'manage-roles', // Permission check will be dynamic
                     ],

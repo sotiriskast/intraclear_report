@@ -1,16 +1,14 @@
 <?php
 
 use App\Http\Controllers\EmailTestController;
+use App\Http\Controllers\MerchantFeeController;
+use App\Http\Controllers\MerchantSettingController;
 use App\Http\Controllers\SettlementController;
 use App\Livewire\FeeTypeManagement;
 use App\Livewire\MerchantAnalytics;
-use App\Livewire\MerchantFeeManagement;
 use App\Livewire\MerchantManagement;
-use App\Livewire\MerchantSettingsManagement;
-use App\Livewire\MerchantSpecificFees;
 use App\Livewire\MerchantView;
 use App\Livewire\RoleManagement;
-use App\Livewire\UserManagement;
 use Illuminate\Support\Facades\Route;
 
 
@@ -25,11 +23,28 @@ Route::middleware(['auth:web', 'verified', '2fa.required'
         })->name('admin.dashboard');
 
         Route::middleware(['can:manage-users'])->group(function () {
-            Route::get('/users', UserManagement::class)->name('admin.users');
+            // User Management Routes
+            Route::resource('admin/users', \App\Http\Controllers\UserController::class)
+                ->names([
+                    'index' => 'admin.users.index',
+                    'create' => 'admin.users.create',
+                    'store' => 'admin.users.store',
+                    'edit' => 'admin.users.edit',
+                    'update' => 'admin.users.update',
+                    'destroy' => 'admin.users.destroy',
+                ]);
         });
 
         Route::middleware(['can:manage-roles'])->group(function () {
-            Route::get('/roles', RoleManagement::class)->name('admin.roles');
+            Route::resource('admin/roles', \App\Http\Controllers\RoleController::class)
+                ->names([
+                    'index' => 'admin.roles.index',
+                    'create' => 'admin.roles.create',
+                    'store' => 'admin.roles.store',
+                    'edit' => 'admin.roles.edit',
+                    'update' => 'admin.roles.update',
+                    'destroy' => 'admin.roles.destroy',
+                ]);
         });
 
         // Merchant Management
@@ -41,9 +56,24 @@ Route::middleware(['auth:web', 'verified', '2fa.required'
 
         // Merchant Fees and Settings
         Route::middleware(['can:manage-merchants-fees'])->group(function () {
-            Route::get('/merchants/{merchant}/fees', MerchantSpecificFees::class)->name('merchant.fees');
-            Route::get('/merchant-fees', MerchantFeeManagement::class)->name('admin.merchant-fees');
-            Route::get('/merchant-settings', MerchantSettingsManagement::class)->name('admin.merchant-settings');
+            Route::resource('admin/merchant-fees', MerchantFeeController::class)
+                ->names([
+                    'index' => 'admin.merchant-fees.index',
+                    'create' => 'admin.merchant-fees.create',
+                    'store' => 'admin.merchant-fees.store',
+                    'edit' => 'admin.merchant-fees.edit',
+                    'update' => 'admin.merchant-fees.update',
+                    'destroy' => 'admin.merchant-fees.destroy',
+                ]);
+            Route::resource('admin/merchant-settings', MerchantSettingController::class)
+                ->names([
+                    'index' => 'admin.merchant-settings.index',
+                    'create' => 'admin.merchant-settings.create',
+                    'store' => 'admin.merchant-settings.store',
+                    'edit' => 'admin.merchant-settings.edit',
+                    'update' => 'admin.merchant-settings.update',
+                    'destroy' => 'admin.merchant-settings.destroy',
+                ]);
         });
         // for API key management
         Route::middleware(['can:manage-merchants-api-keys'])->group(function () {
@@ -58,8 +88,16 @@ Route::middleware(['auth:web', 'verified', '2fa.required'
         });
 
         Route::middleware(['can:manage-fees'])->group(function () {
-            Route::get('/fee-types', FeeTypeManagement::class)->name('admin.fee-types');
-        });
+// Fee Type Management Routes
+            Route::resource('admin/fee-types', \App\Http\Controllers\FeeTypeController::class)
+                ->names([
+                    'index' => 'admin.fee-types.index',
+                    'create' => 'admin.fee-types.create',
+                    'store' => 'admin.fee-types.store',
+                    'edit' => 'admin.fee-types.edit',
+                    'update' => 'admin.fee-types.update',
+                    'destroy' => 'admin.fee-types.destroy',
+                ]);        });
 
         //Settlement Report
         Route::middleware(['can:manage-settlements'])->group(function () {
