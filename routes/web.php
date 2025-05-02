@@ -24,7 +24,7 @@ Route::middleware(['auth:web', 'verified', '2fa.required'
 
         Route::middleware(['can:manage-users'])->group(function () {
             // User Management Routes
-            Route::resource('admin/users', \App\Http\Controllers\UserController::class)
+            Route::resource('users', \App\Http\Controllers\UserController::class)
                 ->names([
                     'index' => 'admin.users.index',
                     'create' => 'admin.users.create',
@@ -36,7 +36,7 @@ Route::middleware(['auth:web', 'verified', '2fa.required'
         });
 
         Route::middleware(['can:manage-roles'])->group(function () {
-            Route::resource('admin/roles', \App\Http\Controllers\RoleController::class)
+            Route::resource('roles', \App\Http\Controllers\RoleController::class)
                 ->names([
                     'index' => 'admin.roles.index',
                     'create' => 'admin.roles.create',
@@ -56,7 +56,7 @@ Route::middleware(['auth:web', 'verified', '2fa.required'
 
         // Merchant Fees and Settings
         Route::middleware(['can:manage-merchants-fees'])->group(function () {
-            Route::resource('admin/merchant-fees', MerchantFeeController::class)
+            Route::resource('merchant-fees', MerchantFeeController::class)
                 ->names([
                     'index' => 'admin.merchant-fees.index',
                     'create' => 'admin.merchant-fees.create',
@@ -65,7 +65,7 @@ Route::middleware(['auth:web', 'verified', '2fa.required'
                     'update' => 'admin.merchant-fees.update',
                     'destroy' => 'admin.merchant-fees.destroy',
                 ]);
-            Route::resource('admin/merchant-settings', MerchantSettingController::class)
+            Route::resource('merchant-settings', MerchantSettingController::class)
                 ->names([
                     'index' => 'admin.merchant-settings.index',
                     'create' => 'admin.merchant-settings.create',
@@ -89,7 +89,7 @@ Route::middleware(['auth:web', 'verified', '2fa.required'
 
         Route::middleware(['can:manage-fees'])->group(function () {
 // Fee Type Management Routes
-            Route::resource('admin/fee-types', \App\Http\Controllers\FeeTypeController::class)
+            Route::resource('fee-types', \App\Http\Controllers\FeeTypeController::class)
                 ->names([
                     'index' => 'admin.fee-types.index',
                     'create' => 'admin.fee-types.create',
@@ -113,44 +113,5 @@ Route::middleware(['auth:web', 'verified', '2fa.required'
                 });
             });
         });
-
-        if (app()->environment(['local', 'testing'])) {
-
-            Route::prefix('test-emails')->group(function () {
-                // Dashboard for testing all email types
-                Route::get('/', [EmailTestController::class, 'dashboard'])
-                    ->name('test.email.dashboard');
-
-                // Test route for merchant sync failed email
-                Route::get('/merchant-sync-failed', [EmailTestController::class, 'testMerchantSyncFailed'])
-                    ->name('test.email.sync-failed');
-
-                // Test route for new merchant created email
-                Route::get('/new-merchant-created', [EmailTestController::class, 'testNewMerchantCreated'])
-                    ->name('test.email.new-merchant');
-
-                // Preview routes for email templates
-                Route::prefix('preview')->group(function () {
-                    Route::get('/merchant-sync-failed', function () {
-                        return view('emails.settlements.merchant-sync-failed', [
-                            'errorMessage' => 'This is a test error message for merchant sync failure',
-                            'stackTrace' => "Exception: Test Exception\n at MerchantSyncService.php:123\n at SyncController.php:45"
-                        ]);
-                    })->name('preview.email.sync-failed');
-
-                    Route::get('/new-merchant-created', function () {
-                        return view('emails.settlements.new-merchant-created', [
-                            'merchantId' => 12345,
-                            'accountId' => 'ACC_98765',
-                            'name' => 'Test Merchant Corp',
-                            'email' => 'test@testmerchant.com',
-                            'phone' => '555-123-4567',
-                            'isActive' => true,
-                            'timestamp' => now()->format('Y-m-d H:i:s')
-                        ]);
-                    })->name('preview.email.new-merchant');
-                });
-            });
-        }
     });
 });
