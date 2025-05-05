@@ -17,6 +17,7 @@ Route::middleware(['auth:web', 'verified'
         Route::post('report/generate', [CesopReportController::class, 'generate'])->name('cesop.report.generate');
         Route::post('report/download', [CesopReportController::class, 'download'])->name('cesop.report.download');
         Route::post('report/shops', [CesopReportController::class, 'getShops'])->name('cesop.report.getShops');
-
+        Route::get('report/import-excel', [CesopReportController::class, 'importExcelIndex'])->name('cesop.report.import-excel.index');
+        Route::post('report/import-excel', [CesopReportController::class, 'importExcel'])->name('cesop.report.import-excel.upload');
     });
 });

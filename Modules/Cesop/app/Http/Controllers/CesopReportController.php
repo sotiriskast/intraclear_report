@@ -4,6 +4,7 @@ namespace Modules\Cesop\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Modules\Cesop\Services\CesopExcelImportService;
 use Modules\Cesop\Services\CesopReportService;
 use Modules\Cesop\Services\CesopXmlValidator;
 use Carbon\Carbon;
@@ -45,6 +46,16 @@ class CesopReportController extends Controller
         $availableMerchants = $this->reportService->getAvailableMerchants();
 
         return view('cesop::report.index', compact('availableQuarters', 'availableMerchants'));
+    }
+    /**
+     * Display the CESOP report generation interface.
+     *
+     * @return \Illuminate\Contracts\Support\Renderable
+     */
+    public function importExcelIndex()
+    {
+
+        return view('cesop::report.import-excel');
     }
 
     /**
@@ -225,5 +236,61 @@ class CesopReportController extends Controller
     {
         // Similar to generate but always forces download
         return $this->generate($request);
+    }
+    /**
+     * Import an Excel file and convert to CESOP XML format
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\Response
+     */
+    public function importExcel(Request $request)
+    {
+        // Validate request inputs
+        $validated = $request->validate([
+            'excel_file' => 'required|file|mimes:xlsx,xls,csv',
+            'psp_data' => 'nullable|array',
+            'validate' => 'nullable|boolean'
+        ]);
+
+        // Get the uploaded file
+        $file = $request->file('excel_file');
+        $tempPath = $file->getRealPath();
+
+        // Get PSP data if provided
+        $pspData = !empty($validated['psp_data']) ? $validated['psp_data'] : null;
+        $shouldValidate = $validated['validate'] ?? true;
+
+        // Resolve the Excel import service
+        $excelImportService = app(CesopExcelImportService::class);
+
+        // Import and convert the Excel file
+        $result = $excelImportService->importAndConvert($tempPath, $pspData, $shouldValidate);
+
+        if (!$result['success']) {
+            return back()->with('error', $result['message']);
+        }
+
+        $xml = $result['data']['xml'];
+        $stats = $result['data']['stats'];
+        $period = $result['data']['period'];
+
+        // Generate filename
+        $quarter = $period['quarter'];
+        $year = $period['year'];
+        $pspCountry = $pspData['country'] ?? config('cesop.psp.country', 'CY');
+        $pspBic = $pspData['bic'] ?? config('cesop.psp.bic', 'ABCDEF12XXX');
+
+        $filename = sprintf(
+            'PMT-Q%d-%d-%s-%s-1-1.xml',
+            $quarter,
+            $year,
+            $pspCountry,
+            $pspBic
+        );
+
+        // Return XML as downloadable file
+        return response($xml)
+            ->header('Content-Type', 'application/xml')
+            ->header('Content-Disposition', "attachment; filename=\"{$filename}\"");
     }
 }
