@@ -21,13 +21,11 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <!-- Merchant Selection -->
                         <div class="col-span-2">
-                            <label for="merchant_id" class="block text-sm font-medium text-gray-700">
-                                {{ __('Merchant '. $merchant->name) }}
+                            <label for="merchant_id" class="block text-lg font-medium text-gray-700">
+                                Merchant: <strong>{{$merchant->legal_name??$merchant->name}}</strong>
                             </label>
                             <input type="hidden" name="merchant_id" value="{{$merchant->id}}">
                         </div>
-
-                        <!-- Rolling Reserve Settings -->
                         <div>
                             <label for="rolling_reserve_percentage" class="block text-sm font-medium text-gray-700">
                                 {{ __('Rolling Reserve (%)') }}

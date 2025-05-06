@@ -21,7 +21,8 @@
         "phpoffice/phpspreadsheet": "^3.8",
         "predis/predis": "^2.3",
         "singpolyma/openpgp-php": "^0.7.0",
-        "spatie/laravel-permission": "^6.10"
+        "spatie/laravel-permission": "^6.10",
+        "symfony/intl": "^7.2"
     },
     "require-dev": {
         "barryvdh/laravel-debugbar": "^3.14",
