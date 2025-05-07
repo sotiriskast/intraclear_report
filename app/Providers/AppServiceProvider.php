@@ -191,5 +191,6 @@ class AppServiceProvider extends ServiceProvider
         }
         Model::shouldBeStrict(!$this->app->isProduction());
         DB::prohibitDestructiveCommands($this->app->isProduction());
+
     }
 }

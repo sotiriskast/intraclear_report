@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\EmailTestController;
+use App\Http\Controllers\MerchantController;
 use App\Http\Controllers\MerchantFeeController;
 use App\Http\Controllers\MerchantSettingController;
 use App\Http\Controllers\SettlementController;
@@ -52,6 +53,10 @@ Route::middleware(['auth:web', 'verified', '2fa.required'
             Route::get('/merchants', MerchantManagement::class)->name('admin.merchants');
             Route::get('/merchants/{merchant}/view', MerchantView::class)->name('merchant.view');
             Route::get('/merchants/{merchant}/analytics', MerchantAnalytics::class)->name('merchant.analytics');
+            Route::get('/merchants/{merchant}/edit', [MerchantController::class, 'edit'])->name('merchants.edit');
+            Route::put('/merchants/{merchant}', [MerchantController::class, 'update'])->name('merchants.update');
+
+
         });
 
         // Merchant Fees and Settings

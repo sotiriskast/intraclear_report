@@ -37,7 +37,7 @@ class ListRollingReserveRequest extends FormRequest
                 'after_or_equal:start_date',
                 'before:tomorrow'
             ],
-            'currency' => 'sometimes|string|size:3|in:EUR,USD,GBP',
+            'currency' => 'sometimes|string|size:3|in:EUR,USD,GBP,JPY',
             'per_page' => 'sometimes|integer|min:10|max:100'
         ];
     }
@@ -93,7 +93,7 @@ class ListRollingReserveRequest extends FormRequest
             'end_date.date_format' => 'End date must be in YYYY-MM-DD format. Example: 2024-12-31',
             'end_date.after_or_equal' => 'End date must be after or equal to start date',
             'end_date.before' => 'End date cannot be in the future',
-            'currency.in' => 'Currency must be one of: EUR, USD, GBP',
+            'currency.in' => 'Currency must be one of: EUR, USD, GBP, JPY',
             'currency.size' => 'Currency must be a 3-letter code'
         ];
     }}
