@@ -20,15 +20,15 @@ readonly class FeeService
     /**
      * Initialize the fee service with required dependencies
      *
-     * @param  FeeRepositoryInterface  $feeRepository  Repository for fee persistence
-     * @param  DynamicLogger  $logger  Service for logging operations
-     * @param  FeeFrequencyHandlerInterface  $frequencyHandler  Handles fee application frequency
-     * @param  CustomFeeHandlerInterface  $customFeeHandler  Handles custom fee calculations
-     * @param  StandardFeeHandlerInterface  $standardFeeHandler  Handles standard fee calculations
+     * @param FeeRepositoryInterface $feeRepository Repository for fee persistence
+     * @param DynamicLogger $logger Service for logging operations
+     * @param FeeFrequencyHandlerInterface $frequencyHandler Handles fee application frequency
+     * @param CustomFeeHandlerInterface $customFeeHandler Handles custom fee calculations
+     * @param StandardFeeHandlerInterface $standardFeeHandler Handles standard fee calculations
      */
     public function __construct(
-        private FeeRepositoryInterface $feeRepository,
-        private DynamicLogger $logger,
+        private FeeRepositoryInterface       $feeRepository,
+        private DynamicLogger                $logger,
         private FeeFrequencyHandlerInterface $frequencyHandler,
         private CustomFeeHandlerInterface $customFeeHandler,
         private StandardFeeHandlerInterface $standardFeeHandler,
@@ -45,9 +45,9 @@ readonly class FeeService
      * 3. Checks if each fee should be applied based on its frequency
      * 4. Logs all applied fees
      *
-     * @param  int  $merchantId  ID of the merchant
-     * @param  array  $transactionData  Transaction data for fee calculation
-     * @param  array  $dateRange  Start and end dates for fee calculation period
+     * @param int $merchantId ID of the merchant
+     * @param array $transactionData Transaction data for fee calculation
+     * @param array $dateRange Start and end dates for fee calculation period
      * @return array Array of calculated fees that should be applied
      *
      * @throws \Exception If fee calculation fails
@@ -248,20 +248,20 @@ readonly class FeeService
      * - Exchange rate used
      * - When the fee was applied
      *
-     * @param  int  $merchantId  ID of the merchant
-     * @param  array  $fee  Fee configuration and details
-     * @param  array  $transactionData  Transaction data used for fee calculation
-     * @param  float|int  $feeAmount  Amount of the fee being applied
-     * @param  array  $dateRange  Period for which the fee is being applied
+     * @param int $merchantId ID of the merchant
+     * @param array $fee Fee configuration and details
+     * @param array $transactionData Transaction data used for fee calculation
+     * @param float|int $feeAmount Amount of the fee being applied
+     * @param array $dateRange Period for which the fee is being applied
      */
     private function logFeeApplication(int $merchantId, array $fee, array $transactionData, float|int $feeAmount, array $dateRange): void
     {
         $this->feeRepository->logFeeApplication([
             'merchant_id' => $merchantId,
             'fee_type_id' => $fee['fee_type_id'],
-            'base_amount' => $transactionData['total_sales'] ?? 0,
+            'base_amount' => (int)($transactionData['total_sales'] * 100) ?? 0,
             'base_currency' => $transactionData['currency'] ?? 'EUR',
-            'fee_amount_eur' => $feeAmount,
+            'fee_amount_eur' => (int)round($feeAmount * 100, 0, PHP_ROUND_HALF_UP),
             'exchange_rate' => $transactionData['exchange_rate'] ?? 1.0,
             'applied_date' => $dateRange['start'],
         ]);

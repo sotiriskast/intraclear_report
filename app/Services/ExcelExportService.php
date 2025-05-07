@@ -429,7 +429,7 @@ class ExcelExportService
     protected function saveReport(int $merchantId, array $dateRange): string
     {
         try {
-            $merchant = DB::connection('mariadb')
+            $merchant = DB::connection('pgsql')
                 ->table('merchants')
                 ->where('account_id', $merchantId)
                 ->first();

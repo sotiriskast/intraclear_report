@@ -22,7 +22,7 @@ class SettlementReportsList extends Component
     public function render()
     {
 
-        $reports = DB::connection('mariadb')
+        $reports = DB::connection('pgsql')
             ->table('settlement_reports')
             ->select([
                 'settlement_reports.*',
