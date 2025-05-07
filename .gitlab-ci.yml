@@ -18,7 +18,7 @@ variables:
   BRANCH: none
   GITLAB_OWNER: "Intraclear Ltd."
   OWNER: "d.slobodchikov@intraclear.com"
-  NODE_VERSION: "lts"
+  NODE_VERSION: "--lts"
 
 
 
