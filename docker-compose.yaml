@@ -20,7 +20,6 @@ services:
     depends_on:
     - redis
     volumes:
-    - /app_files/####ENV_NAME####/logs/apache:/var/lib/www-data/log/apache
     - /app_files/####ENV_NAME####/logs/nginx:/var/lib/www-data/log/nginx
     - /app_files/####ENV_NAME####/logs/php:/var/lib/www-data/log/php
     - /app_files/####ENV_NAME####/logs/supervisor:/var/lib/www-data/log/supervisor
@@ -46,12 +45,12 @@ networks:
   frontend:
     driver: bridge
     driver_opts:
-      com.docker.network.bridge.name: ####ENV_NAME####-fi
+      com.docker.network.bridge.name: ####ENV_NAME####-rep-fi
   backend:
     driver: bridge
     internal: true
     driver_opts:
-      com.docker.network.bridge.name: ####ENV_NAME####-bi
+      com.docker.network.bridge.name: ####ENV_NAME####-rep-bi
   ####DB_NETWORK####
 
 ...
