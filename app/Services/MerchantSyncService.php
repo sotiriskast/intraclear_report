@@ -55,8 +55,13 @@ class MerchantSyncService
             $existingMerchants = $this->getExistingMerchants();
             // Fetch source merchant data from payment gateway
             $sourceData = $this->getSourceData();
+
+            $this->logger->log('info', 'Found merchants', [
+                'count' => count($sourceData),
+            ]);
+
             // Start database transaction
-            DB::connection('mariadb')->beginTransaction();
+            DB::connection('pgsql')->beginTransaction();
             // Process each merchant
             foreach ($sourceData as $merchant) {
                 $isNew = ! isset($existingMerchants[$merchant->id]);
@@ -67,7 +72,7 @@ class MerchantSyncService
                     // Retrieve the internal merchant ID using the account_id from the payment gateway
                     // We need this because the merchant table uses an auto-incrementing ID
                     // different from the account_id in the payment gateway
-                    $merchantId = DB::connection('mariadb')
+                    $merchantId = DB::connection('pgsql')
                         ->table('merchants')
                         ->where('account_id', $merchant->id)
                         ->value('id');
@@ -85,7 +90,7 @@ class MerchantSyncService
                 }
             }
             // Commit database transaction
-            DB::connection('mariadb')->commit();
+            DB::connection('pgsql')->commit();
             $this->logger->log('info', 'Merchant sync completed successfully', [
                 'new_merchants' => $stats['new'],
                 'updated_merchants' => $stats['updated'],
@@ -95,8 +100,8 @@ class MerchantSyncService
             return $stats;
         } catch (\Exception $e) {
             // Rollback transaction in case of failure
-            DB::connection('mariadb')->rollBack();
-
+            DB::connection('pgsql')->rollBack();
+            // @todo Send email for not adding merchant
             // Log the error
             $this->logger->log('error', 'Merchant sync failed', [
                 'error' => $e->getMessage(),
@@ -228,23 +233,66 @@ class MerchantSyncService
      */
     private function getExistingMerchants(): array
     {
-        return DB::connection('mariadb')
+        return DB::connection('pgsql')
             ->table('merchants')
             ->pluck('id', 'account_id')
             ->toArray();
     }
 
     /**
-     * Fetches merchant source data from the payment gateway database.
-     *
-     * Retrieves key merchant information from the account table.
+     * Fetches merchant source data from the payment gateway database,
+     * filtered to only include merchants under Intraclear Bank.
      *
      * @return \Illuminate\Support\Collection Collection of merchant data
      */
     private function getSourceData()
     {
+        // Find the Intraclear bank ID first
+        $intraclearBank = DB::connection('payment_gateway_mysql')
+            ->table('bank')
+            ->where('bank', 'Intraclear')
+            ->first();
+
+        if (!$intraclearBank) {
+            $this->logger->log('warning', 'Intraclear bank not found in the bank table');
+            return collect(); // Return empty collection if Intraclear bank not found
+        }
+
+        $intraclearBankId = $intraclearBank->id;
+
+        $this->logger->log('info', 'Found Intraclear bank', [
+            'bank_id' => $intraclearBankId,
+        ]);
+
+        // Get all bank_keys linked to Intraclear
+        $bankKeysQuery = DB::connection('payment_gateway_mysql')
+            ->table('bank_keys')
+            ->where('bank_id', $intraclearBankId)
+            ->select('id');
+
+        // Get all shops linked to these bank keys
+        $shopIds = DB::connection('payment_gateway_mysql')
+            ->table('shop_bank_keys')
+            ->whereIn('key_id', function($query) use ($intraclearBankId) {
+                $query->select('id')
+                    ->from('bank_keys')
+                    ->where('bank_id', $intraclearBankId);
+            })
+            ->pluck('shop_id')
+            ->unique();
+
+        $this->logger->log('info', 'Found shop IDs linked to Intraclear', [
+            'shop_count' => count($shopIds),
+        ]);
+
+        // Finally, get all merchants (accounts) linked to these shops
         return DB::connection('payment_gateway_mysql')
             ->table('account')
+            ->whereIn('id', function($query) use ($shopIds) {
+                $query->select('account_id')
+                    ->from('shop')
+                    ->whereIn('id', $shopIds);
+            })
             ->select([
                 'id',
                 'corp_name',
@@ -265,7 +313,7 @@ class MerchantSyncService
      */
     private function upsertMerchant($merchant): void
     {
-        DB::connection('mariadb')->table('merchants')->updateOrInsert(
+        DB::connection('pgsql')->table('merchants')->updateOrInsert(
             ['account_id' => $merchant->id],
             [
                 'name' => $merchant->corp_name,

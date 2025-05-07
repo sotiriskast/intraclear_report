@@ -1,0 +1,11 @@
+{
+    "name": "Cesop",
+    "alias": "cesop",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\Cesop\\Providers\\CesopServiceProvider"
+    ],
+    "files": []
+}

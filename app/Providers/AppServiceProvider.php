@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Console\Commands\AddPermission;
 use App\Console\Commands\GenerateSettlementReports;
 use App\Console\Commands\ImportMerchants;
 use App\Exceptions\ApiExceptionHandler;
@@ -31,6 +32,8 @@ use App\Services\Settlement\SchemeRateValidationService;
 use App\Services\Settlement\SettlementService;
 use App\Services\ZipExportService;
 use Illuminate\Contracts\Debug\ExceptionHandler;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
@@ -145,6 +148,11 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(MerchantSyncService::class)
             );
         });
+        $this->app->singleton(AddPermission::class, function ($app) {
+            return new AddPermission(
+                $app->make(DynamicLogger::class),
+            );
+        });
 
         /**
          * ------------------------------------------------
@@ -178,8 +186,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        if (env('APP_USE_HTTPS')=='dev') {
+        if (env('APP_USE_HTTPS') == 'dev') {
             URL::forceScheme('https');
         }
+        Model::shouldBeStrict(!$this->app->isProduction());
+        DB::prohibitDestructiveCommands($this->app->isProduction());
     }
 }

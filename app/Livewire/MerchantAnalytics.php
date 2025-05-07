@@ -273,7 +273,9 @@ class MerchantAnalytics extends Component
                 // Get monthly fee trend (optimized query)
                 $monthlyTrend = DB::table('fee_histories')
                     ->select([
-                        DB::raw('DATE_FORMAT(applied_date, "%Y-%m") as month_year'),
+                        DB::raw(DB::connection()->getDriverName() === 'pgsql' 
+                            ? 'TO_CHAR(applied_date, \'YYYY-MM\') as month_year'
+                            : 'DATE_FORMAT(applied_date, "%Y-%m") as month_year'),
                         DB::raw('SUM(fee_amount_eur) / 100 as amount'),
                         DB::raw('COUNT(*) as count')
                     ])
@@ -361,7 +363,9 @@ class MerchantAnalytics extends Component
                 // Get future releases by month (next 12 months)
                 $futureReleases = DB::table('rolling_reserve_entries')
                     ->select([
-                        DB::raw('DATE_FORMAT(release_due_date, "%Y-%m") as month_year'),
+                        DB::raw(DB::connection()->getDriverName() === 'pgsql' 
+                            ? 'TO_CHAR(release_due_date, \'YYYY-MM\') as month_year'
+                            : 'DATE_FORMAT(release_due_date, "%Y-%m") as month_year'),
                         DB::raw('COUNT(*) as count'),
                         DB::raw('SUM(reserve_amount_eur) / 100 as amount_eur')
                     ])
@@ -448,7 +452,9 @@ class MerchantAnalytics extends Component
                 // Get monthly trend (last 12 months)
                 $monthlyTrend = DB::table('chargeback_trackings')
                     ->select([
-                        DB::raw('DATE_FORMAT(processing_date, "%Y-%m") as month_year'),
+                        DB::raw(DB::connection()->getDriverName() === 'pgsql' 
+                            ? 'TO_CHAR(processing_date, \'YYYY-MM\') as month_year'
+                            : 'DATE_FORMAT(processing_date, "%Y-%m") as month_year'),
                         DB::raw('COUNT(*) as count'),
                         DB::raw('SUM(amount_eur) as amount_eur')
                     ])
