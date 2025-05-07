@@ -38,7 +38,6 @@ services:
     networks:
     - backend
     - frontend
-    - db-network
     ####DB_EXTRA_HOST####
     
 networks:
