@@ -275,7 +275,7 @@ Mock test:
 .partial_deploy_script: &partial_deploy_script
 - printf "\n---\nPartial deploy application on the \"$ENVIRONMENT\" environment.\n---\n"
 - $DPFX exec front bash -c "cd ./app && git checkout $BRANCH"
-- $DPFX exec front bash -c "cd ./app && git pull"
+- $DPFX exec front bash -c "cd ./app && git stash && git pull"
 - printf "\n---\n\n"
 
 
