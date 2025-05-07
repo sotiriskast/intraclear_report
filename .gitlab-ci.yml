@@ -15,9 +15,10 @@ variables:
   LINTER_PTRN: ^(XXXXX)(_)?([0-9]{2})?[\.js|\.jsx]+
   TEST_PTRN: ^[a-z]*(\.test)[\.js|\.jsx]+
   ENVIRONMENT: none
+  BRANCH: none
   GITLAB_OWNER: "Intraclear Ltd."
   OWNER: "d.slobodchikov@intraclear.com"
-  NODE_VERSION: "22.14"
+  NODE_VERSION: "--lts"
 
 
 
@@ -27,8 +28,7 @@ variables:
 Code analysis:
   stage: code_analysis
   tags:
-  - code-analysis
-  - cds-app
+  - cds-rep-app
   rules:
   - if: |+
       $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "staging" && 
@@ -56,8 +56,7 @@ Code analysis:
 Code analysis uat:
   stage: code_analysis
   tags:
-  - code-analysis-uat
-  - cds-uat-app
+  - cds-rep-uat-app
   rules:
   - if: |+
       $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "dev" && 
@@ -99,8 +98,7 @@ Code analysis uat:
 Vulnerability scan:
   stage: vulnerability_scan
   tags:
-  - vulnerability-scan-uat
-  - cds-uat-app
+  - cds-rep-uat-app
   dependencies:
   - Code analysis
   rules:
@@ -121,8 +119,7 @@ Vulnerability scan:
 Prettier and linting:
   stage: linting
   tags:
-  - linting-uat
-  - cds-uat-app
+  - cds-rep-uat-app
   dependencies:
   - Vulnerability scan
   rules:
@@ -145,8 +142,7 @@ Prettier and linting:
 Unit test:
   stage: unit_test
   tags:
-  - unit-test-uat
-  - cds-uat-app
+  - cds-rep-uat-app
   dependencies:
   - Prettier and linting
   rules:
@@ -163,8 +159,7 @@ Unit test:
 Intergation test:
   stage: integration_test
   tags:
-  - integration-test-uat
-  - cds-uat-app
+  - cds-rep-uat-app
   dependencies:
   - Prettier and linting
   rules:
@@ -181,8 +176,7 @@ Intergation test:
 Mock test:
   stage: mock_test
   tags:
-  - mock-test-uat
-  - cds-uat-app
+  - cds-rep-uat-app
   dependencies:
   - Unit test
   - Intergation test
@@ -230,19 +224,20 @@ Mock test:
   printf "\n---\nControl configuration on the \"$ENVIRONMENT\" environment.\n---\n"
   sed -i "s/####ENV_NAME####/$ENVIRONMENT/g" ./docker-compose.yaml
   sed -i "s/####ENV_HTTP_PORT####/$(eval "echo \$HTTP_PORT_$ENVIRONMENT")/g" ./docker-compose.yaml
-  sed -i "s/####DB_EXTRA_HOST####/extra_hosts:\n    - \\\"mysql_db:10.5.0.6\\\"\n    - \\\"postgres_db:10.5.0.7\\\"/g" ./docker-compose.yaml
+  sed -i "s/####DB_EXTRA_HOST####/- db-network\n    extra_hosts:\n    - \\\"mysql_db:10.5.0.6\\\"\n    - \\\"postgres_db:10.5.0.7\\\"/g" ./docker-compose.yaml
   sed -i "s/####DB_NETWORK####/db-network:\n    external:\\ true\n    name:\\ finrep_uat_db_br\n/g" ./docker-compose.yaml
   cat ./docker-compose.yaml
   printf "\n---\n\n"
 
 
-.deploy_script: &deploy_script
+.full_deploy_script: &full_deploy_script
 - |+
   printf "\n---\nDeploy containers on the \"$ENVIRONMENT\" environment.\n---\n"
   $DPFX up --force-recreate -d
   printf "\n---\n\n"
 - |+
   printf "\n---\nDeploy application on the \"$ENVIRONMENT\" environment.\n---\n"
+  $DPFX cp $GIT_CONFIG front://var/lib/www-data/.gitconfig
   $DPFX cp $SERVER_CRT front:/etc/nginx/certs/server.crt
   $DPFX cp $SERVER_KEY front:/etc/nginx/certs/server.key
   $DPFX cp $SERVER_DH front:/etc/nginx/certs/dh.pem
@@ -260,21 +255,36 @@ Mock test:
   $DPFX exec front bash -c "mv ./financial_report ./app"
   $DPFX cp $TAXISNET_PUB_KEY front:/var/www/app/storage/app/private/taxisnet_public_key.asc
   $DPFX cp $(eval "echo \$ENV_$ENVIRONMENT") front:/var/www/app/.env
-  $DPFX exec front bash -c "cd ./app && git checkout $ENVIRONMENT"
-  $DPFX exec front bash -c "cd ./app && composer i"
+  $DPFX exec front bash -c "cd ./app && git checkout $BRANCH"
+  if [[ "$BRANCH" == "staging" || "$BRANCH" == "master" ]]; then
+    $DPFX exec front bash -c "cd ./app && composer i --no-dev --optimize-autoloader --no-interaction"
+    $DPFX exec front bash -c "cd ./app && php artisan config:cache"
+    $DPFX exec front bash -c "cd ./app && php artisan route:cache"
+    $DPFX exec front bash -c "cd ./app && php artisan view:cache"
+    $DPFX exec front bash -c "cd ./app && php artisan clear-compiled"
+    $DPFX exec front bash -c "cd ./app && php artisan cache:clear"
+  else
+    $DPFX exec front bash -c "cd ./app && composer i"
+  fi
   $DPFX exec front bash -c "cd ./app && npm install"
   $DPFX exec front bash -c "cd ./app && npm run build"
+  $DPFX exec front bash -c "ln -sf /var/www/app/storage/logs /var/lib/www-data/log/laravel/logs"
   printf "\n---\n\n"
 
 
+.partial_deploy_script: &partial_deploy_script
+- printf "\n---\nPartial deploy application on the \"$ENVIRONMENT\" environment.\n---\n"
+- $DPFX exec front bash -c "cd ./app && git checkout $BRANCH"
+- $DPFX exec front bash -c "cd ./app && git stash && git pull"
+- printf "\n---\n\n"
 
 
 
-Deploy application on the Lives:
+
+Full eploy application on the Lives:
   stage: deploy
   tags:
-  - deploy
-  - cds-app
+  - cds-rep-app-deploy
   dependencies:
   - Code analysis
   rules:
@@ -282,28 +292,31 @@ Deploy application on the Lives:
       $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "staging" && 
       $CI_PIPELINE_SOURCE == "merge_request_event" &&
       $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "testing"
+    when: manual
     variables:
       ENVIRONMENT: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+      BRANCH: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
   - if: |+
       $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master" && 
       $CI_PIPELINE_SOURCE == "merge_request_event" &&
       $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "staging"
+    when: manual
     variables:
       ENVIRONMENT: prod
+      BRANCH: master
   # when: manual
   script:
   - *prepare_config
-  - *deploy_script
+  - *full_deploy_script
 
 
 
 
 
-Deploy application on UAT:
+Full deploy application on UAT:
   stage: deploy
   tags:
-  - deploy-uat
-  - cds-uat-app
+  - cds-rep-uat-app-deploy
   dependencies:
   - Code analysis uat
   rules:
@@ -311,25 +324,93 @@ Deploy application on UAT:
       $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "dev" && 
       $CI_PIPELINE_SOURCE == "merge_request_event" &&
       $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME =~ "/^issue-\d+$/is"
-    when: on_success
+    when: manual
     variables:
       ENVIRONMENT: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+      BRANCH: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
   - if: |+
       $CI_COMMIT_REF_NAME == "dev" && 
       $CI_PIPELINE_SOURCE == "push"
-    when: on_success
+    when: manual
     variables:
       ENVIRONMENT: $CI_COMMIT_REF_NAME
+      BRANCH: $CI_COMMIT_REF_NAME
   - if: |+
       $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "testing" && 
       $CI_PIPELINE_SOURCE == "merge_request_event" &&
       $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev"
     variables:
       ENVIRONMENT: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
-    when: on_success
+      BRANCH: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+    when: manual
   script:
   - *prepare_config_uat
-  - *deploy_script
+  - *full_deploy_script
+
+
+
+partial eploy application on the Lives:
+  stage: deploy
+  tags:
+  - cds-rep-app-deploy
+  dependencies:
+  - Code analysis
+  rules:
+  - if: |+
+      $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "staging" && 
+      $CI_PIPELINE_SOURCE == "merge_request_event" &&
+      $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "testing"
+    when: always
+    variables:
+      ENVIRONMENT: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+      BRANCH: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+  - if: |+
+      $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master" && 
+      $CI_PIPELINE_SOURCE == "merge_request_event" &&
+      $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "staging"
+    when: always
+    variables:
+      ENVIRONMENT: prod
+      BRANCH: master
+  script:
+  - *prepare_config
+  - *partial_deploy_script
+
+
+
+Partial deploy application on UAT:
+  stage: deploy
+  tags:
+  - cds-rep-uat-app-deploy
+  dependencies:
+  - Code analysis uat
+  rules:
+  - if: |+
+      $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "dev" && 
+      $CI_PIPELINE_SOURCE == "merge_request_event" &&
+      $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME =~ "/^issue-\d+$/is"
+    when: always
+    variables:
+      ENVIRONMENT: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+      BRANCH: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+  - if: |+
+      $CI_COMMIT_REF_NAME == "dev" && 
+      $CI_PIPELINE_SOURCE == "push"
+    when: always
+    variables:
+      ENVIRONMENT: $CI_COMMIT_REF_NAME
+      BRANCH: $CI_COMMIT_REF_NAME
+  - if: |+
+      $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "testing" && 
+      $CI_PIPELINE_SOURCE == "merge_request_event" &&
+      $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev"
+    variables:
+      ENVIRONMENT: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+      BRANCH: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+    when: always
+  script:
+  - *prepare_config_uat
+  - *partial_deploy_script
 
 
 
@@ -341,9 +422,9 @@ Deploy application on UAT:
 Clear cache on the Lives:
   stage: cleanup
   tags:
-  - cleanup
+  - cds-rep-app-deploy
   dependencies:
-  - Deploy application on the Lives
+  - Full eploy application on the Lives
   rules:
   - if: |+
       $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "staging" && 
@@ -372,7 +453,7 @@ Clear cache on the Lives:
 Clear cache on UAT:
   stage: cleanup
   dependencies:
-  - Deploy application on UAT
+  - Full deploy application on UAT
   rules:
   - if: |+
       $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "dev" && 
@@ -395,7 +476,7 @@ Clear cache on UAT:
     variables:
       ENVIRONMENT: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
   tags:
-  - cleanup-uat
+  - cds-rep-uat-app-deploy
   script:
   - *prepare_config_uat
   - |+
