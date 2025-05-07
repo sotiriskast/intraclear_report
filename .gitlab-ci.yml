@@ -237,6 +237,7 @@ Mock test:
   printf "\n---\n\n"
 - |+
   printf "\n---\nDeploy application on the \"$ENVIRONMENT\" environment.\n---\n"
+  $DPFX cp $GIT_CONFIG front://var/lib/www-data/.gitconfig
   $DPFX cp $SERVER_CRT front:/etc/nginx/certs/server.crt
   $DPFX cp $SERVER_KEY front:/etc/nginx/certs/server.key
   $DPFX cp $SERVER_DH front:/etc/nginx/certs/dh.pem
