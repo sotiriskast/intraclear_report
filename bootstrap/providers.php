@@ -1,6 +1,6 @@
 <?php
 
-$providers = [
+return [
     App\Providers\AppServiceProvider::class,
     App\Providers\AuthServiceProvider::class,
     App\Providers\FortifyServiceProvider::class,
@@ -11,9 +11,3 @@ $providers = [
     App\Providers\ApiServiceProvider::class,
     Modules\Cesop\Providers\CesopServiceProvider::class,
 ];
-
-if (app()->environment('local')) {
-    $providers[] = App\Providers\TelescopeServiceProvider::class;
-}
-
-return $providers;
