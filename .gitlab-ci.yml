@@ -259,6 +259,7 @@ Mock test:
   $DPFX exec front bash -c "cd ./app && composer i"
   $DPFX exec front bash -c "cd ./app && npm install"
   $DPFX exec front bash -c "cd ./app && npm run build"
+  $DPFX exec front bash -c "ln -sd /var/lib/www-data/log/laravel /var/www/app/storage/logs"
   printf "\n---\n\n"
 
 
