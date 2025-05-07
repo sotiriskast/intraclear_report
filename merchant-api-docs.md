@@ -7,7 +7,7 @@ This API provides merchant access to rolling reserve information, allowing merch
 ## Base URL
 
 ```
-http://intraclear_jetstream.localhost/api/v1
+http://intraclear_report.localhost/api/v1
 ```
 
 ## Authentication

@@ -9,12 +9,24 @@ use Laravel\Sanctum\HasApiTokens;
 class Merchant extends Model
 {
     use HasApiTokens;
+
     protected $fillable = [
         'account_id',
         'email',
         'phone',
         'active',
         'api_key',
+        'name',
+        'legal_name',
+        'register_country',
+        'city',
+        'street',
+        'postcode',
+        'vat',
+        'mcc1',
+        'mcc2',
+        'mcc3',
+        'iso_country_code'
     ];
 
     protected $casts = [
@@ -24,6 +36,7 @@ class Merchant extends Model
     protected $hidden = [
         'api_key',
     ];
+
     public function scopeActive($query)
     {
         return $query->where('active', true);
@@ -33,10 +46,12 @@ class Merchant extends Model
     {
         return $this->hasMany(MerchantFee::class);
     }
+
     public function rollingReserves(): HasMany
     {
         return $this->hasMany(RollingReserveEntry::class);
     }
+
     /**
      * Get the name of the unique identifier for the user.
      *

@@ -255,8 +255,17 @@ Mock test:
   $DPFX exec front bash -c "mv ./financial_report ./app"
   $DPFX cp $TAXISNET_PUB_KEY front:/var/www/app/storage/app/private/taxisnet_public_key.asc
   $DPFX cp $(eval "echo \$ENV_$ENVIRONMENT") front:/var/www/app/.env
-  $DPFX exec front bash -c "cd ./app && git checkout $ENVIRONMENT"
-  $DPFX exec front bash -c "cd ./app && composer i"
+  $DPFX exec front bash -c "cd ./app && git checkout $BRANCH"
+  if [[ "$BRANCH" == "staging" || "$BRANCH" == "master" ]]; then
+    $DPFX exec front bash -c "cd ./app && composer i --no-dev --optimize-autoloader --no-interaction"
+    $DPFX exec front bash -c "cd ./app && php artisan config:cache"
+    $DPFX exec front bash -c "cd ./app && php artisan route:cache"
+    $DPFX exec front bash -c "cd ./app && php artisan view:cache"
+    $DPFX exec front bash -c "cd ./app && php artisan clear-compiled"
+    $DPFX exec front bash -c "cd ./app && php artisan cache:clear"
+  else
+    $DPFX exec front bash -c "cd ./app && composer i"
+  fi
   $DPFX exec front bash -c "cd ./app && npm install"
   $DPFX exec front bash -c "cd ./app && npm run build"
   $DPFX exec front bash -c "ln -sf /var/www/app/storage/logs /var/lib/www-data/log/laravel/logs"
@@ -266,7 +275,7 @@ Mock test:
 .partial_deploy_script: &partial_deploy_script
 - printf "\n---\nPartial deploy application on the \"$ENVIRONMENT\" environment.\n---\n"
 - $DPFX exec front bash -c "cd ./app && git checkout $BRANCH"
-- $DPFX exec front bash -c "cd ./app && git pull"
+- $DPFX exec front bash -c "cd ./app && git stash && git pull"
 - printf "\n---\n\n"
 
 
