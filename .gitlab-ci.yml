@@ -268,7 +268,7 @@ Mock test:
   fi
   $DPFX exec front bash -c "cd ./app && npm install"
   $DPFX exec front bash -c "cd ./app && npm run build"
-- $DPFX exec front bash -c "supervisorctl restart all"
+  $DPFX exec front bash -c "supervisorctl restart all"
   $DPFX exec front bash -c "ln -sf /var/www/app/storage/logs /var/lib/www-data/log/laravel/logs"
   printf "\n---\n\n"
 
