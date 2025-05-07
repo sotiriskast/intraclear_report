@@ -426,7 +426,7 @@ Clear cache on the Lives:
   tags:
   - cds-rep-app-deploy
   dependencies:
-  - Full eploy application on the Lives
+  - Full deploy application on the Lives
   rules:
   - if: |+
       $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "staging" && 
