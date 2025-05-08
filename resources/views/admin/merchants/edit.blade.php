@@ -38,7 +38,7 @@
                             @enderror
                         </div>
                         <div>
-                            <label for="iban" class="block text-sm font-medium text-gray-700">{{ __('Phone') }}</label>
+                            <label for="iban" class="block text-sm font-medium text-gray-700">{{ __('Iban') }}</label>
                             <input id="iban" class="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md" type="text" name="iban" value="{{ old('iban', $merchant->iban) }}" />
                             @error('iban')
                             <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
