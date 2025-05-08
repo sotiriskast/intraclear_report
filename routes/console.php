@@ -10,3 +10,5 @@ Schedule::command('intraclear:settlement-generate')
     ->timezone('Europe/Athens')
     ->at('07:00')
     ->appendOutputTo(storage_path('logs/settlement-reports.log'));
+
+Schedule::command('telescope:prune')->daily();
