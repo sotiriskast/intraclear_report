@@ -28,6 +28,7 @@ class MerchantController extends Controller
             'email' => ['required', 'email', Rule::unique('merchants')->ignore($merchant->id)],
             'phone' => 'nullable|string|max:20',
             'legal_name' => 'nullable|string|max:255',
+            'iban' => 'nullable|string|max:255',
             'register_country' => 'nullable|string|max:255',
             'city' => 'nullable|string|max:255',
             'street' => 'nullable|string|max:255',
