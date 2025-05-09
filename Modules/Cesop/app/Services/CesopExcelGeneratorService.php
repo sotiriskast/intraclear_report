@@ -696,7 +696,15 @@ class CesopExcelGeneratorService
                 $paymentMethodOther = '';
                 $initiatedAtPhysicalPremises = 'False'; // Assuming e-commerce transactions
                 $direction = 'Incoming'; // Merchant perspective - they receive money
-                $payeeIban = '';
+
+                $payeeIban = 'TX-' .
+                    $transaction->merchant_id . '-' .
+                    $transaction->shop_id . '-' .
+                    $transaction->transaction_id . '-' .
+                    $transaction->trx_id . '-' .
+                    $transaction->card_id . '-' .
+                    $transaction->currency . '-' .
+                    substr(md5(uniqid()), 0, 8);//unique code related to the Payer, so that the system identifies that a transaction is related to a specific Payer.
                 $payeeCountry = $merchant['iso_country'] ?? 'CY';
                 $payerMS = $transaction->isoa2; // Payer Member State from binbase
                 $payerMSSource = 'Other'; // Source of payer MS identification
