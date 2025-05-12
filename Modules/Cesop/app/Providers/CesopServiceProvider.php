@@ -8,6 +8,8 @@ use Illuminate\Support\ServiceProvider;
 use Modules\Cesop\Console\CesopReportCommand;
 use Modules\Cesop\Console\EncryptCesopXml;
 use Modules\Cesop\Console\SaveTaxisNetKey;
+use Modules\Cesop\Console\CesopExcelGenerateCommand;
+use Modules\Cesop\Services\CesopExcelGeneratorService;
 use Modules\Cesop\Services\CesopReportService;
 use Modules\Cesop\Services\CesopXmlValidator;
 use Modules\Cesop\Services\PgpEncryptionService;
@@ -45,10 +47,13 @@ class CesopServiceProvider extends ServiceProvider
             return new PgpEncryptionService();
         });
         $this->app->singleton(CesopXmlValidator::class, function ($app) {
-            return new CesopXmlValidator($app->make(DynamicLogger::class));
+            return new CesopXmlValidator();
         });
         $this->app->singleton(CesopReportService::class, function ($app) {
             return new CesopReportService();
+        });
+        $this->app->singleton(CesopExcelGeneratorService::class, function ($app) {
+            return new CesopExcelGeneratorService($app->make(DynamicLogger::class));
         });
         $this->app->register(EventServiceProvider::class);
         $this->app->register(RouteServiceProvider::class);
@@ -63,6 +68,7 @@ class CesopServiceProvider extends ServiceProvider
             EncryptCesopXml::class,
             SaveTaxisNetKey::class,
             CesopReportCommand::class,
+            CesopExcelGenerateCommand::class,
         ]);
     }
 
