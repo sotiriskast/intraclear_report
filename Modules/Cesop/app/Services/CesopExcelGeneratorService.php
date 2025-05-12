@@ -687,7 +687,16 @@ class CesopExcelGeneratorService
 
                 // Determine values for each field
                 $accountNumber = $merchant['iban'] ?? '';
-                $transactionReference = $transaction->transaction_id ?? $transaction->trx_id;
+                $transactionReference =
+                    'TX-' .
+                    $transaction->merchant_id . '-' .
+                    $transaction->shop_id . '-' .
+                    $transaction->transaction_id . '-' .
+                    $transaction->trx_id . '-' .
+                    $transaction->card_id . '-' .
+                    $transaction->currency . '-' .
+                    substr(md5(uniqid()), 0, 8);//
+                    //$transaction->transaction_id ?? $transaction->trx_id;
                 $isRefund = $transaction->is_refund ? 'True' : 'False';
                 $dateType = 'CESOP701'; // Execution Date by default
                 $amount = number_format($transaction->amount / 100, 2, '.', ''); // Convert cents to base currency
@@ -696,19 +705,11 @@ class CesopExcelGeneratorService
                 $paymentMethodOther = '';
                 $initiatedAtPhysicalPremises = 'False'; // Assuming e-commerce transactions
                 $direction = 'Incoming'; // Merchant perspective - they receive money
-
-                $payeeIban = 'TX-' .
-                    $transaction->merchant_id . '-' .
-                    $transaction->shop_id . '-' .
-                    $transaction->transaction_id . '-' .
-                    $transaction->trx_id . '-' .
-                    $transaction->card_id . '-' .
-                    $transaction->currency . '-' .
-                    substr(md5(uniqid()), 0, 8);//unique code related to the Payer, so that the system identifies that a transaction is related to a specific Payer.
+                $payeeIban ='';
                 $payeeCountry = $merchant['iso_country'] ?? 'CY';
                 $payerMS = $transaction->isoa2; // Payer Member State from binbase
                 $payerMSSource = 'Other'; // Source of payer MS identification
-                $payerIban = ''; // Usually not available for card transactions
+                $payerIban = $merchant['iban'] ?? '';; // Usually not available for card transactions
                 $pspRoleType = 'Four party card scheme'; // Default PSP role
                 $pspRoleTypeOther = '';
 
