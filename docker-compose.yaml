@@ -10,7 +10,7 @@ services:
 
   # ---
   front:
-    image: hub.intraclear.com/cds-runtime-nginx:0.0.2-beta3
+    image: hub.intraclear.com/cds-runtime-nginx:0.0.2-beta4
     # build:
     #   context: ./docker
     #   args:

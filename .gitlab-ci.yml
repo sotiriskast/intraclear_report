@@ -248,7 +248,6 @@ Mock test:
   $DPFX cp $LARAVELL_SCHEDULER_CONF front:/etc/supervisor/conf.d/laravel-scheduler.conf
   $DPFX cp $LARAVEL_REDIS_WORKER_CONF front:/etc/supervisor/conf.d/laravel-redis-worker.conf
   $DPFX cp $NGINX_CONF front:/etc/nginx/nginx.conf
-  $DPFX cp $NGINX_DEFAULT_SITE front:/etc/nginx/sites-enabled/default
   $DPFX exec front bash -c "touch /etc/nginx/nginx.empty"
   $DPFX exec front bash -c "cd ~ && nvm install $NODE_VERSION"
   $DPFX exec front bash -c "git clone https://oauth2:$GIT_TOKEN@$GIT_PROJECT_URL"
