@@ -42,6 +42,13 @@ class CesopReportService
     protected $cmNamespace;
 
     /**
+     * Threshold for reportable transactions
+     *
+     * @var int
+     */
+    protected $threshold;
+
+    /**
      * Constructor
      */
     public function __construct()
@@ -78,6 +85,7 @@ class CesopReportService
     {
         $this->quarter = $quarter;
         $this->year = $year;
+        $this->threshold = $threshold;
 
         // Calculate date range based on quarter and year
         $startMonth = (($quarter - 1) * 3) + 1;
@@ -87,8 +95,22 @@ class CesopReportService
         // Load PSP data
         $pspData = $pspData ?: $this->loadPspData();
 
-        // Get transactions
-        $transactions = $this->getTransactionsData($startDate, $endDate, $threshold, $merchantIds, $shopIds);
+        // Step 1: Get qualifying cards that exceed the threshold (same as Excel generator)
+        $qualifyingCards = $this->getQualifyingCards($startDate, $endDate, $merchantIds, $shopIds);
+
+        if (empty($qualifyingCards)) {
+            return [
+                'success' => false,
+                'message' => 'No qualifying transactions found.',
+                'data' => null
+            ];
+        }
+
+        // Step 2: Process merchant data
+        $merchantData = $this->processMerchantData($qualifyingCards, $merchantIds);
+
+        // Step 3: Get individual transactions for qualifying cards
+        $transactions = $this->getTransactionsData($startDate, $endDate, $qualifyingCards, $merchantIds, $shopIds);
 
         if ($transactions->isEmpty()) {
             return [
@@ -98,56 +120,43 @@ class CesopReportService
             ];
         }
 
-        // Group transactions by merchant and shop for processing
-        $transactionsByShop = $transactions->groupBy(['merchant_id', 'shop_id']);
-
-        // Generate XML document
+        // Step 4: Generate XML document
         $dom = $this->initializeXmlDocument($pspData, $quarter, $year);
         $root = $dom->documentElement;
 
-        // Keep track of stats
+        // Step 5: Process transactions by merchant
+        $transactionsByMerchant = $transactions->groupBy('merchant_id');
         $stats = [
-            'processed_shops' => 0,
             'processed_merchants' => 0,
             'total_transactions' => 0,
             'total_amount' => 0,
-            'transaction_groups' => $transactions->count(),
-            'shops' => $transactionsByShop->count()
+            'quarter' => $quarter,
+            'year' => $year,
+            'date_range' => [
+                'start' => $startDate->format('Y-m-d'),
+                'end' => $endDate->format('Y-m-d')
+            ],
+            'threshold' => $threshold,
+            'eu_countries' => count($this->euCountries)
         ];
 
-        // Process transactions by merchant and shop
-        foreach ($transactionsByShop as $merchantId => $merchantShops) {
-            // Get merchant details
-            $merchant = $this->getMerchantDetails($merchantId);
-
+        foreach ($transactionsByMerchant as $merchantId => $merchantTransactions) {
+            $merchant = $merchantData[$merchantId] ?? null;
             if (!$merchant) {
                 continue;
             }
 
+            // Add merchant to XML as ReportedPayee
+            $this->addMerchantToXml($dom, $root, $merchant, $merchantTransactions);
             $stats['processed_merchants']++;
-
-            foreach ($merchantShops as $shopId => $shopTransactions) {
-                // Get shop details
-                $shop = $this->getShopDetails($shopId);
-
-                if (!$shop) {
-                    continue;
-                }
-
-                // Add shop data to XML
-                $this->addShopToXml($dom, $root, $merchant, $shop, $transactions);
-                $stats['processed_shops']++;
-
-                // Update stats
-                $stats['total_transactions'] += $shopTransactions->count();
-                $stats['total_amount'] += $shopTransactions->sum('amount') / 100;
-            }
+            $stats['total_transactions'] += $merchantTransactions->count();
+            $stats['total_amount'] += $merchantTransactions->sum('amount') / 100;
         }
 
-        if ($stats['processed_shops'] === 0) {
+        if ($stats['processed_merchants'] === 0) {
             return [
                 'success' => false,
-                'message' => 'No shops processed. No qualifying data found.',
+                'message' => 'No merchants processed. No qualifying data found.',
                 'data' => null
             ];
         }
@@ -169,20 +178,53 @@ class CesopReportService
         ];
     }
 
-
     /**
-     * Get transaction data for the report without aggregation
-     *
-     * @param Carbon $startDate
-     * @param Carbon $endDate
-     * @param int $threshold
-     * @param array $merchantIds
-     * @param array $shopIds
-     * @return Collection
+     * Get qualifying cards that exceed the threshold
+     * Exclude domestic transactions (where merchant country matches card country)
      */
-    protected function getTransactionsData(Carbon $startDate, Carbon $endDate, int $threshold, array $merchantIds = [], array $shopIds = []): Collection
+    protected function getQualifyingCards(
+        Carbon $startDate,
+        Carbon $endDate,
+        array  $merchantIds = [],
+        array  $shopIds = []
+    ): array
     {
-        // Step 1: First identify the cards/bin combinations that exceed the threshold
+        // First get all the merchant countries we need to analyze
+        $merchantCountryMap = [];
+
+        // If specific merchant IDs are provided, get their countries
+        if (!empty($merchantIds)) {
+            $merchantsData = DB::connection('pgsql')
+                ->table('merchants')
+                ->select('account_id', 'iso_country_code')
+                ->whereIn('account_id', $merchantIds)
+                ->get();
+
+            foreach ($merchantsData as $merchant) {
+                if (!empty($merchant->iso_country_code)) {
+                    $merchantCountryMap[$merchant->account_id] = strtoupper($merchant->iso_country_code);
+                }
+            }
+
+            // If any merchants weren't found in PostgreSQL, try the payment gateway MySQL
+            $missingMerchantIds = array_diff($merchantIds, array_keys($merchantCountryMap));
+            if (!empty($missingMerchantIds)) {
+                $fallbackMerchants = DB::connection('payment_gateway_mysql')
+                    ->table('account as a')
+                    ->leftJoin('account_details as ad', 'a.id', '=', 'ad.account_id')
+                    ->select('a.id as account_id', 'ad.country')
+                    ->whereIn('a.id', $missingMerchantIds)
+                    ->get();
+
+                foreach ($fallbackMerchants as $merchant) {
+                    if (!empty($merchant->country)) {
+                        $merchantCountryMap[$merchant->account_id] = strtoupper($merchant->country);
+                    }
+                }
+            }
+        }
+
+        // Build the query to find qualifying cards
         $qualifyingCardsQuery = DB::connection('payment_gateway_mysql')
             ->table('transactions as t')
             ->join('customer_card as cc', 't.card_id', '=', 'cc.card_id')
@@ -192,6 +234,7 @@ class CesopReportService
                 's.account_id as merchant_id',
                 's.id as shop_id',
                 'cc.card_id',
+                'bb.isoa2 as card_country',
                 DB::raw("COUNT(*) as transaction_count")
             )
             ->whereBetween('t.added', [$startDate, $endDate])
@@ -209,16 +252,125 @@ class CesopReportService
             $qualifyingCardsQuery->whereIn('s.id', $shopIds);
         }
 
-        $qualifyingCards = $qualifyingCardsQuery->groupBy(
+        // Get all potential qualifying cards
+        $potentialQualifyingCards = $qualifyingCardsQuery->groupBy(
             's.account_id',
             's.id',
-            'cc.card_id'
+            'cc.card_id',
+            'bb.isoa2'
         )
-            ->havingRaw("COUNT(*) > {$threshold}")
-            ->pluck('cc.card_id')
-            ->toArray();
+            ->havingRaw("COUNT(*) > {$this->threshold}")
+            ->get();
 
-        // Step 2: Now fetch all individual transactions for those qualifying cards
+        // Filter out domestic transactions
+        $finalQualifyingCardIds = [];
+        foreach ($potentialQualifyingCards as $card) {
+            // Skip if we have merchant country info and it matches the card country (domestic transaction)
+            if (
+                isset($merchantCountryMap[$card->merchant_id]) &&
+                $merchantCountryMap[$card->merchant_id] === $card->card_country
+            ) {
+                continue;
+            }
+
+            $finalQualifyingCardIds[] = $card->card_id;
+        }
+
+        return $finalQualifyingCardIds;
+    }
+
+    /**
+     * Process merchant data based on qualifying cards
+     */
+    protected function processMerchantData(array $qualifyingCards, array $merchantIds = []): array
+    {
+        // Get all merchant IDs from qualifying cards
+        $cardMerchantQuery = DB::connection('payment_gateway_mysql')
+            ->table('transactions as t')
+            ->join('shop as s', 't.shop_id', '=', 's.id')
+            ->whereIn('t.card_id', $qualifyingCards)
+            ->distinct()
+            ->select('s.account_id');
+
+        // Apply merchant filter if provided
+        if (!empty($merchantIds)) {
+            $cardMerchantQuery->whereIn('s.account_id', $merchantIds);
+        }
+
+        $accountIds = $cardMerchantQuery->pluck('account_id')->toArray();
+
+        // Fetch merchant details from PostgreSQL
+        $merchants = DB::connection('pgsql')
+            ->table('merchants')
+            ->select(
+                'id',
+                'account_id',
+                'name',
+                'email',
+                'legal_name',
+                'street',
+                'city',
+                'postcode',
+                'vat',
+                'mcc1',
+                'iso_country_code'
+            )
+            ->whereIn('account_id', $accountIds)
+            ->get();
+
+        // Create a lookup map by account_id
+        $merchantMap = [];
+        foreach ($merchants as $merchant) {
+            // Attempt to get IBAN from database
+            $iban = $this->getMerchantIban($merchant->account_id);
+
+            $merchantMap[$merchant->account_id] = [
+                'id' => $merchant->id,
+                'account_id' => $merchant->account_id,
+                'name' => $merchant->name ?? $merchant->legal_name,
+                'email' => $merchant->email,
+                'address' => $merchant->street,
+                'city' => $merchant->city,
+                'postal_code' => $merchant->postcode,
+                'mcc1' => $merchant->mcc1,
+                'iso_country' => $merchant->iso_country_code,
+                'vat' => $merchant->vat,
+                'iban' => $iban
+            ];
+        }
+
+        // For any merchants not found in pgsql, try payment_gateway_mysql
+        $missingMerchantIds = array_diff($accountIds, array_keys($merchantMap));
+        if (!empty($missingMerchantIds)) {
+            foreach ($missingMerchantIds as $accountId) {
+                $fallbackMerchant = $this->getMerchantFromPaymentGateway($accountId);
+                if ($fallbackMerchant) {
+                    $merchantMap[$accountId] = $fallbackMerchant;
+                }
+            }
+        }
+
+        return $merchantMap;
+    }
+
+    /**
+     * Get transaction data for the report (individual transactions, not aggregated)
+     *
+     * @param Carbon $startDate
+     * @param Carbon $endDate
+     * @param array $qualifyingCards
+     * @param array $merchantIds
+     * @param array $shopIds
+     * @return Collection
+     */
+    protected function getTransactionsData(
+        Carbon $startDate,
+        Carbon $endDate,
+        array  $qualifyingCards,
+        array  $merchantIds = [],
+        array  $shopIds = []
+    ): Collection
+    {
         $query = DB::connection('payment_gateway_mysql')
             ->table('transactions as t')
             ->join('customer_card as cc', 't.card_id', '=', 'cc.card_id')
@@ -264,42 +416,62 @@ class CesopReportService
     }
 
     /**
-     * Get merchant details by ID
-     *
-     * @param int $merchantId
-     * @return object|null
+     * Get merchant IBAN (placeholder method)
      */
-    protected function getMerchantDetails(int $merchantId)
+    protected function getMerchantIban(int $accountId): ?string
     {
-        return DB::connection('payment_gateway_mysql')->table('account as a')
+        // Try to get from bank_accounts table if it exists
+        try {
+            $bankAccount = DB::connection('pgsql')
+                ->table('bank_accounts')
+                ->where('merchant_id', $accountId)
+                ->first();
+
+            if ($bankAccount && isset($bankAccount->iban)) {
+                return $bankAccount->iban;
+            }
+        } catch (\Exception $e) {
+            // Table might not exist, continue with fallback
+        }
+
+        // Fallback: Generate a placeholder IBAN
+        $country = 'CY'; // Default to Cyprus
+        $checkDigits = '10'; // Dummy check digits
+        $bankCode = 'BANK';
+        $accountNumber = str_pad($accountId, 10, '0', STR_PAD_LEFT);
+
+        return $country . $checkDigits . $bankCode . $accountNumber;
+    }
+
+    /**
+     * Get merchant data from payment_gateway_mysql as fallback
+     */
+    protected function getMerchantFromPaymentGateway(int $accountId): ?array
+    {
+        $pgMerchant = DB::connection('payment_gateway_mysql')
+            ->table('account as a')
+            ->leftJoin('account_details as ad', 'a.id', '=', 'ad.account_id')
             ->select(
-                'a.id',
+                'a.tid',
                 'a.corp_name as name',
                 'a.email as email',
                 'ad.street as address',
                 'ad.city',
                 'ad.postal_code',
-                'ad.mcc1'
+                'ad.mcc1',
+                'ad.country as iso_country',
+                DB::raw('COALESCE(ad.vat_id, "") as vat')
             )
-            ->leftJoin('account_details as ad', 'a.id', '=', 'ad.account_id')
-            ->where('a.id', $merchantId)
-            ->where('a.active', 1)
+            ->where('a.id', $accountId)
             ->first();
-    }
 
-    /**
-     * Get shop details by ID
-     *
-     * @param int $shopId
-     * @return object|null
-     */
-    protected function getShopDetails(int $shopId): ?object
-    {
-        return DB::connection('payment_gateway_mysql')->table('shop')
-            ->select('id', 'owner_name', 'website', 'email')
-            ->where('id', $shopId)
-            ->where('active', 1)
-            ->first();
+        if ($pgMerchant) {
+            $pgMerchantArray = (array)$pgMerchant;
+            $pgMerchantArray['iban'] = $this->getMerchantIban($accountId);
+            return $pgMerchantArray;
+        }
+
+        return null;
     }
 
     /**
@@ -407,6 +579,204 @@ class CesopReportService
     }
 
     /**
+     * Add merchant data to XML document as a ReportedPayee
+     *
+     * @param DOMDocument $dom
+     * @param DOMElement $root
+     * @param array $merchant
+     * @param Collection $transactions
+     * @return void
+     */
+    protected function addMerchantToXml(
+        DOMDocument $dom,
+        DOMElement  $root,
+        array       $merchant,
+        Collection  $transactions
+    )
+    {
+        // Find the PaymentDataBody element
+        $paymentDataBody = null;
+        foreach ($root->childNodes as $child) {
+            if ($child->nodeName === 'cesop:PaymentDataBody') {
+                $paymentDataBody = $child;
+                break;
+            }
+        }
+
+        if (!$paymentDataBody) {
+            return;
+        }
+
+        // Create ReportedPayee section for this merchant
+        $payee = $dom->createElementNS($this->cesopNamespace, 'cesop:ReportedPayee');
+        $paymentDataBody->appendChild($payee);
+
+        // 1. Name element - Use actual merchant name
+        $name = $dom->createElementNS($this->cesopNamespace, 'cesop:Name', $this->safeXmlString(trim($merchant['name'])));
+        $name->setAttribute('nameType', 'BUSINESS');
+        $payee->appendChild($name);
+
+        // 2. Country element - Use merchant country or default
+        $merchantCountry = $merchant['iso_country'] ?? config('cesop.merchant.country', 'CY');
+        $payee->appendChild($dom->createElementNS($this->cesopNamespace, 'cesop:Country', $merchantCountry));
+
+        // 3. Address element
+        $address = $dom->createElementNS($this->cesopNamespace, 'cesop:Address');
+        $address->setAttribute('legalAddressType', 'CESOP303'); // business address
+        $payee->appendChild($address);
+
+        // AddressFix element
+        $addressFix = $dom->createElementNS($this->cmNamespace, 'cm:AddressFix');
+        $address->appendChild($addressFix);
+
+        // Address details
+        if (!empty($merchant['address'])) {
+            $addressFix->appendChild($dom->createElementNS($this->cmNamespace, 'cm:Street', $this->safeXmlString($merchant['address'])));
+        }
+
+        if (!empty($merchant['city'])) {
+            $addressFix->appendChild($dom->createElementNS($this->cmNamespace, 'cm:City', $this->safeXmlString($merchant['city'])));
+        }
+
+        if (!empty($merchant['postal_code'])) {
+            $addressFix->appendChild($dom->createElementNS($this->cmNamespace, 'cm:PostCode', $this->safeXmlString($merchant['postal_code'])));
+        }
+
+        // 4. EmailAddress (optional)
+        if (!empty($merchant['email'])) {
+            $payee->appendChild($dom->createElementNS($this->cesopNamespace, 'cesop:EmailAddress', $this->safeXmlString($merchant['email'])));
+        }
+
+        // 5. TAXIdentification
+        $taxId = $dom->createElementNS($this->cesopNamespace, 'cesop:TAXIdentification');
+        $payee->appendChild($taxId);
+
+        // Try to get VAT ID from merchant data
+        $vatNumber = $merchant['vat'] ?? '';
+        $vatCountry = substr($merchantCountry, 0, 2);
+
+        if (!empty($vatNumber)) {
+            $vatId = $dom->createElementNS($this->cmNamespace, 'cm:VATId', $this->safeXmlString($vatNumber));
+            $vatId->setAttribute('issuedBy', $vatCountry);
+            $taxId->appendChild($vatId);
+        }
+
+        // 6. AccountIdentifier
+        $accountId = $dom->createElementNS($this->cesopNamespace, 'cesop:AccountIdentifier', $merchant['iban'] ?? '');
+        $accountId->setAttribute('CountryCode', $merchantCountry);
+        $accountId->setAttribute('type', 'IBAN');
+        $payee->appendChild($accountId);
+
+        // 7. ReportedTransaction (add each individual transaction)
+        foreach ($transactions as $transaction) {
+            // Check merchant country versus card country (exclude domestic transactions)
+            $merchantCountry = $merchant['iso_country'] ?? '';
+            if (!empty($merchantCountry) && strtoupper($merchantCountry) === strtoupper($transaction->isoa2)) {
+                continue; // Skip domestic transactions
+            }
+
+            $this->addIndividualTransactionToXml($dom, $payee, $transaction);
+        }
+
+        // 8. DocSpec (mandatory - must come last)
+        $docSpec = $dom->createElementNS($this->cesopNamespace, 'cesop:DocSpec');
+        $payee->appendChild($docSpec);
+
+        // DocTypeIndic - new data
+        $docSpec->appendChild($dom->createElementNS($this->cmNamespace, 'cm:DocTypeIndic', 'CESOP2'));
+
+        // DocRefId - unique identifier for this record
+        $docSpec->appendChild($dom->createElementNS($this->cmNamespace, 'cm:DocRefId', $this->generateUuid()));
+    }
+
+    /**
+     * Add an individual transaction to the XML document
+     *
+     * @param DOMDocument $dom
+     * @param DOMElement $payee
+     * @param object $transaction
+     * @return void
+     */
+    protected function addIndividualTransactionToXml(
+        DOMDocument $dom,
+        DOMElement  $payee,
+                    $transaction
+    )
+    {
+        // Check if the transaction's country is an EU country
+        $payerCountry = $transaction->isoa2;
+        if (!in_array($payerCountry, $this->euCountries)) {
+            // If not an EU country, skip this transaction
+            return;
+        }
+
+        $isRefund = $transaction->is_refund ? 'true' : 'false';
+
+        // Get transaction amount - convert to decimal from cents/smaller units
+        $amount = $transaction->amount / 100;
+
+        // Create the transaction element
+        $transactionElement = $dom->createElementNS($this->cesopNamespace, 'cesop:ReportedTransaction');
+        $transactionElement->setAttribute('IsRefund', $isRefund);
+        $payee->appendChild($transactionElement);
+
+        // Transaction identifier - use the same format as Excel generator
+        $txId = 'TX-' .
+            $transaction->merchant_id . '-' .
+            $transaction->shop_id . '-' .
+            $transaction->transaction_id . '-' .
+            $transaction->trx_id . '-' .
+            $transaction->card_id . '-' .
+            $transaction->currency . '-' .
+            substr(md5(uniqid()), 0, 8);
+        $transactionElement->appendChild(
+            $dom->createElementNS(
+                $this->cesopNamespace,
+                'cesop:TransactionIdentifier',
+                $txId
+            )
+        );
+
+        // Date and time
+        $txDate = Carbon::parse($transaction->transaction_date);
+        $dateTime = $dom->createElementNS(
+            $this->cesopNamespace,
+            'cesop:DateTime',
+            $this->formatDateTime($txDate)
+        );
+        $dateTime->setAttribute('transactionDateType', 'CESOP701'); // Execution date
+        $transactionElement->appendChild($dateTime);
+
+        // Amount with currency
+        $amountElement = $dom->createElementNS(
+            $this->cesopNamespace,
+            'cesop:Amount',
+            $this->formatAmount($amount)
+        );
+        $amountElement->setAttribute('currency', $transaction->currency);
+        $transactionElement->appendChild($amountElement);
+
+        // Payment method - Card payment
+        $paymentMethod = $dom->createElementNS($this->cesopNamespace, 'cesop:PaymentMethod');
+        $transactionElement->appendChild($paymentMethod);
+        $paymentMethod->appendChild($dom->createElementNS($this->cmNamespace, 'cm:PaymentMethodType', 'Card payment'));
+
+        // Not at physical premises (e-commerce)
+        $transactionElement->appendChild(
+            $dom->createElementNS(
+                $this->cesopNamespace,
+                'cesop:InitiatedAtPhysicalPremisesOfMerchant',
+                'false'
+            )
+        );
+
+        // Add payer Member State with source
+        $payerMS = $dom->createElementNS($this->cesopNamespace, 'cesop:PayerMS', $payerCountry);
+        $payerMS->setAttribute('PayerMSSource', 'Other');
+        $transactionElement->appendChild($payerMS);
+    }
+
+    /**
      * Generate a UUID v4 using Ramsey/UUID library if available
      *
      * @return string
@@ -468,298 +838,6 @@ class CesopReportService
     protected function safeXmlString(string $input): string
     {
         return htmlspecialchars($input, ENT_XML1 | ENT_QUOTES, 'UTF-8');
-    }
-
-    /**
-     * Add shop data to XML document as a ReportedPayee
-     *
-     * @param DOMDocument $dom
-     * @param DOMElement $root
-     * @param object $merchant
-     * @param object $shop
-     * @param Collection $transactions
-     * @return void
-     */
-    protected function addShopToXml(
-        DOMDocument $dom,
-        DOMElement  $root,
-                    $merchant,
-                    $shop,
-        Collection  $transactions
-    )
-    {
-        // Find the PaymentDataBody element
-        $paymentDataBody = null;
-        foreach ($root->childNodes as $child) {
-            if ($child->nodeName === 'cesop:PaymentDataBody') {
-                $paymentDataBody = $child;
-                break;
-            }
-        }
-
-        if (!$paymentDataBody) {
-            return;
-        }
-
-        // Create ReportedPayee section for this shop
-        $payee = $dom->createElementNS($this->cesopNamespace, 'cesop:ReportedPayee');
-        $paymentDataBody->appendChild($payee);
-
-        // ---- Elements must be in the specific order required by the XSD schema ----
-
-        // 1. Name element - Use actual merchant name
-        $name = $dom->createElementNS($this->cesopNamespace, 'cesop:Name', $this->safeXmlString(trim($merchant->name)));
-        $name->setAttribute('nameType', 'BUSINESS');
-        $payee->appendChild($name);
-
-        // 2. Country element - Use merchant country or default to GB
-        $merchantCountry = config('cesop.merchant.country', 'GB');
-        $payee->appendChild($dom->createElementNS($this->cesopNamespace, 'cesop:Country', $merchantCountry));
-
-        // 3. Address element - Use merchant address data
-        $address = $dom->createElementNS($this->cesopNamespace, 'cesop:Address');
-        $address->setAttribute('legalAddressType', 'CESOP303'); // business address
-        $payee->appendChild($address);
-
-        // AddressFix element
-        $addressFix = $dom->createElementNS($this->cmNamespace, 'cm:AddressFix');
-        $address->appendChild($addressFix);
-
-        // Address details - use merchant data or config defaults
-        $street = !empty($merchant->address) ? $merchant->address : config('cesop.merchant.street', 'Street');
-        if (!empty($street)) {
-            $addressFix->appendChild($dom->createElementNS($this->cmNamespace, 'cm:Street', $this->safeXmlString($street ?? '')));
-        }
-
-        $city = !empty($merchant->city) ? $merchant->city : config('cesop.merchant.city', 'city');
-        if (!empty($city)) {
-            $addressFix->appendChild($dom->createElementNS($this->cmNamespace, 'cm:City', $this->safeXmlString($city)));
-        }
-
-        $postCode = !empty($merchant->postal_code) ? $merchant->postal_code : config('cesop.merchant.postcode', 'postcode');
-        if (!empty($postCode)) {
-            $addressFix->appendChild($dom->createElementNS($this->cmNamespace, 'cm:PostCode', $this->safeXmlString($postCode)));
-        }
-
-        // 4. EmailAddress (optional)
-        if (!empty($shop->email)) {
-            $payee->appendChild($dom->createElementNS($this->cesopNamespace, 'cesop:EmailAddress', $this->safeXmlString($shop->email)));
-        } elseif (!empty($merchant->email)) {
-            $payee->appendChild($dom->createElementNS($this->cesopNamespace, 'cesop:EmailAddress', $this->safeXmlString($merchant->email)));
-        }
-        // 5. WebPage (optional)
-        if (!empty($shop->website)) {
-            $payee->appendChild($dom->createElementNS($this->cesopNamespace, 'cesop:WebPage', $this->safeXmlString($shop->website)));
-        }
-        // 6. TAXIdentification (mandatory but can be empty)
-        $taxId = $dom->createElementNS($this->cesopNamespace, 'cesop:TAXIdentification');
-        $payee->appendChild($taxId);
-
-        // Try to get VAT ID from merchant data
-        $vatNumber = !empty($merchant->tax_id) ? $merchant->tax_id : config('cesop.merchant.vat', '');
-        $vatCountry = substr($merchantCountry, 0, 2);
-
-        if (!empty($vatNumber)) {
-            $vatId = $dom->createElementNS($this->cmNamespace, 'cm:VATId', $this->safeXmlString($vatNumber));
-            $vatId->setAttribute('issuedBy', $vatCountry);
-            $taxId->appendChild($vatId);
-        }
-        // 7. AccountIdentifier (mandatory but can be empty if not available)
-        // For card transactions, use 'Other' as type with appropriate description
-        $accountId = $dom->createElementNS($this->cesopNamespace, 'cesop:AccountIdentifier', '');
-        $accountId->setAttribute('CountryCode', $merchantCountry);
-        $accountId->setAttribute('type', 'Other');
-        $accountId->setAttribute('accountIdentifierOther', 'CardPayment');
-        $payee->appendChild($accountId);
-        // 8. ReportedTransaction (add each individual transaction)
-        foreach ($transactions as $transaction) {
-            // Only process transactions for the current shop
-            if ($transaction->shop_id != $shop->id) {
-                continue;
-            }
-
-            $this->addIndividualTransactionToXml($dom, $payee, $transaction);
-        }
-        // 9. Representative (optional) - Omitted in this case
-        // 10. DocSpec (mandatory - must come last)
-        $docSpec = $dom->createElementNS($this->cesopNamespace, 'cesop:DocSpec');
-        $payee->appendChild($docSpec);
-
-        // DocTypeIndic - new data
-        $docSpec->appendChild($dom->createElementNS($this->cmNamespace, 'cm:DocTypeIndic', 'CESOP2'));
-
-        // DocRefId - unique identifier for this record
-        $docSpec->appendChild($dom->createElementNS($this->cmNamespace, 'cm:DocRefId', $this->generateUuid()));
-    }
-
-    /**
-     * Add an individual transaction to the XML document
-     *
-     * @param DOMDocument $dom
-     * @param DOMElement $payee
-     * @param object $transaction
-     * @return void
-     */
-    protected function addIndividualTransactionToXml(
-        DOMDocument $dom,
-        DOMElement  $payee,
-                    $transaction
-    )
-    {
-        // Check if the transaction's country is an EU country
-        $payerCountry = $transaction->isoa2;
-        if (!in_array($payerCountry, $this->euCountries)) {
-            // If not an EU country, skip this transaction
-            return;
-        }
-
-        $isRefund = $transaction->is_refund ? 'true' : 'false';
-
-        // Get transaction amount - convert to decimal from cents/smaller units
-        $amount = $transaction->amount / 100;
-
-        // Create the transaction element
-        $transactionElement = $dom->createElementNS($this->cesopNamespace, 'cesop:ReportedTransaction');
-        $transactionElement->setAttribute('IsRefund', $isRefund);
-        $payee->appendChild($transactionElement);
-
-        // Transaction identifier - use the real transaction ID from the database
-        $txId = 'TX-' .
-            $transaction->merchant_id . '-' .
-            $transaction->shop_id . '-' .
-            $transaction->transaction_id . '-' .
-            $transaction->trx_id . '-' .
-            $transaction->card_id . '-' .
-            $transaction->currency . '-' .
-            substr(md5(uniqid()), 0, 8);
-        $transactionElement->appendChild(
-            $dom->createElementNS(
-                $this->cesopNamespace,
-                'cesop:TransactionIdentifier',
-                $txId
-            )
-        );
-
-        // Date and time
-        $txDate = Carbon::parse($transaction->transaction_date);
-        $dateTime = $dom->createElementNS(
-            $this->cesopNamespace,
-            'cesop:DateTime',
-            $this->formatDateTime($txDate)
-        );
-        $dateTime->setAttribute('transactionDateType', 'CESOP701'); // Execution date
-        $transactionElement->appendChild($dateTime);
-
-        // Amount with currency
-        $amountElement = $dom->createElementNS(
-            $this->cesopNamespace,
-            'cesop:Amount',
-            $this->formatAmount($amount)
-        );
-        $amountElement->setAttribute('currency', $transaction->currency);
-        $transactionElement->appendChild($amountElement);
-
-        // Payment method - Card payment
-        $paymentMethod = $dom->createElementNS($this->cesopNamespace, 'cesop:PaymentMethod');
-        $transactionElement->appendChild($paymentMethod);
-        $paymentMethod->appendChild($dom->createElementNS($this->cmNamespace, 'cm:PaymentMethodType', 'Card payment'));
-
-        // Not at physical premises (e-commerce)
-        $transactionElement->appendChild(
-            $dom->createElementNS(
-                $this->cesopNamespace,
-                'cesop:InitiatedAtPhysicalPremisesOfMerchant',
-                'false'
-            )
-        );
-
-        // Add payer Member State with source
-        $payerMS = $dom->createElementNS($this->cesopNamespace, 'cesop:PayerMS', $payerCountry);
-        $payerMS->setAttribute('PayerMSSource', 'Other');
-        $transactionElement->appendChild($payerMS);
-    }
-
-    /**
-     * Add a transaction to the XML document
-     *
-     * @param DOMDocument $dom
-     * @param DOMElement $payee
-     * @param object $merchant
-     * @param object $shop
-     * @param Collection $cardTransactions
-     * @param string $currency
-     * @return void
-     */
-    protected function addTransactionToXml(
-        DOMDocument $dom,
-        DOMElement  $payee,
-                    $merchant,
-                    $shop,
-        Collection  $cardTransactions,
-        string      $currency
-    )
-    {
-        // Get a representative transaction for data we need
-        $representativeTransaction = $cardTransactions->first();
-        $isRefund = $representativeTransaction->is_refund ? 'true' : 'false';
-
-        // Check if the transaction's country is an EU country
-        $payerCountry = $representativeTransaction->isoa2;
-        if (!in_array($payerCountry, $this->euCountries)) {
-            // If not an EU country, skip this transaction
-            return;
-        }
-
-        // Get transaction total - convert to decimal from cents/smaller units
-        $totalAmount = $cardTransactions->sum('total_amount') / 100;
-
-        // Get count of transactions
-        $transactionCount = $cardTransactions->sum('transaction_count');
-
-        // Generate a unique identifier for this transaction group
-        $txId = 'TX-' . $merchant->id . '-' . $shop->id . '-' .
-            $representativeTransaction->card_id . '-' .
-            $currency . '-' . substr(md5(uniqid()), 0, 8);
-
-        // Get a representative date - the midpoint of the reporting quarter
-        $startMonth = (($this->quarter - 1) * 3) + 1;
-        $reportDate = Carbon::createFromDate($this->year, $startMonth, 15)->startOfDay();
-
-        // If we have actual transaction dates, use the last transaction date instead
-        if (!empty($representativeTransaction->last_transaction_date)) {
-            $reportDate = Carbon::parse($representativeTransaction->last_transaction_date);
-        }
-
-        // Create the transaction element
-        $transaction = $dom->createElementNS($this->cesopNamespace, 'cesop:ReportedTransaction');
-        $transaction->setAttribute('IsRefund', $isRefund);
-        $payee->appendChild($transaction);
-
-        // Transaction identifier
-        $transaction->appendChild($dom->createElementNS($this->cesopNamespace, 'cesop:TransactionIdentifier', $txId));
-
-        // Date and time
-        $dateTime = $dom->createElementNS($this->cesopNamespace, 'cesop:DateTime', $this->formatDateTime($reportDate));
-        $dateTime->setAttribute('transactionDateType', 'CESOP701'); // Execution date
-        $transaction->appendChild($dateTime);
-
-        // Amount with currency
-        $amountElement = $dom->createElementNS($this->cesopNamespace, 'cesop:Amount', $this->formatAmount($totalAmount));
-        $amountElement->setAttribute('currency', $currency);
-        $transaction->appendChild($amountElement);
-
-        // Payment method - Card payment
-        $paymentMethod = $dom->createElementNS($this->cesopNamespace, 'cesop:PaymentMethod');
-        $transaction->appendChild($paymentMethod);
-        $paymentMethod->appendChild($dom->createElementNS($this->cmNamespace, 'cm:PaymentMethodType', 'Card payment'));
-
-        // Not at physical premises (e-commerce)
-        $transaction->appendChild($dom->createElementNS($this->cesopNamespace, 'cesop:InitiatedAtPhysicalPremisesOfMerchant', 'false'));
-
-        // Add payer Member State with source
-        $payerMS = $dom->createElementNS($this->cesopNamespace, 'cesop:PayerMS', $payerCountry);
-        $payerMS->setAttribute('PayerMSSource', 'Other');
-        $transaction->appendChild($payerMS);
     }
 
     /**
@@ -827,6 +905,7 @@ class CesopReportService
      * @param array $merchantIds
      * @param array $shopIds
      * @param int $threshold
+     * @param array|null $pspData
      * @return array
      */
     public function previewReport(
@@ -834,16 +913,32 @@ class CesopReportService
         int   $year,
         array $merchantIds = [],
         array $shopIds = [],
-        int   $threshold = 25
+        int   $threshold = 25,
+        ?array $pspData = null
     ): array
     {
+        $this->quarter = $quarter;
+        $this->year = $year;
+        $this->threshold = $threshold;
+
         // Calculate date range based on quarter and year
         $startMonth = (($quarter - 1) * 3) + 1;
         $startDate = Carbon::createFromDate($year, $startMonth, 1)->startOfDay();
         $endDate = (clone $startDate)->addMonths(3)->subDay()->endOfDay();
 
-        // Get transaction summaries
-        $transactions = $this->getTransactionsData($startDate, $endDate, $threshold, $merchantIds, $shopIds);
+        // Get qualifying cards that exceed the threshold
+        $qualifyingCards = $this->getQualifyingCards($startDate, $endDate, $merchantIds, $shopIds);
+
+        if (empty($qualifyingCards)) {
+            return [
+                'success' => false,
+                'message' => 'No qualifying transactions found.',
+                'data' => null
+            ];
+        }
+
+        // Get transactions based on qualifying cards
+        $transactions = $this->getTransactionsData($startDate, $endDate, $qualifyingCards, $merchantIds, $shopIds);
 
         if ($transactions->isEmpty()) {
             return [
@@ -853,53 +948,38 @@ class CesopReportService
             ];
         }
 
-        // Group transactions by merchant and shop
+        // Get merchant data
+        $merchantData = $this->processMerchantData($qualifyingCards, $merchantIds);
+
+        // Group transactions by merchant
         $summary = $transactions
-            ->groupBy(['merchant_id', 'shop_id'])
-            ->map(function ($merchantShops, $merchantId) {
-                $merchant = $this->getMerchantDetails($merchantId);
+            ->groupBy('merchant_id')
+            ->map(function ($merchantTransactions, $merchantId) use ($merchantData) {
+                $merchant = $merchantData[$merchantId] ?? null;
 
                 if (!$merchant) {
                     return null;
                 }
 
-                $shopsSummary = [];
-
-                foreach ($merchantShops as $shopId => $shopTransactions) {
-                    $shop = $this->getShopDetails($shopId);
-
-                    if (!$shop) {
-                        continue;
-                    }
-
-                    $totalCount = $shopTransactions->sum('transaction_count');
-                    $totalAmount = $shopTransactions->sum('total_amount');
-                    $currencies = $shopTransactions->pluck('currency')->unique()->values();
-
-                    $shopsSummary[] = [
-                        'shop_id' => $shopId,
-                        'shop_name' => $shop->owner_name,
-                        'transaction_count' => $totalCount,
-                        'total_amount' => $totalAmount,
-                        'currencies' => $currencies->toArray(),
-                        'currency_breakdown' => $shopTransactions->groupBy('currency')
-                            ->map(function ($group) {
-                                return [
-                                    'count' => $group->sum('transaction_count'),
-                                    'amount' => $group->sum('total_amount')
-                                ];
-                            })
-                            ->toArray()
-                    ];
-                }
+                // Count total transactions and amount
+                $totalTransactions = $merchantTransactions->count();
+                $totalAmount = $merchantTransactions->sum('amount') / 100; // Convert from cents
+                $currencies = $merchantTransactions->pluck('currency')->unique()->values();
 
                 return [
                     'merchant_id' => $merchantId,
-                    'merchant_name' => $merchant->name,
-                    'shops' => $shopsSummary,
-                    'total_shops' => count($shopsSummary),
-                    'total_transactions' => collect($shopsSummary)->sum('transaction_count'),
-                    'total_amount' => collect($shopsSummary)->sum('total_amount')
+                    'merchant_name' => $merchant['name'],
+                    'transaction_count' => $totalTransactions,
+                    'total_amount' => $totalAmount,
+                    'currencies' => $currencies->toArray(),
+                    'currency_breakdown' => $merchantTransactions->groupBy('currency')
+                        ->map(function ($group) {
+                            return [
+                                'count' => $group->count(),
+                                'amount' => $group->sum('amount') / 100
+                            ];
+                        })
+                        ->toArray()
                 ];
             })
             ->filter()
@@ -917,9 +997,9 @@ class CesopReportService
                     'end_date' => $endDate->toDateString()
                 ],
                 'total_merchants' => $summary->count(),
-                'total_shops' => $summary->sum('total_shops'),
-                'total_transactions' => $summary->sum('total_transactions'),
-                'total_amount' => $summary->sum('total_amount')
+                'total_transactions' => $summary->sum('transaction_count'),
+                'total_amount' => $summary->sum('total_amount'),
+                'threshold' => $threshold
             ]
         ];
     }

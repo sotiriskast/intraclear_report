@@ -695,7 +695,7 @@ class CesopExcelGeneratorService
                     $transaction->trx_id . '-' .
                     $transaction->card_id . '-' .
                     $transaction->currency . '-' .
-                    substr(md5(uniqid()), 0, 8);//
+                    substr(md5(uniqid()), 0, 8);
                     //$transaction->transaction_id ?? $transaction->trx_id;
                 $isRefund = $transaction->is_refund ? 'True' : 'False';
                 $dateType = 'CESOP701'; // Execution Date by default
