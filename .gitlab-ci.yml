@@ -270,6 +270,7 @@ Mock test:
   $DPFX exec front bash -c "cd ./app && npm run build"
   $DPFX exec front bash -c "supervisorctl restart all"
   $DPFX exec front bash -c "ln -sf /var/www/app/storage/logs /var/lib/www-data/log/laravel/logs"
+- $DPFX exec front bash -c "supervisorctl restart all"
   printf "\n---\n\n"
 
 
@@ -293,8 +294,8 @@ Full deploy application on the Lives:
   - if: |+
       $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "staging" && 
       $CI_PIPELINE_SOURCE == "merge_request_event" &&
-      $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "testing" &&
-      $CI_MERGE_REQUEST_APPROVED
+      $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "testing"
+      # $CI_MERGE_REQUEST_APPROVED
     when: manual
     variables:
       ENVIRONMENT: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
@@ -302,8 +303,8 @@ Full deploy application on the Lives:
   - if: |+
       $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master" && 
       $CI_PIPELINE_SOURCE == "merge_request_event" &&
-      $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "staging" &&
-      $CI_MERGE_REQUEST_APPROVED
+      $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "staging"
+      # $CI_MERGE_REQUEST_APPROVED
     when: manual
     variables:
       ENVIRONMENT: prod
@@ -327,8 +328,8 @@ Full deploy application on UAT:
   - if: |+
       $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "dev" && 
       $CI_PIPELINE_SOURCE == "merge_request_event" &&
-      $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME =~ "/^issue-\d+$/is" &&
-      $CI_MERGE_REQUEST_APPROVED
+      $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME =~ "/^issue-\d+$/is"
+      # $CI_MERGE_REQUEST_APPROVED
     when: manual
     variables:
       ENVIRONMENT: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
@@ -343,8 +344,8 @@ Full deploy application on UAT:
   - if: |+
       $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "testing" && 
       $CI_PIPELINE_SOURCE == "merge_request_event" &&
-      $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev" &&
-      $CI_MERGE_REQUEST_APPROVED
+      $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev"
+      # $CI_MERGE_REQUEST_APPROVED
     variables:
       ENVIRONMENT: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
       BRANCH: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
@@ -365,8 +366,8 @@ Partial deploy application on the Lives:
   - if: |+
       $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "staging" && 
       $CI_PIPELINE_SOURCE == "merge_request_event" &&
-      $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "testing" &&
-      $CI_MERGE_REQUEST_APPROVED
+      $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "testing"
+      # $CI_MERGE_REQUEST_APPROVED
     when: always
     variables:
       ENVIRONMENT: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
@@ -374,8 +375,8 @@ Partial deploy application on the Lives:
   - if: |+
       $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master" && 
       $CI_PIPELINE_SOURCE == "merge_request_event" &&
-      $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "staging" &&
-      $CI_MERGE_REQUEST_APPROVED
+      $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "staging"
+      # $CI_MERGE_REQUEST_APPROVED
     when: always
     variables:
       ENVIRONMENT: prod
@@ -396,8 +397,8 @@ Partial deploy application on UAT:
   - if: |+
       $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "dev" && 
       $CI_PIPELINE_SOURCE == "merge_request_event" &&
-      $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME =~ "/^issue-\d+$/is" &&
-      $CI_MERGE_REQUEST_APPROVED
+      $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME =~ "/^issue-\d+$/is"
+      # $CI_MERGE_REQUEST_APPROVED
     when: always
     variables:
       ENVIRONMENT: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
@@ -412,8 +413,8 @@ Partial deploy application on UAT:
   - if: |+
       $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "testing" && 
       $CI_PIPELINE_SOURCE == "merge_request_event" &&
-      $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev" &&
-      $CI_MERGE_REQUEST_APPROVED
+      $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "dev"
+      # $CI_MERGE_REQUEST_APPROVED
     variables:
       ENVIRONMENT: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
       BRANCH: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
