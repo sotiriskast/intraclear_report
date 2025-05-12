@@ -30,7 +30,7 @@ class S3AssumeRoleServiceProvider extends ServiceProvider
             try {
                 // Create STS client once
                 $stsClient = new StsClient([
-                    'region' => env('AWS_DEFAULT_REGION'),
+                    'region' => env('AWS_DEFAULT_REGION','eu-west-1'),
                     'version' => 'latest',
                     'credentials' => [
                         'key' => env('AWS_ACCESS_KEY_ID'),
@@ -42,7 +42,7 @@ class S3AssumeRoleServiceProvider extends ServiceProvider
                     $credentials = $this->getTemporaryCredentials($stsClient);
 
                     $s3Client = new S3Client([
-                        'region' => env('AWS_DEFAULT_REGION'),
+                        'region' => env('AWS_DEFAULT_REGION','eu-west-1'),
                         'version' => 'latest',
                         'credentials' => [
                             'key' => $credentials['key'],
