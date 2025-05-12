@@ -564,3 +564,6 @@ If your XML fails validation:
 4. Confirm monetary amounts have exactly 2 decimal places
 5. Validate all ISO codes (country, currency) are from the approved lists
 6. Check for XML special characters that may need escaping
+
+
+Ignore domestic payments.

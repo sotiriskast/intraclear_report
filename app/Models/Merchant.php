@@ -26,6 +26,7 @@ class Merchant extends Model
         'mcc1',
         'mcc2',
         'mcc3',
+        'iban',
         'iso_country_code'
     ];
 

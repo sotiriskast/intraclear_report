@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Modules\Cesop\Http\Controllers\CesopController;
+use Modules\Cesop\Http\Controllers\CesopExcelController;
 use Modules\Cesop\Http\Controllers\CesopReportController;
 
 Route::middleware(['auth:web', 'verified'
@@ -19,5 +20,19 @@ Route::middleware(['auth:web', 'verified'
         Route::post('report/shops', [CesopReportController::class, 'getShops'])->name('cesop.report.getShops');
         Route::get('report/import-excel', [CesopReportController::class, 'importExcelIndex'])->name('cesop.report.import-excel.index');
         Route::post('report/import-excel', [CesopReportController::class, 'importExcel'])->name('cesop.report.import-excel.upload');
+
+        Route::group(['prefix' => 'csv'], function () {
+            Route::get('/', [CesopExcelController::class, 'index'])->name('cesop.csv.index');
+            Route::post('/generate', [CesopExcelController::class, 'generateCsv'])->name('cesop.csv.generate');
+            Route::post('/upload', [CesopExcelController::class, 'uploadExcel'])->name('cesop.csv.upload');
+
+            // AJAX route for shop selection
+            Route::get('/shops', [CesopExcelController::class, 'getShops'])->name('cesop.csv.shops');
+
+            // Reports
+            Route::get('/reports', [CesopExcelController::class, 'reports'])->name('cesop.reports.index');
+            Route::get('/reports/download/{jobId}', [CesopExcelController::class, 'downloadReport'])->name('cesop.reports.download');
+
+        });
     });
 });

@@ -18,6 +18,7 @@ return new class extends Migration {
             $table->string('street')->nullable()->comment('Register Street of the merchant');
             $table->string('postcode')->nullable()->comment('Register postcode of the merchant');
             $table->string('vat')->nullable()->comment('Register VAT/TIC of the merchant');
+            $table->string('iban')->nullable()->comment('Iban of the merchant');
             $table->string('mcc1')->nullable()->comment('Register MCC1 of the merchant');
             $table->string('mcc2')->nullable()->comment('Register MCC2 of the merchant');
             $table->string('mcc3')->nullable()->comment('Register MCC3 of the merchant');

@@ -248,7 +248,6 @@ Mock test:
   $DPFX cp $LARAVELL_SCHEDULER_CONF front:/etc/supervisor/conf.d/laravel-scheduler.conf
   $DPFX cp $LARAVEL_REDIS_WORKER_CONF front:/etc/supervisor/conf.d/laravel-redis-worker.conf
   $DPFX cp $NGINX_CONF front:/etc/nginx/nginx.conf
-  $DPFX cp $NGINX_DEFAULT_SITE front:/etc/nginx/sites-enabled/default
   $DPFX exec front bash -c "touch /etc/nginx/nginx.empty"
   $DPFX exec front bash -c "cd ~ && nvm install $NODE_VERSION"
   $DPFX exec front bash -c "git clone https://oauth2:$GIT_TOKEN@$GIT_PROJECT_URL"
@@ -268,7 +267,9 @@ Mock test:
   fi
   $DPFX exec front bash -c "cd ./app && npm install"
   $DPFX exec front bash -c "cd ./app && npm run build"
+  $DPFX exec front bash -c "supervisorctl restart all"
   $DPFX exec front bash -c "ln -sf /var/www/app/storage/logs /var/lib/www-data/log/laravel/logs"
+- $DPFX exec front bash -c "supervisorctl restart all"
   printf "\n---\n\n"
 
 
@@ -276,12 +277,13 @@ Mock test:
 - printf "\n---\nPartial deploy application on the \"$ENVIRONMENT\" environment.\n---\n"
 - $DPFX exec front bash -c "cd ./app && git checkout $BRANCH"
 - $DPFX exec front bash -c "cd ./app && git stash && git pull"
+- $DPFX exec front bash -c "supervisorctl restart all"
 - printf "\n---\n\n"
 
 
 
 
-Full eploy application on the Lives:
+Full deploy application on the Lives:
   stage: deploy
   tags:
   - cds-rep-app-deploy
@@ -349,7 +351,7 @@ Full deploy application on UAT:
 
 
 
-partial eploy application on the Lives:
+Partial deploy application on the Lives:
   stage: deploy
   tags:
   - cds-rep-app-deploy
@@ -424,7 +426,7 @@ Clear cache on the Lives:
   tags:
   - cds-rep-app-deploy
   dependencies:
-  - Full eploy application on the Lives
+  - Full deploy application on the Lives
   rules:
   - if: |+
       $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "staging" && 
