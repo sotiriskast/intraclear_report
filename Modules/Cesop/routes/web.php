@@ -26,13 +26,6 @@ Route::middleware(['auth:web', 'verified'
             Route::post('/generate', [CesopExcelController::class, 'generateCsv'])->name('cesop.csv.generate');
             Route::post('/upload', [CesopExcelController::class, 'uploadExcel'])->name('cesop.csv.upload');
 
-            // AJAX route for shop selection
-            Route::get('/shops', [CesopExcelController::class, 'getShops'])->name('cesop.csv.shops');
-
-            // Reports
-            Route::get('/reports', [CesopExcelController::class, 'reports'])->name('cesop.reports.index');
-            Route::get('/reports/download/{jobId}', [CesopExcelController::class, 'downloadReport'])->name('cesop.reports.download');
-
         });
     });
 });

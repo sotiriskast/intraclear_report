@@ -146,6 +146,7 @@ class CesopExcelGenerateCommand extends Command
         $filePath = $result['data']['file'];
 
         $this->info("Generated Excel file: " . basename($filePath));
+        $this->info("Generated Excel file full Path: " . $filePath);
         $this->info("Included {$stats['merchant_count']} merchants with {$stats['transaction_count']} transactions");
         $this->info("Total transaction amount: " . number_format($stats['total_amount'], 2));
     }
