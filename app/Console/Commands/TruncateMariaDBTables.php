@@ -49,17 +49,9 @@ class TruncateMariaDBTables extends Command
         $force = $this->option('force');
 
         // Get all tables based on database type
-        $tables = [];
         $allTables = [];
 
-        if ($connection === 'mariadb' || $connection === 'mysql' || $connection === 'pgsql') {
-            // MariaDB/MySQL approach
-            $tables = DB::connection($connection)->select('SHOW TABLES');
-            $tableKey = 'Tables_in_' . DB::connection($connection)->getDatabaseName();
-            $allTables = array_map(function($table) use ($tableKey) {
-                return $table->$tableKey;
-            }, $tables);
-        } else {
+        if ($connection === 'pgsql') {
             // PostgreSQL approach
             $tables = DB::connection($connection)->select("
                 SELECT table_name
@@ -69,6 +61,14 @@ class TruncateMariaDBTables extends Command
             $allTables = array_map(function($table) {
                 return $table->table_name;
             }, $tables);
+        } else {
+            // MariaDB/MySQL approach
+            $tables = DB::connection($connection)->select('SHOW TABLES');
+            $databaseName = DB::connection($connection)->getDatabaseName();
+            $tableKey = 'Tables_in_' . $databaseName;
+            $allTables = array_map(function($table) use ($tableKey) {
+                return $table->$tableKey;
+            }, $tables);
         }
 
         // Filter out protected tables
@@ -77,7 +77,7 @@ class TruncateMariaDBTables extends Command
                 // PostgreSQL is case-sensitive
                 return !in_array($table, $this->protectedTables);
             } else {
-                // MariaDB is case-insensitive
+                // MariaDB/MySQL is case-insensitive
                 return !in_array(strtolower($table), array_map('strtolower', $this->protectedTables));
             }
         });
@@ -102,10 +102,12 @@ class TruncateMariaDBTables extends Command
         }
 
         // Disable foreign key checks based on database type
-        if ($connection === 'mariadb' || $connection === 'mysql' || $connection === 'pgsql') {
-            DB::connection($connection)->statement('SET FOREIGN_KEY_CHECKS=0');
-        } else {
+        if ($connection === 'pgsql') {
+            // PostgreSQL: Disable triggers (which include foreign key constraints)
             DB::connection($connection)->statement('SET session_replication_role = \'replica\'');
+        } else {
+            // MySQL/MariaDB
+            DB::connection($connection)->statement('SET FOREIGN_KEY_CHECKS=0');
         }
 
         $count = 0;
@@ -115,7 +117,13 @@ class TruncateMariaDBTables extends Command
 
         foreach ($tablesToTruncate as $table) {
             try {
-                DB::connection($connection)->table($table)->truncate();
+                if ($connection === 'pgsql') {
+                    // PostgreSQL: Use RESTART IDENTITY to reset auto-increment sequences
+                    DB::connection($connection)->statement("TRUNCATE TABLE \"{$table}\" RESTART IDENTITY CASCADE");
+                } else {
+                    // MySQL/MariaDB
+                    DB::connection($connection)->table($table)->truncate();
+                }
                 $count++;
             } catch (\Exception $e) {
                 $errors[$table] = $e->getMessage();
@@ -126,10 +134,12 @@ class TruncateMariaDBTables extends Command
         $this->output->progressFinish();
 
         // Re-enable foreign key checks based on database type
-        if ($connection === 'mariadb' || $connection === 'mysql' || $connection === 'pgsql') {
-            DB::connection($connection)->statement('SET FOREIGN_KEY_CHECKS=1');
-        } else {
+        if ($connection === 'pgsql') {
+            // PostgreSQL: Re-enable triggers
             DB::connection($connection)->statement('SET session_replication_role = \'origin\'');
+        } else {
+            // MySQL/MariaDB
+            DB::connection($connection)->statement('SET FOREIGN_KEY_CHECKS=1');
         }
 
         $this->info("Successfully truncated {$count} out of " . count($tablesToTruncate) . " tables.");
