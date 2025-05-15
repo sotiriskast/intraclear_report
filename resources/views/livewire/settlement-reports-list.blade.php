@@ -17,11 +17,11 @@
                    class="inline-flex items-center px-4 py-2 bg-gray-600 border border-transparent rounded-md font-semibold text-white hover:bg-gray-700">
                     View Archives
                 </a>
-                <a href="{{ route('settlements.generate-form') }}"
-                   wire:navigate
-                   class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-md font-semibold text-white hover:bg-blue-700">
-                    Generate New Report
-                </a>
+{{--                <a href="{{ route('settlements.generate-form') }}"--}}
+{{--                   wire:navigate--}}
+{{--                   class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-md font-semibold text-white hover:bg-blue-700">--}}
+{{--                    Generate New Report--}}
+{{--                </a>--}}
             </div>
             <!-- Search -->
             <div class="bg-white shadow-sm w-full max-w-md ml-auto my-4">
