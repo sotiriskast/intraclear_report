@@ -57,7 +57,7 @@ class ExcelExportService
      *
      * @throws \Exception If report generation fails
      */
-    public function generateReport(int $merchantId, array $settlementData, array $dateRange)
+    public function generateReport(int $merchantId, array $settlementData, array $dateRange, ?int $shopId = null): string
     {
         try {
             $this->spreadsheet = new Spreadsheet;
@@ -69,11 +69,12 @@ class ExcelExportService
                 }
             }
 
-            return $this->saveReport($merchantId, $dateRange);
+            return $this->saveReport($merchantId, $dateRange, $shopId);
 
         } catch (\Exception $e) {
             $this->logger->log('error', 'Error generating Excel report: ' . $e->getMessage(), [
                 'merchant_id' => $merchantId,
+                'shop_id' => $shopId,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
@@ -81,7 +82,6 @@ class ExcelExportService
             throw $e;
         }
     }
-
     /**
      * Create a worksheet for a specific shop and currency combination
      *
@@ -89,7 +89,7 @@ class ExcelExportService
      * @param array $currencyData Transaction and fee data for specific currency
      * @param array $dateRange Settlement period date range
      */
-    protected function createShopCurrencySheet($shopData, $currencyData, $dateRange)
+    protected function createShopCurrencySheet($shopData, $currencyData, $dateRange): void
     {
         $sheetName = $this->createSheetName($shopData, $currencyData['currency']);
         $this->currentSheet = $this->spreadsheet->createSheet();
@@ -426,7 +426,7 @@ class ExcelExportService
      *
      * @throws \Exception If saving fails
      */
-    protected function saveReport(int $merchantId, array $dateRange): string
+    protected function saveReport(int $merchantId, array $dateRange, ?int $shopId = null): string
     {
         try {
             $merchant = DB::connection('pgsql')
@@ -439,7 +439,7 @@ class ExcelExportService
             }
 
             // Generate the storage path
-            $relativePath = $this->generateReportPath($merchant, $dateRange);
+            $relativePath = $this->generateReportPath($merchant, $dateRange, $shopId);
 
             // Save the Excel file directly to memory stream
             $writer = new Xlsx($this->spreadsheet);
@@ -475,16 +475,19 @@ class ExcelExportService
     /**
      * Generate standardized path for reports
      */
-    private function generateReportPath($merchant, array $dateRange): string
+    private function generateReportPath($merchant, array $dateRange, ?int $shopId = null): string
     {
         $dateFolder = Carbon::now()->format('Y-m-d');
         $safeMerchantName = Str::slug($merchant->name ?? 'merchant');
 
+        $shopPart = $shopId ? "_shop_{$shopId}" : '';
+
         return sprintf(
-            'reports/%s/%s_%d/settlement_report_%s_to_%s.xlsx',
+            'reports/%s/%s_%d/settlement_report%s_%s_to_%s.xlsx',
             $dateFolder,
             $safeMerchantName,
             $merchant->account_id,
+            $shopPart,
             Carbon::parse($dateRange['start'])->format('Y-m-d'),
             Carbon::parse($dateRange['end'])->format('Y-m-d')
         );

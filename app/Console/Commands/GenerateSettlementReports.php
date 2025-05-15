@@ -84,21 +84,20 @@ class GenerateSettlementReports extends Command
             // Get merchants to process with both internal ID and account_id
             $merchants = $this->getMerchants();
             $generatedFiles = [];
+// In GenerateSettlementReports.php - modify the handle() method
             foreach ($merchants as $merchant) {
                 $this->info("Processing merchant ID: {$merchant->account_id}");
 
-                // Get merchant's shops and their transactions
                 $shopData = $this->getMerchantShopData($merchant->account_id, $dateRange);
 
                 if (empty($shopData)) {
                     $this->warn("No data found for merchant ID: {$merchant->account_id}");
-
                     continue;
                 }
 
-                $settlementData = ['data' => []];
-
                 foreach ($shopData as $shop) {
+                    $settlementData = ['data' => []]; // Reset for each shop
+
                     $currencies = $this->getShopCurrencies($merchant->account_id, $shop['shop_id'], $dateRange);
                     foreach ($currencies as $currency) {
                         $settlementInfo = $this->settlementService->generateSettlement(
@@ -115,19 +114,20 @@ class GenerateSettlementReports extends Command
                             ],
                         ];
                     }
-                }
 
-                if (!empty($settlementData['data'])) {
-                    $filePath = $this->excelService->generateReport(
-                        $merchant->account_id,
-                        $settlementData,
-                        $dateRange
-                    );
+                    // Generate one file per shop
+                    if (!empty($settlementData['data'])) {
+                        $filePath = $this->excelService->generateReport(
+                            $merchant->account_id,
+                            $settlementData,
+                            $dateRange,
+                            $shop['shop_id'] // Pass shop ID to make filename unique
+                        );
 
-                    $this->info("Report generated: {$filePath}");
-                    $generatedFiles[] = $filePath;
-                    // Store reference using internal merchant ID
-                    $this->storeReportReference($merchant->id, $filePath, $dateRange);
+                        $this->info("Report generated for shop {$shop['shop_id']}: {$filePath}");
+                        $generatedFiles[] = $filePath;
+                        $this->storeReportReference($merchant->id, $filePath, $dateRange);
+                    }
                 }
             }
             // Always create ZIP if files were generated
