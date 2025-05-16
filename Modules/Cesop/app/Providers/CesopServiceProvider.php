@@ -5,12 +5,12 @@ namespace Modules\Cesop\Providers;
 use App\Services\DynamicLogger;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\ServiceProvider;
-use Modules\Cesop\Console\CesopReportCommand;
 use Modules\Cesop\Console\EncryptCesopXml;
 use Modules\Cesop\Console\SaveTaxisNetKey;
 use Modules\Cesop\Console\CesopExcelGenerateCommand;
 use Modules\Cesop\Services\CesopExcelGeneratorService;
-use Modules\Cesop\Services\CesopReportService;
+use Modules\Cesop\Console\CesopXmlGeneratorCommand;
+use Modules\Cesop\Services\CesopXmlGeneratorService;
 use Modules\Cesop\Services\CesopXmlValidator;
 use Modules\Cesop\Services\PgpEncryptionService;
 use Nwidart\Modules\Traits\PathNamespace;
@@ -49,8 +49,8 @@ class CesopServiceProvider extends ServiceProvider
         $this->app->singleton(CesopXmlValidator::class, function ($app) {
             return new CesopXmlValidator();
         });
-        $this->app->singleton(CesopReportService::class, function ($app) {
-            return new CesopReportService();
+        $this->app->singleton(CesopXmlGeneratorService::class, function ($app) {
+            return new CesopXmlGeneratorService();
         });
         $this->app->singleton(CesopExcelGeneratorService::class, function ($app) {
             return new CesopExcelGeneratorService($app->make(DynamicLogger::class));
@@ -67,7 +67,7 @@ class CesopServiceProvider extends ServiceProvider
         $this->commands([
             EncryptCesopXml::class,
             SaveTaxisNetKey::class,
-            CesopReportCommand::class,
+            CesopXmlGeneratorCommand::class,
             CesopExcelGenerateCommand::class,
         ]);
     }

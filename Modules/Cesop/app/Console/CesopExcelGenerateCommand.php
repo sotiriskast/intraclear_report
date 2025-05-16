@@ -3,7 +3,6 @@
 namespace Modules\Cesop\Console;
 
 use Illuminate\Console\Command;
-use Modules\Cesop\Services\CesopCsvGeneratorService;
 use Modules\Cesop\Services\CesopExcelGeneratorService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Storage;
@@ -17,7 +16,7 @@ class CesopExcelGenerateCommand extends Command
      *
      * @var string
      */
-    protected $signature = 'cesop:generate-report
+    protected $signature = 'cesop:generate-excel-report
                             {--quarter= : Reporting quarter (1-4)}
                             {--year= : Reporting year}
                             {--merchants=* : Specific merchant IDs to include}
@@ -25,7 +24,6 @@ class CesopExcelGenerateCommand extends Command
                             {--output= : Output directory for files}
                             {--threshold=25 : Minimum number of transactions to report}
                             {--psp-data= : Path to JSON file with PSP data}
-                            {--format=excel : Output format (csv or excel)}
                             {--no-progress : Disable progress bar}';
 
     /**
@@ -51,14 +49,8 @@ class CesopExcelGenerateCommand extends Command
         $shopIds = $this->option('shops');
         $outputPath = $this->option('output');
         $threshold = $this->option('threshold') ?: 25;
-        $format = strtolower($this->option('format')) ?: 'excel';
         $showProgress = !$this->option('no-progress');
 
-        // Validate format option
-        if (!in_array($format, ['csv', 'excel'])) {
-            $this->error("Invalid format option. Must be either 'csv' or 'excel'.");
-            return 1;
-        }
 
         // Determine output directory
         if (empty($outputPath)) {
@@ -81,18 +73,14 @@ class CesopExcelGenerateCommand extends Command
         $startDate = Carbon::createFromDate($year, $startMonth, 1)->startOfDay();
         $endDate = (clone $startDate)->addMonths(3)->subDay()->endOfDay();
 
-        $this->info("Generating CESOP $format files for Q{$quarter} {$year}");
+        $this->info("Generating CESOP Excel files for Q{$quarter} {$year}");
         $this->info("Date range: {$startDate->toDateString()} to {$endDate->toDateString()}");
         $this->info("Transaction threshold: {$threshold}");
         $this->newLine();
 
-        if ($format === 'excel') {
-            // Generate Excel file
-            $this->generateExcelReport($quarter, $year, $threshold, $pspData, $merchantIds, $shopIds, $outputPath, $showProgress);
-        } else {
-            // Generate CSV files
-            $this->generateCsvReport($quarter, $year, $threshold, $pspData, $merchantIds, $shopIds, $outputPath, $showProgress);
-        }
+        $this->generateExcelReport($quarter, $year, $threshold, $pspData, $merchantIds, $shopIds, $outputPath, $showProgress);
+
+
 
         return 0;
     }
