@@ -480,16 +480,27 @@ class ExcelExportService
         $dateFolder = Carbon::now()->format('Y-m-d');
         $safeMerchantName = Str::slug($merchant->name ?? 'merchant');
 
-        $shopPart = $shopId ? "_shop_{$shopId}" : '';
-
-        return sprintf(
-            'reports/%s/%s_%d/settlement_report%s_%s_to_%s.xlsx',
-            $dateFolder,
-            $safeMerchantName,
-            $merchant->account_id,
-            $shopPart,
-            Carbon::parse($dateRange['start'])->format('Y-m-d'),
-            Carbon::parse($dateRange['end'])->format('Y-m-d')
-        );
+        if ($shopId) {
+            // Create shop directory under merchant directory
+            return sprintf(
+                'reports/%s/%s_%d/shop_%d/settlement_report_%s_to_%s.xlsx',
+                $dateFolder,
+                $safeMerchantName,
+                $merchant->account_id,
+                $shopId,
+                Carbon::parse($dateRange['start'])->format('Y-m-d'),
+                Carbon::parse($dateRange['end'])->format('Y-m-d')
+            );
+        } else {
+            // Fallback for merchant-level reports (if needed)
+            return sprintf(
+                'reports/%s/%s_%d/settlement_report_%s_to_%s.xlsx',
+                $dateFolder,
+                $safeMerchantName,
+                $merchant->account_id,
+                Carbon::parse($dateRange['start'])->format('Y-m-d'),
+                Carbon::parse($dateRange['end'])->format('Y-m-d')
+            );
+        }
     }
 }

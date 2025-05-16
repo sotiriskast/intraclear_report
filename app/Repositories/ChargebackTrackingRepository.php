@@ -19,21 +19,20 @@ use Illuminate\Support\Facades\DB;
  */
 readonly class ChargebackTrackingRepository implements ChargebackTrackingRepositoryInterface
 {
-    public function __construct(
-        private DynamicLogger $logger
-    ) {}
+    public function __construct(private DynamicLogger $logger) {}
 
     /**
-     * Records a new chargeback transaction
+     * Records a new chargeback transaction with shop tracking
      *
      * @throws \Exception If tracking creation fails
      */
-    public function trackNewChargeback(int $merchantId, ChargebackData $data): void
+    public function trackNewChargeback(int $merchantId, int $shopId, ChargebackData $data): void
     {
         try {
-            DB::transaction(function () use ($merchantId, $data) {
+            DB::transaction(function () use ($merchantId, $shopId, $data) {
                 ChargebackTracking::create([
                     'merchant_id' => $merchantId,
+                    'shop_id' => $shopId,
                     'transaction_id' => $data->transactionId,
                     'amount' => $data->amount,
                     'currency' => $data->currency,
@@ -47,11 +46,13 @@ readonly class ChargebackTrackingRepository implements ChargebackTrackingReposit
 
             $this->logger->log('info', 'New chargeback tracked successfully', [
                 'merchant_id' => $merchantId,
+                'shop_id' => $shopId,
                 'transaction_id' => $data->transactionId,
             ]);
         } catch (\Exception $e) {
             $this->logger->log('error', 'Failed to track chargeback', [
                 'merchant_id' => $merchantId,
+                'shop_id' => $shopId,
                 'transaction_id' => $data->transactionId,
                 'error' => $e->getMessage(),
             ]);
@@ -78,6 +79,7 @@ readonly class ChargebackTrackingRepository implements ChargebackTrackingReposit
 
                 $this->logger->log('info', 'Chargeback status updated', [
                     'transaction_id' => $transactionId,
+                    'shop_id' => $tracking->shop_id,
                     'new_status' => $newStatus->value,
                 ]);
             }
@@ -85,7 +87,7 @@ readonly class ChargebackTrackingRepository implements ChargebackTrackingReposit
     }
 
     /**
-     * Retrieves pending settlements for processing
+     * Retrieves pending settlements for processing (backward compatibility)
      *
      * @return array<int, array>
      */
@@ -100,11 +102,25 @@ readonly class ChargebackTrackingRepository implements ChargebackTrackingReposit
     }
 
     /**
+     * Retrieves pending settlements for a specific shop
+     *
+     * @return array<int, array>
+     */
+    public function getShopPendingSettlements(int $shopId): array
+    {
+        return ChargebackTracking::query()
+            ->where('shop_id', $shopId)
+            ->where('settled', false)
+            ->whereNull('status_changed_date')
+            ->get()
+            ->toArray();
+    }
+
+    /**
      * Get status updates for tracked chargebacks
      */
     public function getChargebackByTransactionId(int $transaction_id): \stdClass
     {
-
         return DB::connection('payment_gateway_mysql')
             ->table('transactions')
             ->select([
@@ -124,7 +140,7 @@ readonly class ChargebackTrackingRepository implements ChargebackTrackingReposit
         $settledDate ??= Carbon::now();
 
         DB::transaction(function () use ($chargebackIds, $settledDate) {
-            // First, check if the keys exist before using them
+            // Check if the keys exist before using them
             if (isset($chargebackIds['approved']) && !empty($chargebackIds['approved'])) {
                 ChargebackTracking::whereIn('id', $chargebackIds['approved'])
                     ->update([
@@ -158,17 +174,28 @@ readonly class ChargebackTrackingRepository implements ChargebackTrackingReposit
                     'status_changed_date' => Carbon::now(),
                 ]);
             }
-
         });
     }
 
     /**
-     * Retrieves chargebacks within a specified date range
+     * Retrieves chargebacks within a specified date range for a merchant
      */
     public function getChargebacksByDateRange(int $merchantId, CarbonPeriod $dateRange): array
     {
         return ChargebackTracking::query()
             ->where('merchant_id', $merchantId)
+            ->whereBetween('processing_date', [$dateRange->start, $dateRange->end])
+            ->get()
+            ->toArray();
+    }
+
+    /**
+     * Retrieves chargebacks within a specified date range for a shop
+     */
+    public function getShopChargebacksByDateRange(int $shopId, CarbonPeriod $dateRange): array
+    {
+        return ChargebackTracking::query()
+            ->where('shop_id', $shopId)
             ->whereBetween('processing_date', [$dateRange->start, $dateRange->end])
             ->get()
             ->toArray();

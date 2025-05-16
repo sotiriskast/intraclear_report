@@ -469,7 +469,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
     {
         // Create and process chargeback data
         $chargebackData = ChargebackData::fromTransaction($transaction, $rate);
-        $this->chargebackProcessor->processChargeback($transaction->account_id, $chargebackData);
+        $this->chargebackProcessor->processChargeback($transaction->account_id, $transaction->shop_id, $chargebackData);
 
         // Update appropriate totals based on status
         if ($transactionStatus === TransactionStatusEnum::PROCESSING->value) {

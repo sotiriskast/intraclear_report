@@ -93,9 +93,9 @@ readonly class SettlementService
                 $dateRange
             );
 
-            // Process chargeback settlements
-            $chargebackSettlements = $this->chargebackSettlement->processSettlementsChargeback(
-                $merchantId,
+// Process chargeback settlements for this shop
+            $chargebackSettlements = $this->chargebackSettlement->processShopSettlementsChargeback(
+                $internalShopId,
                 $dateRange
             );
 

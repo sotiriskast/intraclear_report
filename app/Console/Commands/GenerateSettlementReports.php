@@ -146,26 +146,26 @@ class GenerateSettlementReports extends Command
                     return;
                 }
                 $this->info('Sending emails to: ' . $recipients->join(', '));
-                $this->logger->log('info', "Sending emails to" . $recipients->join(', '));
-                // Send email to each recipient
-                $recipients->each(function ($recipient) use ($zipPath, $dateRange, $generatedFiles) {
-                    try {
-                        Mail::to($recipient)->send(new SettlementReportGenerated(
-                            zipPath: $zipPath,
-                            dateRange: $dateRange,
-                            fileCount: count($generatedFiles)
-                        ));
-
-                        $this->info("Email sent successfully to: {$recipient}");
-                    } catch (\Throwable $e) {
-
-                        $this->logger->log('error', "Settlement report email failed", [
-                            'recipient' => $recipient,
-                            'error' => $e->getMessage(),
-                            'zipPath' => $zipPath
-                        ]);
-                    }
-                });
+//                $this->logger->log('info', "Sending emails to" . $recipients->join(', '));
+//                // Send email to each recipient
+//                $recipients->each(function ($recipient) use ($zipPath, $dateRange, $generatedFiles) {
+//                    try {
+//                        Mail::to($recipient)->send(new SettlementReportGenerated(
+//                            zipPath: $zipPath,
+//                            dateRange: $dateRange,
+//                            fileCount: count($generatedFiles)
+//                        ));
+//
+//                        $this->info("Email sent successfully to: {$recipient}");
+//                    } catch (\Throwable $e) {
+//
+//                        $this->logger->log('error', "Settlement report email failed", [
+//                            'recipient' => $recipient,
+//                            'error' => $e->getMessage(),
+//                            'zipPath' => $zipPath
+//                        ]);
+//                    }
+//                });
             }
 
             $this->info('All reports generated successfully');

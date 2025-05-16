@@ -16,7 +16,7 @@ interface ChargebackTrackingRepositoryInterface
     /**
      * Records a new chargeback in the tracking system
      */
-    public function trackNewChargeback(int $merchantId, ChargebackData $data): void;
+    public function trackNewChargeback(int $merchantId, int $shopId, ChargebackData $data): void;
 
     /**
      * Updates the status of an existing chargeback
@@ -29,6 +29,13 @@ interface ChargebackTrackingRepositoryInterface
      * @return array<int, array> Array of pending settlements
      */
     public function getPendingSettlements(int $merchantId): array;
+
+    /**
+     * Retrieves all pending settlements for a specific shop
+     *
+     * @return array<int, array> Array of pending settlements
+     */
+    public function getShopPendingSettlements(int $shopId): array;
 
     public function getChargebackByTransactionId(int $transaction_id): \stdClass;
 
@@ -43,6 +50,11 @@ interface ChargebackTrackingRepositoryInterface
      * Gets all chargebacks within a specific date range
      */
     public function getChargebacksByDateRange(int $merchantId, CarbonPeriod $dateRange): array;
+
+    /**
+     * Gets all chargebacks for a shop within a specific date range
+     */
+    public function getShopChargebacksByDateRange(int $shopId, CarbonPeriod $dateRange): array;
 
     public function findExistingChargeback(string $transactionId): ?array;
 }

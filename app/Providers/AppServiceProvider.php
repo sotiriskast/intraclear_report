@@ -25,14 +25,10 @@ use App\Services\Settlement\Chargeback\ChargebackProcessor;
 use App\Services\Settlement\Chargeback\ChargebackSettlementProcessor;
 use App\Services\Settlement\Chargeback\Interfaces\ChargebackProcessorInterface;
 use App\Services\Settlement\Chargeback\Interfaces\ChargebackSettlementInterface;
-use App\Services\Settlement\Fee\CustomFeeHandler;
 use App\Services\Settlement\Fee\FeeFrequencyHandler;
-use App\Services\Settlement\Fee\FeeService;
 use App\Services\Settlement\Fee\ShopCustomFeeHandler;
 use App\Services\Settlement\Fee\ShopFeeService;
 use App\Services\Settlement\Fee\ShopStandardFeeHandler;
-use App\Services\Settlement\Fee\StandardFeeHandler;
-use App\Services\Settlement\Reserve\RollingReserveHandler;
 use App\Services\Settlement\Reserve\ShopRollingReserveHandler;
 use App\Services\Settlement\SchemeRateValidationService;
 use App\Services\Settlement\SettlementService;
@@ -98,16 +94,6 @@ class AppServiceProvider extends ServiceProvider
             FeeFrequencyHandler::class
         );
 
-        $this->app->bind(
-            \App\Services\Settlement\Fee\interfaces\CustomFeeHandlerInterface::class,
-            CustomFeeHandler::class
-        );
-
-        $this->app->bind(
-            \App\Services\Settlement\Fee\interfaces\StandardFeeHandlerInterface::class,
-            StandardFeeHandler::class
-        );
-
         // Register shop fee interfaces
         $this->app->bind(
             \App\Services\Settlement\Fee\interfaces\ShopCustomFeeHandlerInterface::class,
@@ -120,15 +106,32 @@ class AppServiceProvider extends ServiceProvider
         );
 
         $this->app->bind(
+            ChargebackSettlementInterface::class,
+            ChargebackSettlementProcessor::class
+        );
+        $this->app->bind(
             ChargebackProcessorInterface::class,
-            ChargebackProcessor::class
+            function ($app) {
+                return new ChargebackProcessor(
+                    $app->make(ChargebackTrackingRepositoryInterface::class),
+                    $app->make(MerchantRepository::class),
+                    $app->make(ShopRepository::class),
+                    $app->make(DynamicLogger::class)
+                );
+            }
         );
 
         $this->app->bind(
             ChargebackSettlementInterface::class,
-            ChargebackSettlementProcessor::class
+            function ($app) {
+                return new ChargebackSettlementProcessor(
+                    $app->make(ChargebackTrackingRepositoryInterface::class),
+                    $app->make(MerchantRepository::class),
+                    $app->make(ShopRepository::class),
+                    $app->make(DynamicLogger::class)
+                );
+            }
         );
-
         /**
          * ------------------------------------------------
          * Singleton Services
@@ -191,18 +194,6 @@ class AppServiceProvider extends ServiceProvider
          * FeeService Binding (Legacy - Merchant Level)
          * ------------------------------------------------
          */
-        $this->app->singleton(FeeService::class, function ($app) {
-            return new FeeService(
-                $app->make(FeeRepository::class),
-                $app->make(DynamicLogger::class),
-                $app->make(FeeFrequencyHandler::class),
-                $app->make(CustomFeeHandler::class),
-                $app->make(StandardFeeHandler::class),
-                $app->make(MerchantRepository::class),
-                $app->make(MerchantSettingRepository::class),
-            );
-        });
-
         $this->app->singleton(ApiExceptionHandler::class, function ($app) {
             return new ApiExceptionHandler($app->make(DynamicLogger::class));
         });
