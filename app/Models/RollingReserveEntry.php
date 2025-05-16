@@ -16,6 +16,7 @@ class RollingReserveEntry extends Model
 
     protected $fillable = [
         'merchant_id',
+        'shop_id',
         'original_amount',
         'original_currency',
         'reserve_amount_eur',

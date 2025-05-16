@@ -103,7 +103,8 @@ class GenerateSettlementReports extends Command
                         $settlementInfo = $this->settlementService->generateSettlement(
                             $merchant->account_id,
                             $dateRange,
-                            $currency
+                            $currency,
+                            $shop['shop_id'] // Pass shop ID to settlement service
                         );
                         $settlementData['data'][] = [
                             'account_id' => $merchant->account_id,

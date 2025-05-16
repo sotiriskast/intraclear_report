@@ -98,7 +98,74 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
             throw $e;
         }
     }
+    /**
+     * Retrieves merchant transactions for a specific shop
+     *
+     * @param int $merchantId The unique identifier of the merchant
+     * @param int $shopId The shop ID to filter transactions
+     * @param array $dateRange Associative array with 'start' and 'end' date keys
+     * @param string|null $currency Optional currency filter
+     * @return Collection A collection of transaction records for the shop
+     */
+    public function getMerchantShopTransactions(int $merchantId, int $shopId, array $dateRange, ?string $currency = null): Collection
+    {
+        try {
+            // Build and execute the query with shop filter
+            $query = $this->buildTransactionQuery($merchantId, $dateRange, $currency);
+            $query->where('transactions.shop_id', $shopId);
+            $results = $query->get();
 
+            $this->logger->log('info', 'Found shop transactions', [
+                'merchant_id' => $merchantId,
+                'shop_id' => $shopId,
+                'count' => $results->count(),
+                'date_range' => $dateRange
+            ]);
+
+            return $results;
+        } catch (Exception $e) {
+            $this->logger->log('error', 'Failed to retrieve shop transactions', [
+                'merchant_id' => $merchantId,
+                'shop_id' => $shopId,
+                'date_range' => $dateRange,
+                'currency' => $currency,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Calculate transaction totals for a specific shop
+     *
+     * @param mixed $transactions Collection of transaction records
+     * @param array $exchangeRates Lookup of exchange rates by currency and date
+     * @param int $merchantId The merchant ID
+     * @param int $shopId The shop ID
+     * @return array Associative array of transaction totals per currency
+     */
+    public function calculateShopTransactionTotals(mixed $transactions, array $exchangeRates, int $merchantId, int $shopId): array
+    {
+        try {
+            // Use the same calculation logic but include shop context in logging
+            $totals = $this->calculateTransactionTotals($transactions, $exchangeRates, $merchantId);
+
+            $this->logger->log('info', 'Calculated shop transaction totals', [
+                'merchant_id' => $merchantId,
+                'shop_id' => $shopId,
+                'currencies' => array_keys($totals),
+            ]);
+
+            return $totals;
+        } catch (Exception $e) {
+            $this->logger->log('error', 'Failed to calculate shop transaction totals', [
+                'merchant_id' => $merchantId,
+                'shop_id' => $shopId,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+    }
     /**
      * Get tracked but unresolved chargebacks for a merchant
      *
@@ -133,7 +200,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
                 'transactions.shop_id',
                 'transactions.customer_id',
                 'transactions.added',
-                DB::raw(DB::connection('payment_gateway_mysql')->getDriverName() === 'pgsql' 
+                DB::raw(DB::connection('payment_gateway_mysql')->getDriverName() === 'pgsql'
                     ? 'CAST(transactions.bank_amount AS NUMERIC(12,2)) as amount'
                     : 'CAST(transactions.bank_amount AS DECIMAL(12,2)) as amount'),
                 'transactions.bank_currency as currency',
@@ -141,7 +208,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
                 'transactions.transaction_status',
                 'shop.owner_name as shop_owner_name',
                 'customer_card.card_type',
-                DB::raw(DB::connection('payment_gateway_mysql')->getDriverName() === 'pgsql' 
+                DB::raw(DB::connection('payment_gateway_mysql')->getDriverName() === 'pgsql'
                     ? 'transactions.added::date as transaction_date'
                     : 'DATE(transactions.added) as transaction_date'),
             ])
@@ -717,7 +784,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
                     'brand',
                     'buy',
                     'sell',
-                    DB::raw(DB::connection('payment_gateway_mysql')->getDriverName() === 'pgsql' 
+                    DB::raw(DB::connection('payment_gateway_mysql')->getDriverName() === 'pgsql'
                         ? 'added::date as rate_date'
                         : 'DATE(added) as rate_date'),
                 ])

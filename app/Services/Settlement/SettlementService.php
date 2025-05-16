@@ -4,140 +4,104 @@ namespace App\Services\Settlement;
 
 use App\Exceptions\MissingSchemeRatesException;
 use App\Repositories\Interfaces\TransactionRepositoryInterface;
+use App\Repositories\ShopRepository;
 use App\Services\DynamicLogger;
 use App\Services\Settlement\Chargeback\Interfaces\ChargebackSettlementInterface;
-use App\Services\Settlement\Fee\FeeService;
-use App\Services\Settlement\Reserve\RollingReserveHandler;
+use App\Services\Settlement\Fee\ShopFeeService;
+use App\Services\Settlement\Reserve\ShopRollingReserveHandler;
 use Exception;
 
 /**
- * SettlementService manages the generation of merchant settlements.
- *
- * This service is responsible for:
- * - Retrieving merchant transactions
- * - Calculating transaction totals and exchange rates
- * - Processing fees
- * - Handling rolling reserves
- *
- * Key features:
- * - Uses readonly class to ensure immutability of dependencies
- * - Comprehensive error logging
- * - Detailed settlement calculations
+ * SettlementService manages the generation of shop-based merchant settlements.
  */
 readonly class SettlementService
 {
-    /**
-     * Construct the SettlementService with required dependencies.
-     *
-     * Uses PHP 8.4 readonly class feature to enforce immutability of
-     * service dependencies.
-     *
-     * @param  TransactionRepositoryInterface  $transactionRepository  Repository for fetching transaction data
-     * @param  ChargebackSettlementInterface  $chargebackSettlement  Service for fetching transaction data
-     * @param  RollingReserveHandler  $rollingReserveHandler  Service to manage rolling reserves
-     * @param  DynamicLogger  $logger  Logging service for tracking settlement processes
-     * @param  FeeService  $feeService  Service for calculating merchant fees
-     */
     public function __construct(
         private TransactionRepositoryInterface $transactionRepository,
         private ChargebackSettlementInterface $chargebackSettlement,
-        private RollingReserveHandler $rollingReserveHandler,
+        private ShopRollingReserveHandler $rollingReserveHandler,
         private DynamicLogger $logger,
-        private FeeService $feeService,
+        private ShopFeeService $feeService,
         private SchemeRateValidationService $schemeRateValidator,
-
-
+        private ShopRepository $shopRepository,
     ) {}
 
     /**
-     * Generates a comprehensive settlement report for a merchant.
-     *
-     * This method performs a series of steps to create a detailed settlement:
-     * 1. Log the start of settlement generation
-     * 2. Retrieve merchant transactions for the specified date range
-     * 3. Fetch exchange rates
-     * 4. Calculate transaction totals
-     * 5. Calculate merchant fees
-     * 6. Process rolling reserves
-     * 7. Compile and return settlement details
-     *
-     * @param  int  $merchantId  Unique identifier of the merchant
-     * @param  array  $dateRange  Associative array containing 'start' and 'end' dates
-     * @param  string  $currency  Currency code for the settlement
-     * @return array Comprehensive settlement report with various financial metrics
-     *
-     * @throws \Exception If any part of the settlement generation fails
+     * Generates a comprehensive settlement report for a merchant shop.
      */
-    public function generateSettlement(int $merchantId, array $dateRange, string $currency): array
+    public function generateSettlement(int $merchantId, array $dateRange, string $currency, int $shopId): array
     {
         try {
-            // Log the start of settlement generation
-            $this->logger->log('info', 'Starting settlement generation', [
+            $this->logger->log('info', 'Starting shop settlement generation', [
                 'merchant_id' => $merchantId,
+                'shop_id' => $shopId,
                 'currency' => $currency,
                 'date_range' => $dateRange,
             ]);
-            // Retrieve merchant transactions for the specified period
-            $transactions = $this->transactionRepository->getMerchantTransactions(
+
+            // Get internal shop ID
+            $internalShopId = $this->shopRepository->getInternalIdByExternalId($shopId, $merchantId);
+
+            // Retrieve merchant transactions for the specified period and shop
+            $transactions = $this->transactionRepository->getMerchantShopTransactions(
                 $merchantId,
+                $shopId,
                 $dateRange,
                 $currency
             );
 
-            $this->logger->log('info', 'Retrieved merchant transactions', [
+            $this->logger->log('info', 'Retrieved shop transactions', [
                 'merchant_id' => $merchantId,
+                'shop_id' => $shopId,
                 'currency' => $currency,
                 'transaction_count' => $transactions->count(),
             ]);
+
             // Validate scheme rates for the date range and currency
             try {
                 $this->schemeRateValidator->validateSchemeRates($dateRange, [$currency]);
             } catch (MissingSchemeRatesException $e) {
                 $this->logger->log('error', $e->getMessage(), [
                     'merchant_id' => $merchantId,
+                    'shop_id' => $shopId,
                     'missing_rates' => $e->getMissingRates(),
                     'date_range' => $e->getDateRange(),
                 ]);
-
-                // Re-throw to stop processing
                 throw $e;
             }
+
             // Fetch and calculate exchange rates
             $exchangeRates = $this->transactionRepository->getExchangeRates(
                 $dateRange,
                 [$currency]
             );
-            $this->logger->log('info', 'Calculated exchange rates', [
-                'merchant_id' => $merchantId,
-                'currency' => $currency,
-            ]);
 
-            // Calculate transaction totals
-            $totals = $this->transactionRepository->calculateTransactionTotals(
+            // Calculate transaction totals for this shop
+            $totals = $this->transactionRepository->calculateShopTransactionTotals(
                 $transactions,
                 $exchangeRates,
-                $merchantId
+                $merchantId,
+                $shopId
             );
-            $this->logger->log('info', 'Calculated transaction totals', [
-                'merchant_id' => $merchantId,
-                'currency' => $currency,
-            ]);
 
-            // Calculate merchant fees
+            // Calculate shop fees
             $currencyTotals = $totals[$currency] ?? [];
             $fees = $this->feeService->calculateFees(
                 $merchantId,
+                $shopId,
                 $currencyTotals,
                 $dateRange
             );
 
+            // Process chargeback settlements
             $chargebackSettlements = $this->chargebackSettlement->processSettlementsChargeback(
                 $merchantId,
                 $dateRange
             );
-            // Process rolling reserves
-            $reserveProcessing = $this->rollingReserveHandler->processSettlementReserve(
-                $merchantId,
+
+            // Process rolling reserves for this shop
+            $reserveProcessing = $this->rollingReserveHandler->processShopSettlementReserve(
+                $internalShopId,
                 $currencyTotals,
                 $currency,
                 $dateRange
@@ -187,15 +151,13 @@ readonly class SettlementService
             ];
 
         } catch (\Exception $e) {
-            // Log detailed error information
-            $this->logger->log('error', 'Settlement generation failed', [
+            $this->logger->log('error', 'Shop settlement generation failed', [
                 'merchant_id' => $merchantId,
+                'shop_id' => $shopId,
                 'currency' => $currency,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-
-            // Rethrow the exception for higher-level error handling
             throw $e;
         }
     }

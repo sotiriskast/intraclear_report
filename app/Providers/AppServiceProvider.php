@@ -15,6 +15,8 @@ use App\Repositories\MerchantRepository;
 use App\Repositories\MerchantSettingRepository;
 use App\Repositories\RoleRepository;
 use App\Repositories\RollingReserveRepository;
+use App\Repositories\ShopRepository;
+use App\Repositories\ShopSettingRepository;
 use App\Repositories\TransactionRepository;
 use App\Services\DynamicLogger;
 use App\Services\ExcelExportService;
@@ -26,10 +28,15 @@ use App\Services\Settlement\Chargeback\Interfaces\ChargebackSettlementInterface;
 use App\Services\Settlement\Fee\CustomFeeHandler;
 use App\Services\Settlement\Fee\FeeFrequencyHandler;
 use App\Services\Settlement\Fee\FeeService;
+use App\Services\Settlement\Fee\ShopCustomFeeHandler;
+use App\Services\Settlement\Fee\ShopFeeService;
+use App\Services\Settlement\Fee\ShopStandardFeeHandler;
 use App\Services\Settlement\Fee\StandardFeeHandler;
 use App\Services\Settlement\Reserve\RollingReserveHandler;
+use App\Services\Settlement\Reserve\ShopRollingReserveHandler;
 use App\Services\Settlement\SchemeRateValidationService;
 use App\Services\Settlement\SettlementService;
+use App\Services\ShopSyncService;
 use App\Services\ZipExportService;
 use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Database\Eloquent\Model;
@@ -73,6 +80,10 @@ class AppServiceProvider extends ServiceProvider
             ChargebackTrackingRepository::class
         );
 
+        // Register Shop repositories
+        $this->app->singleton(ShopRepository::class);
+        $this->app->singleton(ShopSettingRepository::class);
+
         /**
          * ------------------------------------------------
          * Services
@@ -97,6 +108,17 @@ class AppServiceProvider extends ServiceProvider
             StandardFeeHandler::class
         );
 
+        // Register shop fee interfaces
+        $this->app->bind(
+            \App\Services\Settlement\Fee\interfaces\ShopCustomFeeHandlerInterface::class,
+            ShopCustomFeeHandler::class
+        );
+
+        $this->app->bind(
+            \App\Services\Settlement\Fee\interfaces\ShopStandardFeeHandlerInterface::class,
+            ShopStandardFeeHandler::class
+        );
+
         $this->app->bind(
             ChargebackProcessorInterface::class,
             ChargebackProcessor::class
@@ -115,20 +137,28 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->singleton(ExcelExportService::class);
 
+        // Register shop-related services
+        $this->app->singleton(ShopSyncService::class);
+        $this->app->singleton(ShopFeeService::class);
+        $this->app->singleton(ShopRollingReserveHandler::class);
+
         // Replace the simple singleton with a proper binding for SettlementService
         $this->app->singleton(SettlementService::class, function ($app) {
             return new SettlementService(
                 $app->make(TransactionRepositoryInterface::class),
                 $app->make(ChargebackSettlementInterface::class),
-                $app->make(RollingReserveHandler::class),
+                $app->make(ShopRollingReserveHandler::class), // Updated to use shop handler
                 $app->make(DynamicLogger::class),
-                $app->make(FeeService::class),
+                $app->make(ShopFeeService::class), // Updated to use shop service
                 $app->make(SchemeRateValidationService::class),
+                $app->make(ShopRepository::class),
             );
         });
+
         $this->app->singleton(SchemeRateValidationService::class, function ($app) {
             return new SchemeRateValidationService($app->make(DynamicLogger::class));
         });
+
         /**
          * ------------------------------------------------
          * Command Bindings
@@ -142,12 +172,14 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(DynamicLogger::class),
             );
         });
+
         $this->app->singleton(ImportMerchants::class, function ($app) {
             return new ImportMerchants(
                 $app->make(DynamicLogger::class),
                 $app->make(MerchantSyncService::class)
             );
         });
+
         $this->app->singleton(AddPermission::class, function ($app) {
             return new AddPermission(
                 $app->make(DynamicLogger::class),
@@ -156,7 +188,7 @@ class AppServiceProvider extends ServiceProvider
 
         /**
          * ------------------------------------------------
-         * FeeService Binding
+         * FeeService Binding (Legacy - Merchant Level)
          * ------------------------------------------------
          */
         $this->app->singleton(FeeService::class, function ($app) {
@@ -191,6 +223,5 @@ class AppServiceProvider extends ServiceProvider
         }
         Model::shouldBeStrict(!$this->app->isProduction());
         DB::prohibitDestructiveCommands($this->app->isProduction());
-
     }
 }
