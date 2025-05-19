@@ -1,7 +1,7 @@
 <x-app-layout>
     <x-slot name="header">
         <h2 class="text-2xl font-bold text-gray-800">
-            {{ __('Edit '.$merchant->name.' Settings ') }}
+            {{ __('Edit Shop Settings') }}
         </h2>
     </x-slot>
 
@@ -15,17 +15,20 @@
             @endif
 
             <div class="bg-white rounded-lg shadow-sm ring-1 ring-gray-900/5 p-6">
-                <form action="{{ route('admin.merchant-settings.update', $merchantSetting) }}" method="POST">
+                <form action="{{ route('admin.shop-settings.update', $shopSetting) }}" method="POST">
                     @csrf
                     @method('PUT')
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <!-- Merchant Selection -->
+                        <!-- Shop Information -->
                         <div class="col-span-2">
-                            <label for="merchant_id" class="block text-lg font-medium text-gray-700">
-                                Merchant: <strong>{{$merchant->legal_name??$merchant->name}}</strong>
+                            <label class="block text-lg font-medium text-gray-700">
+                                Shop: <strong>{{ $shop->website ?? 'Shop ID: ' . $shop->shop_id }}</strong>
                             </label>
-                            <input type="hidden" name="merchant_id" value="{{$merchant->id}}">
+                            <p class="text-sm text-gray-500">Merchant: {{ $shop->merchant->name }}</p>
+                            <input type="hidden" name="shop_id" value="{{ $shop->id }}">
                         </div>
+
+                        <!-- Rolling Reserve Settings -->
                         <div>
                             <label for="rolling_reserve_percentage" class="block text-sm font-medium text-gray-700">
                                 {{ __('Rolling Reserve (%)') }}
@@ -34,7 +37,7 @@
                                    name="rolling_reserve_percentage"
                                    type="number"
                                    step="0.5"
-                                   value="{{ old('rolling_reserve_percentage', $merchantSetting->rolling_reserve_percentage) }}"
+                                   value="{{ old('rolling_reserve_percentage', $shopSetting->rolling_reserve_percentage) }}"
                                    class="mt-1 block w-full rounded-md border-gray-300 px-3 py-2 text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm shadow-sm"/>
                             @error('rolling_reserve_percentage')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -48,7 +51,7 @@
                             <input id="holding_period_days"
                                    name="holding_period_days"
                                    type="number"
-                                   value="{{ old('holding_period_days', $merchantSetting->holding_period_days) }}"
+                                   value="{{ old('holding_period_days', $shopSetting->holding_period_days) }}"
                                    class="mt-1 block w-full rounded-md border-gray-300 px-3 py-2 text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm shadow-sm"/>
                             @error('holding_period_days')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -64,7 +67,7 @@
                                    name="mdr_percentage"
                                    type="number"
                                    step="0.05"
-                                   value="{{ old('mdr_percentage', $merchantSetting->mdr_percentage) }}"
+                                   value="{{ old('mdr_percentage', $shopSetting->mdr_percentage) }}"
                                    class="mt-1 block w-full rounded-md border-gray-300 px-3 py-2 text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm shadow-sm"/>
                             @error('mdr_percentage')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -79,7 +82,7 @@
                                    name="transaction_fee"
                                    type="number"
                                    step="0.01"
-                                   value="{{ old('transaction_fee', $merchantSetting->transaction_fee) }}"
+                                   value="{{ old('transaction_fee', $shopSetting->transaction_fee) }}"
                                    class="mt-1 block w-full rounded-md border-gray-300 px-3 py-2 text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm shadow-sm"/>
                             @error('transaction_fee')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -94,7 +97,7 @@
                                    name="declined_fee"
                                    type="number"
                                    step="0.01"
-                                   value="{{ old('declined_fee', $merchantSetting->declined_fee) }}"
+                                   value="{{ old('declined_fee', $shopSetting->declined_fee) }}"
                                    class="mt-1 block w-full rounded-md border-gray-300 px-3 py-2 text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm shadow-sm"/>
                             @error('declined_fee')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -110,7 +113,7 @@
                                    name="payout_fee"
                                    type="number"
                                    step="0.01"
-                                   value="{{ old('payout_fee', $merchantSetting->payout_fee) }}"
+                                   value="{{ old('payout_fee', $shopSetting->payout_fee) }}"
                                    class="mt-1 block w-full rounded-md border-gray-300 px-3 py-2 text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm shadow-sm"/>
                             @error('payout_fee')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -125,7 +128,7 @@
                                    name="refund_fee"
                                    type="number"
                                    step="0.01"
-                                   value="{{ old('refund_fee', $merchantSetting->refund_fee) }}"
+                                   value="{{ old('refund_fee', $shopSetting->refund_fee) }}"
                                    class="mt-1 block w-full rounded-md border-gray-300 px-3 py-2 text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm shadow-sm"/>
                             @error('refund_fee')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -140,7 +143,7 @@
                                    name="chargeback_fee"
                                    type="number"
                                    step="0.01"
-                                   value="{{ old('chargeback_fee', $merchantSetting->chargeback_fee) }}"
+                                   value="{{ old('chargeback_fee', $shopSetting->chargeback_fee) }}"
                                    class="mt-1 block w-full rounded-md border-gray-300 px-3 py-2 text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm shadow-sm"/>
                             @error('chargeback_fee')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -155,7 +158,7 @@
                                    name="monthly_fee"
                                    type="number"
                                    step="0.01"
-                                   value="{{ old('monthly_fee', $merchantSetting->monthly_fee) }}"
+                                   value="{{ old('monthly_fee', $shopSetting->monthly_fee) }}"
                                    class="mt-1 block w-full rounded-md border-gray-300 px-3 py-2 text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm shadow-sm"/>
                             @error('monthly_fee')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -164,31 +167,31 @@
 
                         <!-- Risk Fees -->
                         <div>
-                            <label for="mastercard_high_risk_fee" class="block text-sm font-medium text-gray-700">
+                            <label for="mastercard_high_risk_fee_applied" class="block text-sm font-medium text-gray-700">
                                 {{ __('Mastercard High Risk Fee (EUR)') }}
                             </label>
-                            <input id="mastercard_high_risk_fee"
-                                   name="mastercard_high_risk_fee"
+                            <input id="mastercard_high_risk_fee_applied"
+                                   name="mastercard_high_risk_fee_applied"
                                    type="number"
                                    step="0.01"
-                                   value="{{ old('mastercard_high_risk_fee', $merchantSetting->mastercard_high_risk_fee) }}"
+                                   value="{{ old('mastercard_high_risk_fee_applied', $shopSetting->mastercard_high_risk_fee_applied) }}"
                                    class="mt-1 block w-full rounded-md border-gray-300 px-3 py-2 text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm shadow-sm"/>
-                            @error('mastercard_high_risk_fee')
+                            @error('mastercard_high_risk_fee_applied')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
                         </div>
 
                         <div>
-                            <label for="visa_high_risk_fee" class="block text-sm font-medium text-gray-700">
+                            <label for="visa_high_risk_fee_applied" class="block text-sm font-medium text-gray-700">
                                 {{ __('Visa High Risk Fee (EUR)') }}
                             </label>
-                            <input id="visa_high_risk_fee"
-                                   name="visa_high_risk_fee"
+                            <input id="visa_high_risk_fee_applied"
+                                   name="visa_high_risk_fee_applied"
                                    type="number"
                                    step="0.01"
-                                   value="{{ old('visa_high_risk_fee', $merchantSetting->visa_high_risk_fee) }}"
+                                   value="{{ old('visa_high_risk_fee_applied', $shopSetting->visa_high_risk_fee_applied) }}"
                                    class="mt-1 block w-full rounded-md border-gray-300 px-3 py-2 text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm shadow-sm"/>
-                            @error('visa_high_risk_fee')
+                            @error('visa_high_risk_fee_applied')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
                         </div>
@@ -202,7 +205,7 @@
                                    name="setup_fee"
                                    type="number"
                                    step="0.01"
-                                   value="{{ old('setup_fee', $merchantSetting->setup_fee) }}"
+                                   value="{{ old('setup_fee', $shopSetting->setup_fee) }}"
                                    class="mt-1 block w-full rounded-md border-gray-300 px-3 py-2 text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm shadow-sm"/>
                             @error('setup_fee')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -218,7 +221,7 @@
                                    name="exchange_rate_markup"
                                    type="number"
                                    step="0.001"
-                                   value="{{ old('exchange_rate_markup', $merchantSetting->exchange_rate_markup) }}"
+                                   value="{{ old('exchange_rate_markup', $shopSetting->exchange_rate_markup) }}"
                                    class="mt-1 block w-full rounded-md border-gray-300 px-3 py-2 text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm shadow-sm"/>
                             <p class="mt-1 text-xs text-gray-500">Default: 1.01 (1% markup). Determines the exchange
                                 rate adjustment for non-EUR transactions.</p>
@@ -236,7 +239,7 @@
                                    name="fx_rate_markup"
                                    type="number"
                                    step="0.01"
-                                   value="{{ old('fx_rate_markup', $merchantSetting->fx_rate_markup) }}"
+                                   value="{{ old('fx_rate_markup', $shopSetting->fx_rate_markup) }}"
                                    class="mt-1 block w-full rounded-md border-gray-300 px-3 py-2 text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm shadow-sm"/>
                             <p class="mt-1 text-xs text-gray-500">Percentage markup applied to currency exchange (e.g.,
                                 1.00 for 1%)</p>
@@ -251,7 +254,7 @@
                                        id="setup_fee_charged"
                                        name="setup_fee_charged"
                                        value="1"
-                                       {{ old('setup_fee_charged', $merchantSetting->setup_fee_charged) ? 'checked' : '' }}
+                                       {{ old('setup_fee_charged', $shopSetting->setup_fee_charged) ? 'checked' : '' }}
                                        class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
                                 <label for="setup_fee_charged" class="ms-2 text-sm text-gray-700">
                                     {{ __('Setup Fee Already Charged') }}
@@ -264,8 +267,8 @@
                     </div>
 
                     <div class="flex justify-end gap-3 mt-6">
-                        <a href="{{ route('admin.merchant-settings.index') }}"
-                           wire:navigate
+                        <a href="#"
+                           onclick="window.history.go(-1); return false;"
                            class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-500">
                             {{ __('Cancel') }}
                         </a>

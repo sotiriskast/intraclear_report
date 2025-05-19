@@ -17,15 +17,17 @@ use App\Services\Settlement\Fee\interfaces\ShopStandardFeeHandlerInterface;
 readonly class ShopFeeService
 {
     public function __construct(
-        private FeeRepositoryInterface $feeRepository,
-        private DynamicLogger $logger,
-        private FeeFrequencyHandlerInterface $frequencyHandler,
-        private ShopCustomFeeHandlerInterface $customFeeHandler,
+        private FeeRepositoryInterface          $feeRepository,
+        private DynamicLogger                   $logger,
+        private FeeFrequencyHandlerInterface    $frequencyHandler,
+        private ShopCustomFeeHandlerInterface   $customFeeHandler,
         private ShopStandardFeeHandlerInterface $standardFeeHandler,
-        private MerchantRepository $merchantRepository,
-        private ShopRepository $shopRepository,
-        private ShopSettingRepository $shopSettingRepository,
-    ) {}
+        private MerchantRepository              $merchantRepository,
+        private ShopRepository                  $shopRepository,
+        private ShopSettingRepository           $shopSettingRepository,
+    )
+    {
+    }
 
     /**
      * Calculate all applicable fees for a shop within a given date range
@@ -95,21 +97,18 @@ readonly class ShopFeeService
                 }
             }
 
-            // Only process custom fees if we're not doing initial setup
-            if (!$isSetupFeeApplied || !$isNewShop) {
-                // Process custom fees (shop-specific fees)
-                $customFees = $this->customFeeHandler->getCustomFees($merchantId, $shopId, $transactionData, $dateRange['start']);
-                foreach ($customFees as $fee) {
-                    // Check if custom fee should be applied based on its frequency
-                    if ($this->frequencyHandler->shouldApplyShopFee(
-                        $fee['frequency'],
-                        $internalShopId,
-                        $fee['fee_type_id'],
-                        $dateRange
-                    )) {
-                        $calculatedFees[] = $fee;
-                        $this->logFeeApplication($actualMerchantId, $internalShopId, $fee, $transactionData, $fee['fee_amount'], $dateRange);
-                    }
+            // Process custom fees (shop-specific fees)
+            $customFees = $this->customFeeHandler->getCustomFees($merchantId, $shopId, $transactionData, $dateRange['start']);
+            foreach ($customFees as $fee) {
+                // Check if custom fee should be applied based on its frequency
+                if ($this->frequencyHandler->shouldApplyShopFee(
+                    $fee['frequency'],
+                    $internalShopId,
+                    $fee['fee_type_id'],
+                    $dateRange
+                )) {
+                    $calculatedFees[] = $fee;
+                    $this->logFeeApplication($actualMerchantId, $internalShopId, $fee, $transactionData, $fee['fee_amount'], $dateRange);
                 }
             }
 

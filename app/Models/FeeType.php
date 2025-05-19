@@ -21,6 +21,10 @@ class FeeType extends Model
     {
         return $this->hasMany(MerchantFee::class);
     }
+    public function shopFees(): HasMany
+    {
+        return $this->hasMany(ShopFee::class);
+    }
     public function feeHistory(): HasMany
     {
         return $this->hasMany(FeeHistory::class);

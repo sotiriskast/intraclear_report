@@ -1,7 +1,7 @@
 <x-app-layout>
     <x-slot name="header">
         <h2 class="text-2xl font-bold text-gray-800">
-            {{ __('Merchant Fee Management') }}
+            {{ __('Shop Settings Management') }}
         </h2>
     </x-slot>
 
@@ -33,40 +33,40 @@
                 @endif
             </div>
 
-            <!-- Add New Merchant Fee Button -->
+            <!-- Add New Shop Settings Button -->
             <div class="mt-6 mb-4">
-                <a href="{{ route('admin.merchant-fees.create') }}"
+                <a href="{{ route('admin.shop-settings.create') }}"
                    wire:navigate
                    class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
                     <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                     </svg>
-                    {{ __('Add New Merchant Fee') }}
+                    {{ __('Add New Shop Settings') }}
                 </a>
             </div>
 
-            <!-- Merchant Fees List -->
+            <!-- Shop Settings List -->
             <div class="bg-white rounded-lg shadow-sm ring-1 ring-gray-900/5">
                 <!-- Mobile/Tablet View - Card Layout -->
                 <div class="block lg:hidden">
-                    @foreach($merchantFees as $fee)
+                    @foreach($shopSettings as $setting)
                         <div class="border-b last:border-b-0 px-4 py-4 hover:bg-gray-50">
                             <div class="flex justify-between items-center mb-2">
                                 <div>
-                                    <p class="text-sm font-medium text-gray-900">{{ $fee->merchant->name }}</p>
-                                    <p class="text-xs text-gray-500">{{ $fee->feeType->name }}</p>
+                                    <p class="text-sm font-medium text-gray-900">{{ $setting->shop->website ?? 'Shop ID: ' . $setting->shop->shop_id }}</p>
+                                    <p class="text-xs text-gray-500">Merchant: {{ $setting->shop->merchant->name }}</p>
                                 </div>
                                 <div class="flex gap-2">
-                                    <a href="{{ route('admin.merchant-fees.edit', $fee) }}"
+                                    <a href="{{ route('admin.shop-settings.edit', $setting) }}"
                                        class="text-gray-600 hover:text-indigo-600">
                                         <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                                   d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                                         </svg>
                                     </a>
-                                    <form action="{{ route('admin.merchant-fees.destroy', $fee) }}" method="POST"
+                                    <form action="{{ route('admin.shop-settings.destroy', $setting) }}" method="POST"
                                           class="inline-block"
-                                          onsubmit="return confirm('Are you sure you want to delete this merchant fee?')">
+                                          onsubmit="return confirm('Are you sure you want to delete these settings?')">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="text-red-600 hover:text-red-800">
@@ -78,49 +78,39 @@
                                     </form>
                                 </div>
                             </div>
-                            <div class="mt-2 space-y-1">
-                                <p class="text-xs text-gray-700">
-                                    Amount: {{ number_format($fee->amount / 100, 2) }}
-                                    ({{ $fee->feeType->is_percentage ? 'Percentage' : 'Fixed' }})
-                                </p>
-                                <p class="text-xs text-gray-700">
-                                     <span
-                                         class="{{ $fee->active ? 'text-green-700 bg-green-100' : 'text-red-700 bg-red-100' }} inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium">
-                                        {{ $fee->active ? 'Active' : 'Inactive' }}
-                                    </span>
-                                </p>
-                                <p class="text-xs text-gray-700">
-                                    Effective: {{ $fee->effective_from->format('d-m-Y') }}
-                                    @if($fee->effective_to)
-                                        to {{ $fee->effective_to->format('d-m-Y') }}
-                                    @else
-                                        (Ongoing)
-                                    @endif
-                                </p>
+                            <div class="mt-2 space-y-1 text-xs text-gray-700">
+                                <p>Rolling Reserve: {{ number_format($setting->rolling_reserve_percentage / 100, 2) }}%</p>
+                                <p>Holding Period: {{ $setting->holding_period_days }} days</p>
+                                <p>MDR: {{ number_format($setting->mdr_percentage / 100, 2) }}%</p>
+                                <p>Transaction Fee: {{ number_format($setting->transaction_fee / 100, 2) }} EUR</p>
+                                <p>Declined Fee: {{ number_format($setting->declined_fee / 100, 2) }} EUR</p>
+                                <p>Setup Fee: {{ number_format($setting->setup_fee / 100, 2) }} EUR</p>
+                                <p>Exchange Rate Markup: {{ number_format($setting->exchange_rate_markup, 3) }}</p>
+                                <p>FX Rate Markup: {{ number_format($setting->fx_rate_markup / 100, 2) }}%</p>
                             </div>
                         </div>
                     @endforeach
                 </div>
 
                 <!-- Desktop View - Traditional Table -->
-                <div class="hidden lg:block overflow-x-auto max-h-[600px]">
+                <div class="hidden lg:block overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                         <tr>
                             <th scope="col" class="px-6 py-3 text-start text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Merchant
+                                Shop / Merchant
                             </th>
                             <th scope="col" class="px-6 py-3 text-start text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Fee Type
+                                Rolling Reserve
                             </th>
                             <th scope="col" class="px-6 py-3 text-start text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Amount
+                                MDR
                             </th>
                             <th scope="col" class="px-6 py-3 text-start text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Effective Period
+                                FX Markup
                             </th>
                             <th scope="col" class="px-6 py-3 text-start text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Status
+                                FX Rate
                             </th>
                             <th scope="col" class="px-6 py-3 text-end text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Actions
@@ -128,52 +118,49 @@
                         </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
-                        @foreach($merchantFees as $fee)
+                        @foreach($shopSettings as $setting)
                             <tr class="hover:bg-gray-50">
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="text-sm font-medium text-gray-900">
-                                        {{ $fee->merchant->name }}
+                                        {{ $setting->shop->website ?? 'Shop ID: ' . $setting->shop->shop_id }}
                                     </div>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="text-sm text-gray-500">
-                                        {{ $fee->feeType->name }}
+                                        {{ $setting->shop->merchant->name }}
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="text-sm text-gray-900">
-                                        {{ number_format($fee->amount / 100, 2) }}
-                                        ({{ $fee->feeType->is_percentage ? 'Percentage' : 'Fixed' }})
+                                        {{ number_format($setting->rolling_reserve_percentage / 100, 2) }}%
+                                        ({{ $setting->holding_period_days }} days)
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm text-gray-500">
-                                        {{ $fee->effective_from->format('d-m-Y') }}
-                                        @if($fee->effective_to)
-                                            to {{ $fee->effective_to->format('d-m-Y') }}
-                                        @else
-                                            (Ongoing)
-                                        @endif
+                                    <div class="text-sm text-gray-900">
+                                        {{ number_format($setting->mdr_percentage / 100, 2) }}%
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <span
-                                        class="{{ $fee->active ? 'text-green-700 bg-green-100' : 'text-red-700 bg-red-100' }} inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium">
-                                        {{ $fee->active ? 'Active' : 'Inactive' }}
-                                    </span>
+                                    <div class="text-sm text-gray-900">
+                                        {{ number_format($setting->exchange_rate_markup, 3) }}
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm text-gray-900">
+                                        {{ number_format($setting->fx_rate_markup / 100, 2) }}%
+                                    </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-end text-sm font-medium">
                                     <div class="flex justify-end gap-2">
-                                        <a href="{{ route('admin.merchant-fees.edit', $fee) }}"
+                                        <a href="{{ route('admin.shop-settings.edit', $setting) }}"
                                            class="text-gray-600 hover:text-indigo-600">
                                             <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                                       d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                                             </svg>
                                         </a>
-                                        <form action="{{ route('admin.merchant-fees.destroy', $fee) }}" method="POST"
+                                        <form action="{{ route('admin.shop-settings.destroy', $setting) }}" method="POST"
                                               class="inline-block"
-                                              onsubmit="return confirm('Are you sure you want to delete this merchant fee?')">
+                                              onsubmit="return confirm('Are you sure you want to delete these settings?')">
                                             @csrf
                                             @method('DELETE')
                                             <button type="submit" class="text-red-600 hover:text-red-800">
@@ -193,7 +180,7 @@
 
                 <!-- Pagination -->
                 <div class="px-6 py-4 border-t border-gray-200">
-                    {{ $merchantFees->links() }}
+                    {{ $shopSettings->links() }}
                 </div>
             </div>
         </div>

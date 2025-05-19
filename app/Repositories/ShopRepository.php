@@ -39,11 +39,11 @@ class ShopRepository
      * Get all shops for a merchant
      *
      * @param int $merchantId Internal merchant ID
-     * @return Collection
+     *
      */
-    public function getByMerchant(int $merchantId): Collection
+    public function getByMerchant(int $merchantId)
     {
-        return Shop::where('merchant_id', $merchantId)->get();
+        return Shop::where('merchant_id', $merchantId);
     }
 
     /**

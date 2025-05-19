@@ -2,8 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\FeeType;
-use App\Repositories\FeeRepository;
 use App\Repositories\MerchantRepository;
 use App\Repositories\ShopRepository;
 use App\Repositories\ShopSettingRepository;
@@ -13,17 +11,16 @@ use Illuminate\Support\Facades\DB;
  * ShopSyncService handles synchronization of shop data
  * between different database connections and creates default settings.
  */
-class ShopSyncService
+readonly class ShopSyncService
 {
     /**
      * Create a new ShopSyncService instance.
      */
     public function __construct(
-        private readonly DynamicLogger $logger,
-        private readonly ShopRepository $shopRepository,
-        private readonly ShopSettingRepository $shopSettingRepository,
-        private readonly MerchantRepository $merchantRepository,
-        private readonly FeeRepository $feeRepository
+        private DynamicLogger         $logger,
+        private ShopRepository        $shopRepository,
+        private ShopSettingRepository $shopSettingRepository,
+        private MerchantRepository    $merchantRepository,
     ) {}
 
     /**
@@ -31,6 +28,7 @@ class ShopSyncService
      *
      * @param int $merchantAccountId Merchant account ID
      * @return array Statistics of sync operation
+     * @throws \Exception
      */
     public function syncShopsForMerchant(int $merchantAccountId): array
     {
@@ -71,10 +69,6 @@ class ShopSyncService
                         $this->createDefaultShopSettings($shop->id);
                         $stats['settings_created']++;
                     }
-
-                    // Create default fees for new shop
-                    $createdFees = $this->createDefaultShopFees($shop->id);
-                    $stats['fees_created'] += $createdFees;
                 }
             }
 
@@ -118,69 +112,12 @@ class ShopSyncService
     }
 
     /**
-     * Create default fees for a new shop
-     */
-    private function createDefaultShopFees(int $shopId): int
-    {
-        try {
-            $createdCount = 0;
-
-            // Get default fee amounts from shop settings
-            $settings = $this->shopSettingRepository->findByShop($shopId);
-            if (!$settings) {
-                return 0;
-            }
-
-            // Define default fees with their amounts from settings
-            $defaultFees = [
-                1 => $settings->mdr_percentage,              // MDR Fee
-                2 => $settings->transaction_fee,             // Transaction Fee
-                3 => $settings->monthly_fee,                 // Monthly Fee
-                4 => $settings->setup_fee,                   // Setup Fee
-                5 => $settings->payout_fee,                  // Payout Fee
-                6 => $settings->refund_fee,                  // Refund Fee
-                7 => $settings->declined_fee,                // Declined Fee
-                8 => $settings->chargeback_fee,              // Chargeback Fee
-                9 => $settings->mastercard_high_risk_fee_applied, // Mastercard High Risk Fee
-                10 => $settings->visa_high_risk_fee_applied,  // Visa High Risk Fee
-            ];
-
-            foreach ($defaultFees as $feeTypeId => $amount) {
-                // Only create fees with amounts > 0
-                if ($amount > 0) {
-                    $this->feeRepository->createShopFee([
-                        'shop_id' => $shopId,
-                        'fee_type_id' => $feeTypeId,
-                        'amount' => $amount,
-                        'effective_from' => now(),
-                        'effective_to' => null,
-                        'active' => true,
-                    ]);
-                    $createdCount++;
-                }
-            }
-
-            $this->logger->log('info', 'Created default fees for shop', [
-                'shop_id' => $shopId,
-                'fees_created' => $createdCount,
-            ]);
-
-            return $createdCount;
-        } catch (\Exception $e) {
-            $this->logger->log('error', 'Failed to create default fees for shop', [
-                'shop_id' => $shopId,
-                'error' => $e->getMessage(),
-            ]);
-            throw $e;
-        }
-    }
-
-    /**
      * Get existing shops for a merchant
      */
     private function getExistingShops(int $internalMerchantId): array
     {
         return $this->shopRepository->getByMerchant($internalMerchantId)
+            ->get()
             ->keyBy('shop_id')
             ->toArray();
     }

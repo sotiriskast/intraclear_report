@@ -212,19 +212,32 @@ class ShopStandardFeeHandler implements ShopStandardFeeHandlerInterface
      */
     private function getFeeTypeId(string $key): int
     {
-        return match ($key) {
-            'mdr_fee' => 1,
-            'transaction_fee' => 2,
-            'monthly_fee' => 3,
-            'setup_fee' => 4,
-            'payout_fee' => 5,
-            'refund_fee' => 6,
-            'declined_fee' => 7,
-            'chargeback_fee' => 8,
-            'mastercard_high_risk_fee' => 9,
-            'visa_high_risk_fee' => 10,
-            default => 0
-        };
+        try {
+            // Look up the fee type by key in the database
+            $feeType = FeeType::where('key', $key)->first();
+
+            // If found, return its ID
+            if ($feeType) {
+                return $feeType->id;
+            }
+
+            // Log a warning if fee type not found
+            $this->logger->log('warning', 'Fee type key not found', [
+                'key' => $key
+            ]);
+
+            // Return null instead of 0 to avoid foreign key violations
+            // Note: This assumes fee_type_id in the fee_histories table allows NULL values
+            return 0;
+
+        } catch (\Exception $e) {
+            $this->logger->log('error', 'Error getting fee type ID', [
+                'key' => $key,
+                'error' => $e->getMessage()
+            ]);
+
+            return 0;
+        }
     }
 
     /**
