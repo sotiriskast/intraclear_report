@@ -4,16 +4,14 @@ namespace Modules\Cesop\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
-use Modules\Cesop\Services\CesopReportService;
+use Modules\Cesop\Services\CesopXmlGeneratorService;
 use Modules\Cesop\Services\CesopXmlValidator;
-use Carbon\Carbon;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 
 class CesopReportController extends Controller
 {
     /**
-     * @var CesopReportService
+     * @var CesopXmlGeneratorService
      */
     protected $reportService;
 
@@ -25,10 +23,10 @@ class CesopReportController extends Controller
     /**
      * Constructor
      *
-     * @param CesopReportService $reportService
+     * @param CesopXmlGeneratorService $reportService
      * @param CesopXmlValidator $xmlValidator
      */
-    public function __construct(CesopReportService $reportService, CesopXmlValidator $xmlValidator)
+    public function __construct(CesopXmlGeneratorService $reportService, CesopXmlValidator $xmlValidator)
     {
         $this->reportService = $reportService;
         $this->xmlValidator = $xmlValidator;

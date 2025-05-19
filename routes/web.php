@@ -4,12 +4,15 @@ use App\Http\Controllers\EmailTestController;
 use App\Http\Controllers\MerchantController;
 use App\Http\Controllers\MerchantFeeController;
 use App\Http\Controllers\MerchantSettingController;
+use App\Http\Controllers\ShopController;
+use App\Http\Controllers\ShopFeeController;
+use App\Http\Controllers\ShopSettingController;
 use App\Http\Controllers\SettlementController;
-use App\Livewire\FeeTypeManagement;
 use App\Livewire\MerchantAnalytics;
 use App\Livewire\MerchantManagement;
 use App\Livewire\MerchantView;
 use App\Livewire\RoleManagement;
+use App\Livewire\ShopManagement;
 use Illuminate\Support\Facades\Route;
 
 
@@ -57,29 +60,38 @@ Route::middleware(['auth:web', 'verified', '2fa.required'
             Route::put('/merchants/{merchant}', [MerchantController::class, 'update'])->name('merchants.update');
 
 
+            // Shop Management for Merchants
+            Route::get('/merchants/{merchant}/shops', [ShopController::class, 'index'])->name('admin.merchants.shops');
+            Route::get('/shops/create/{merchant}', [ShopController::class, 'create'])->name('admin.shops.create');
+            Route::post('/shops/{merchant}', [ShopController::class, 'store'])->name('admin.shops.store');
+            Route::get('/shops/{shop}/edit', [ShopController::class, 'edit'])->name('admin.shops.edit');
+            Route::put('/shops/{shop}', [ShopController::class, 'update'])->name('admin.shops.update');
+            Route::get('/shops/{shop}/settings', [ShopController::class, 'settings'])->name('admin.shops.settings');
         });
 
         // Merchant Fees and Settings
         Route::middleware(['can:manage-merchants-fees'])->group(function () {
-            Route::resource('merchant-fees', MerchantFeeController::class)
+            // Shop Fees and Settings
+            Route::resource('shop-fees', ShopFeeController::class)
                 ->names([
-                    'index' => 'admin.merchant-fees.index',
-                    'create' => 'admin.merchant-fees.create',
-                    'store' => 'admin.merchant-fees.store',
-                    'edit' => 'admin.merchant-fees.edit',
-                    'update' => 'admin.merchant-fees.update',
-                    'destroy' => 'admin.merchant-fees.destroy',
+                    'index' => 'admin.shop-fees.index',
+                    'create' => 'admin.shop-fees.create',
+                    'store' => 'admin.shop-fees.store',
+                    'edit' => 'admin.shop-fees.edit',
+                    'update' => 'admin.shop-fees.update',
+                    'destroy' => 'admin.shop-fees.destroy',
                 ]);
-            Route::resource('merchant-settings', MerchantSettingController::class)
+            Route::resource('shop-settings', ShopSettingController::class)
                 ->names([
-                    'index' => 'admin.merchant-settings.index',
-                    'create' => 'admin.merchant-settings.create',
-                    'store' => 'admin.merchant-settings.store',
-                    'edit' => 'admin.merchant-settings.edit',
-                    'update' => 'admin.merchant-settings.update',
-                    'destroy' => 'admin.merchant-settings.destroy',
+                    'index' => 'admin.shop-settings.index',
+                    'create' => 'admin.shop-settings.create',
+                    'store' => 'admin.shop-settings.store',
+                    'edit' => 'admin.shop-settings.edit',
+                    'update' => 'admin.shop-settings.update',
+                    'destroy' => 'admin.shop-settings.destroy',
                 ]);
         });
+
         // for API key management
         Route::middleware(['can:manage-merchants-api-keys'])->group(function () {
             Route::get('/merchants/{merchant}/api', [App\Http\Controllers\Admin\ApiKeyController::class, 'show'])

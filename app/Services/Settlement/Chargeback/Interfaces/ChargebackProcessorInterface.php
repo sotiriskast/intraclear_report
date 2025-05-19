@@ -13,7 +13,7 @@ interface ChargebackProcessorInterface
     /**
      * Processes a new chargeback transaction
      */
-    public function processChargeback(int $merchantId, ChargebackData $data): void;
+    public function processChargeback(int $merchantId, int $shopId, ChargebackData $data): void;
 
     /**
      * Handles status changes for existing chargebacks

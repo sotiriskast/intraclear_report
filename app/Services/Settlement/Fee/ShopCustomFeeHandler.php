@@ -4,50 +4,37 @@ namespace App\Services\Settlement\Fee;
 
 use App\DTO\TransactionData;
 use App\Repositories\Interfaces\FeeRepositoryInterface;
+use App\Repositories\ShopRepository;
 use App\Services\DynamicLogger;
 use App\Services\Settlement\Fee\Factories\FeeCalculatorFactory;
-use App\Services\Settlement\Fee\interfaces\CustomFeeHandlerInterface;
+use App\Services\Settlement\Fee\interfaces\ShopCustomFeeHandlerInterface;
 
 /**
- * Handles the calculation and processing of custom merchant fees
- * Custom fees are merchant-specific fees that may differ from standard fee structures
+ * Handles the calculation and processing of custom shop fees
  */
-readonly class CustomFeeHandler implements CustomFeeHandlerInterface
+readonly class ShopCustomFeeHandler implements ShopCustomFeeHandlerInterface
 {
     private FeeCalculatorFactory $calculatorFactory;
 
-    /**
-     * Initialize the custom fee handler with required dependencies
-     *
-     * @param  FeeRepositoryInterface  $feeRepository  Repository for accessing merchant-specific fees
-     * @param  DynamicLogger  $logger  Service for logging operations and errors
-     */
     public function __construct(
         private FeeRepositoryInterface $feeRepository,
+        private ShopRepository $shopRepository,
         private DynamicLogger $logger
     ) {
         $this->calculatorFactory = new FeeCalculatorFactory;
     }
 
     /**
-     * Calculate all applicable custom fees for a merchant based on transaction data
-     *
-     * Processes each custom fee configured for the merchant:
-     * 1. Retrieves all custom fees for the merchant
-     * 2. Creates appropriate calculator for each fee type
-     * 3. Calculates fee amounts considering currency and exchange rates
-     * 4. Formats and returns the calculated fees
-     *
-     * @param  int  $merchantId  ID of the merchant
-     * @param  array  $rawTransactionData  Raw transaction data for fee calculation
-     * @param  string  $startDate  Start date for fee application period
-     * @return array Array of calculated custom fees
+     * Calculate all applicable custom fees for a shop based on transaction data
      */
-    public function getCustomFees(int $merchantId, array $rawTransactionData, string $startDate): array
+    public function getCustomFees(int $merchantId, int $shopId, array $rawTransactionData, string $startDate): array
     {
         try {
-            // Get merchant-specific fees
-            $merchantFees = $this->feeRepository->getMerchantFees($merchantId, $startDate);
+            // Get internal shop ID
+            $internalShopId = $this->shopRepository->getInternalIdByExternalId($shopId, $merchantId);
+
+            // Get shop-specific fees
+            $shopFees = $this->feeRepository->getShopFees($internalShopId, $startDate);
             $transactionData = TransactionData::fromArray($rawTransactionData);
             $customFees = [];
 
@@ -56,7 +43,7 @@ readonly class CustomFeeHandler implements CustomFeeHandlerInterface
             $exchangeRate = $transactionData->exchangeRate;
 
             // Process each custom fee
-            foreach ($merchantFees as $fee) {
+            foreach ($shopFees as $fee) {
                 try {
                     // Skip fees with zero or negative amounts
                     if ($fee->amount <= 0) {
@@ -85,12 +72,14 @@ readonly class CustomFeeHandler implements CustomFeeHandlerInterface
                             'frequency' => $fee->feeType->frequency_type,
                             'is_percentage' => $fee->feeType->is_percentage,
                             'transactionData' => $rawTransactionData,
+                            'shop_id' => $internalShopId,
                         ];
                     }
                 } catch (\Exception $e) {
                     // Log error but continue processing other fees
-                    $this->logger->log('error', 'Error processing custom fee', [
+                    $this->logger->log('error', 'Error processing custom shop fee', [
                         'merchant_id' => $merchantId,
+                        'shop_id' => $shopId,
                         'fee_type_id' => $fee->fee_type_id,
                         'error' => $e->getMessage(),
                     ]);
@@ -102,8 +91,9 @@ readonly class CustomFeeHandler implements CustomFeeHandlerInterface
             return $customFees;
 
         } catch (\Exception $e) {
-            $this->logger->log('error', 'Failed to calculate custom fees', [
+            $this->logger->log('error', 'Failed to calculate custom shop fees', [
                 'merchant_id' => $merchantId,
+                'shop_id' => $shopId,
                 'error' => $e->getMessage(),
             ]);
 
@@ -113,11 +103,6 @@ readonly class CustomFeeHandler implements CustomFeeHandlerInterface
 
     /**
      * Format a fee rate for display
-     * Converts internal rate representation to human-readable format
-     *
-     * @param  int  $amount  Fee amount in smallest currency unit (e.g., cents)
-     * @param  bool  $isPercentage  Whether the fee is a percentage
-     * @return string Formatted rate with appropriate suffix (% for percentages)
      */
     private function formatRate(int $amount, bool $isPercentage): string
     {

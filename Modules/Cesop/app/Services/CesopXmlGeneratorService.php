@@ -9,8 +9,10 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Ramsey\Uuid\Uuid;
+use Illuminate\Support\Facades\Log;
+use Symfony\Component\Console\Helper\ProgressBar;
 
-class CesopReportService
+class CesopXmlGeneratorService
 {
     /**
      * EU country codes list
@@ -32,6 +34,7 @@ class CesopReportService
      * @var int
      */
     protected $year;
+
     /**
      * CESOP XML namespaces
      *
@@ -49,95 +52,236 @@ class CesopReportService
     protected $threshold;
 
     /**
+     * PSP data for the report
+     *
+     * @var array
+     */
+    protected $pspData;
+
+    /**
+     * Progress bar instance
+     * @var ProgressBar|null
+     */
+    protected $progressBar;
+
+    /**
      * Constructor
      */
-    public function __construct()
+    public function __construct(?int $quarter = null, ?int $year = null, int $threshold = 25, ?array $pspData = null, ?ProgressBar $progressBar = null)
     {
+        // Set unlimited execution time for this process
+        set_time_limit(0);
+
         $this->euCountries = config('cesop.eu_countries', [
             'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR',
             'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL',
             'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE'
         ]);
+
+        // Set quarter and year (default to current if not provided)
+        $now = Carbon::now();
+        $this->quarter = $quarter ?? ceil($now->month / 3);
+        $this->year = $year ?? $now->year;
+
+        $this->threshold = $threshold;
+        $this->pspData = $pspData ?? $this->loadDefaultPspData();
+        $this->progressBar = $progressBar;
+
         $this->cesopNamespace = 'urn:ec.europa.eu:taxud:fiscalis:cesop:v1';
         $this->isoNamespace = 'urn:eu:taxud:isotypes:v1';
         $this->cmNamespace = 'urn:eu:taxud:commontypes:v1';
     }
 
     /**
-     * Generate CESOP report for a specific quarter and year
+     * Generate CESOP report for a specific quarter and year with the same return format as Excel
      *
-     * @param int $quarter
-     * @param int $year
      * @param array $merchantIds
      * @param array $shopIds
-     * @param int $threshold
-     * @param array|null $pspData
+     * @param string|null $outputDir
      * @return array
      */
     public function generateReport(
-        int    $quarter,
-        int    $year,
-        array  $merchantIds = [],
-        array  $shopIds = [],
-        int    $threshold = 25,
-        ?array $pspData = null
+        array $merchantIds = [],
+        array $shopIds = [],
+        ?string $outputDir = null
     ): array
     {
-        $this->quarter = $quarter;
-        $this->year = $year;
-        $this->threshold = $threshold;
+        try {
+            // Set unlimited execution time again
+            set_time_limit(0);
 
-        // Calculate date range based on quarter and year
-        $startMonth = (($quarter - 1) * 3) + 1;
-        $startDate = Carbon::createFromDate($year, $startMonth, 1)->startOfDay();
-        $endDate = (clone $startDate)->addMonths(3)->subDay()->endOfDay();
+            // Create output directory if it doesn't exist or use temp directory
+            if ($outputDir === null) {
+                $outputDir = sys_get_temp_dir() . '/cesop_xml_' . date('Ymd_His');
+            }
 
-        // Load PSP data
-        $pspData = $pspData ?: $this->loadPspData();
+            if (!is_dir($outputDir)) {
+                mkdir($outputDir, 0755, true);
+            }
 
-        // Step 1: Get qualifying cards that exceed the threshold (same as Excel generator)
-        $qualifyingCards = $this->getQualifyingCards($startDate, $endDate, $merchantIds, $shopIds);
+            // Log the output directory for debugging
+            Log::info('CESOP XML output directory: ' . $outputDir);
 
-        if (empty($qualifyingCards)) {
+            // Calculate date range based on quarter and year
+            $startMonth = (($this->quarter - 1) * 3) + 1;
+            $startDate = Carbon::createFromDate($this->year, $startMonth, 1)->startOfDay();
+            $endDate = (clone $startDate)->addMonths(3)->subDay()->endOfDay();
+
+            if ($this->progressBar) {
+                $this->progressBar->setMessage('Identifying qualifying cards...');
+            }
+
+            // Get qualifying cards that exceed the threshold
+            $qualifyingCards = $this->getQualifyingCards($startDate, $endDate, $merchantIds, $shopIds);
+
+            if (empty($qualifyingCards)) {
+                return [
+                    'success' => false,
+                    'message' => 'No qualifying transactions found.',
+                    'data' => null
+                ];
+            }
+
+            Log::info('Found qualifying cards', ['count' => count($qualifyingCards)]);
+
+            if ($this->progressBar) {
+                $this->progressBar->setMessage('Processing merchant data...');
+                $this->progressBar->advance();
+            }
+
+            // Process merchant data
+            $merchantData = $this->processMerchantData($qualifyingCards, $merchantIds);
+
+            if ($this->progressBar) {
+                $this->progressBar->setMessage('Processing transactions...');
+                $this->progressBar->advance();
+            }
+
+            // Get individual transactions for qualifying cards
+            $transactions = $this->getTransactionsData($startDate, $endDate, $qualifyingCards, $merchantIds, $shopIds);
+
+            if ($transactions->isEmpty()) {
+                return [
+                    'success' => false,
+                    'message' => 'No qualifying transactions found.',
+                    'data' => null
+                ];
+            }
+
+            if ($this->progressBar) {
+                $this->progressBar->setMessage('Generating XML document...');
+                $this->progressBar->advance();
+            }
+
+            // Generate XML document
+            $dom = $this->initializeXmlDocument($this->pspData, $this->quarter, $this->year);
+            $root = $dom->documentElement;
+
+            // Process transactions by merchant and create stats (same as Excel)
+            $stats = $this->processTransactionsForXml($dom, $root, $transactions, $merchantData);
+
+            if ($stats['processed_merchants'] === 0) {
+                return [
+                    'success' => false,
+                    'message' => 'No merchants processed. No qualifying data found.',
+                    'data' => null
+                ];
+            }
+
+            if ($this->progressBar) {
+                $this->progressBar->setMessage('Saving XML file...');
+                $this->progressBar->advance();
+            }
+
+            // Save XML file with proper naming convention
+            $xmlFileName = "CESOP_Q{$this->quarter}_{$this->year}_" . date('Ymd_His') . ".xml";
+            $xmlPath = $outputDir . '/' . $xmlFileName;
+
+            // Check if directory is writable
+            if (!is_writable($outputDir)) {
+                Log::error('Output directory is not writable: ' . $outputDir);
+                return [
+                    'success' => false,
+                    'message' => 'Output directory is not writable: ' . $outputDir,
+                    'data' => null
+                ];
+            }
+
+            // Log the full path before saving
+            Log::info('Attempting to save XML file to: ' . $xmlPath);
+
+            // Save XML to file
+            file_put_contents($xmlPath, $dom->saveXML());
+
+            // Verify the file was actually created
+            if (!file_exists($xmlPath)) {
+                Log::error('XML file was not created at: ' . $xmlPath);
+                return [
+                    'success' => false,
+                    'message' => 'XML file could not be saved to: ' . $xmlPath,
+                    'data' => null
+                ];
+            }
+
+            // Log file size for confirmation
+            $fileSize = filesize($xmlPath);
+            Log::info('XML file created successfully', [
+                'path' => $xmlPath,
+                'size' => $fileSize . ' bytes'
+            ]);
+
+            if ($this->progressBar) {
+                $this->progressBar->finish();
+            }
+
+            // Return the same format as Excel service
+            return [
+                'success' => true,
+                'message' => 'XML file generated successfully.',
+                'data' => [
+                    'file' => $xmlPath,
+                    'stats' => $stats,
+                    'full_path' => realpath($xmlPath),
+                    'file_size' => $fileSize
+                ]
+            ];
+        } catch (\Exception $e) {
+            Log::error('CESOP XML generation failed: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return [
                 'success' => false,
-                'message' => 'No qualifying transactions found.',
+                'message' => 'Failed to generate XML file: ' . $e->getMessage(),
                 'data' => null
             ];
         }
+    }
 
-        // Step 2: Process merchant data
-        $merchantData = $this->processMerchantData($qualifyingCards, $merchantIds);
-
-        // Step 3: Get individual transactions for qualifying cards
-        $transactions = $this->getTransactionsData($startDate, $endDate, $qualifyingCards, $merchantIds, $shopIds);
-
-        if ($transactions->isEmpty()) {
-            return [
-                'success' => false,
-                'message' => 'No qualifying transactions found.',
-                'data' => null
-            ];
-        }
-
-        // Step 4: Generate XML document
-        $dom = $this->initializeXmlDocument($pspData, $quarter, $year);
-        $root = $dom->documentElement;
-
-        // Step 5: Process transactions by merchant
+    /**
+     * Process transactions for XML generation and return stats like Excel service
+     */
+    protected function processTransactionsForXml(
+        DOMDocument $dom,
+        DOMElement $root,
+        Collection $transactions,
+        array $merchantData
+    ): array
+    {
         $transactionsByMerchant = $transactions->groupBy('merchant_id');
         $stats = [
-            'processed_merchants' => 0,
-            'total_transactions' => 0,
+            'merchant_count' => 0,
+            'transaction_count' => 0,
             'total_amount' => 0,
-            'quarter' => $quarter,
-            'year' => $year,
+            'quarter' => $this->quarter,
+            'year' => $this->year,
             'date_range' => [
-                'start' => $startDate->format('Y-m-d'),
-                'end' => $endDate->format('Y-m-d')
+                'start' => Carbon::createFromDate($this->year, (($this->quarter - 1) * 3) + 1, 1)->format('Y-m-d'),
+                'end' => Carbon::createFromDate($this->year, (($this->quarter - 1) * 3) + 1, 1)->addMonths(3)->subDay()->format('Y-m-d')
             ],
-            'threshold' => $threshold,
-            'eu_countries' => count($this->euCountries)
+            'threshold' => $this->threshold,
+            'eu_countries' => count($this->euCountries),
+            'processed_merchants' => 0 // Added this field to match XML structure
         ];
 
         foreach ($transactionsByMerchant as $merchantId => $merchantTransactions) {
@@ -149,38 +293,22 @@ class CesopReportService
             // Add merchant to XML as ReportedPayee
             $this->addMerchantToXml($dom, $root, $merchant, $merchantTransactions);
             $stats['processed_merchants']++;
-            $stats['total_transactions'] += $merchantTransactions->count();
+            $stats['merchant_count']++;
+            $stats['transaction_count'] += $merchantTransactions->count();
             $stats['total_amount'] += $merchantTransactions->sum('amount') / 100;
+
+            if ($this->progressBar) {
+                $this->progressBar->advance();
+            }
         }
 
-        if ($stats['processed_merchants'] === 0) {
-            return [
-                'success' => false,
-                'message' => 'No merchants processed. No qualifying data found.',
-                'data' => null
-            ];
-        }
-
-        // Return the XML and stats
-        return [
-            'success' => true,
-            'message' => 'Report generated successfully',
-            'data' => [
-                'xml' => $dom->saveXML(),
-                'stats' => $stats,
-                'period' => [
-                    'quarter' => $quarter,
-                    'year' => $year,
-                    'start_date' => $startDate->toDateString(),
-                    'end_date' => $endDate->toDateString()
-                ]
-            ]
-        ];
+        return $stats;
     }
 
     /**
      * Get qualifying cards that exceed the threshold
      * Exclude domestic transactions (where merchant country matches card country)
+     * Using the same logic as Excel service
      */
     protected function getQualifyingCards(
         Carbon $startDate,
@@ -224,7 +352,11 @@ class CesopReportService
             }
         }
 
-        // Build the query to find qualifying cards
+        Log::info('Merchant country map generated', [
+            'map' => $merchantCountryMap
+        ]);
+
+        // Build the query to find qualifying cards - using composite key for unique cards like Excel service
         $qualifyingCardsQuery = DB::connection('payment_gateway_mysql')
             ->table('transactions as t')
             ->join('customer_card as cc', 't.card_id', '=', 'cc.card_id')
@@ -233,14 +365,29 @@ class CesopReportService
             ->select(
                 's.account_id as merchant_id',
                 's.id as shop_id',
-                'cc.card_id',
+                // Create a composite identifier for unique physical cards
+                'cc.customer_id',
+                'cc.first6',
+                'cc.last4',
+                'cc.c_holder_name',
+                'cc.c_expire_month',
+                'cc.c_expire_year',
                 'bb.isoa2 as card_country',
-                DB::raw("COUNT(*) as transaction_count")
+                DB::raw("COUNT(*) as transaction_count"),
+                // Keep one card_id for reference (using MIN to get a consistent one)
+                DB::raw("MIN(cc.card_id) as representative_card_id")
             )
             ->whereBetween('t.added', [$startDate, $endDate])
             ->where('t.transaction_status', 'APPROVED')
             ->whereIn('t.transaction_type', ['Sale', 'Refund'])
-            ->whereIn('bb.isoa2', $this->euCountries);
+            ->whereIn('bb.isoa2', $this->euCountries)
+            // Ensure we have the required fields for grouping
+            ->whereNotNull('cc.customer_id')
+            ->whereNotNull('cc.first6')
+            ->whereNotNull('cc.last4')
+            ->whereNotNull('cc.c_holder_name')
+            ->whereNotNull('cc.c_expire_month')
+            ->whereNotNull('cc.c_expire_year');
 
         // Apply merchant filter if provided
         if (!empty($merchantIds)) {
@@ -252,43 +399,108 @@ class CesopReportService
             $qualifyingCardsQuery->whereIn('s.id', $shopIds);
         }
 
-        // Get all potential qualifying cards
-        $potentialQualifyingCards = $qualifyingCardsQuery->groupBy(
+        // Group by the composite key that uniquely identifies a physical card
+        $potentialQualifyingCards = $qualifyingCardsQuery->groupBy([
             's.account_id',
             's.id',
-            'cc.card_id',
+            'cc.customer_id',
+            'cc.first6',
+            'cc.last4',
+            'cc.c_holder_name',
+            'cc.c_expire_month',
+            'cc.c_expire_year',
             'bb.isoa2'
-        )
-            ->havingRaw("COUNT(*) > {$this->threshold}")
+        ])
+            ->havingRaw("COUNT(*) >= {$this->threshold}")
             ->get();
 
-        // Filter out domestic transactions
-        $finalQualifyingCardIds = [];
+        Log::info('Found potential qualifying cards', [
+            'count' => count($potentialQualifyingCards)
+        ]);
+
+        // Filter out domestic transactions and collect card characteristics
+        $qualifyingCardCharacteristics = [];
         foreach ($potentialQualifyingCards as $card) {
             // Skip if we have merchant country info and it matches the card country (domestic transaction)
             if (
                 isset($merchantCountryMap[$card->merchant_id]) &&
                 $merchantCountryMap[$card->merchant_id] === $card->card_country
             ) {
+                Log::info('Excluding domestic transaction', [
+                    'merchant_id' => $card->merchant_id,
+                    'merchant_country' => $merchantCountryMap[$card->merchant_id],
+                    'card_country' => $card->card_country,
+                    'customer_id' => $card->customer_id,
+                    'first6' => $card->first6,
+                    'last4' => $card->last4,
+                    'holder_name' => $card->c_holder_name,
+                    'expire_month' => $card->c_expire_month,
+                    'expire_year' => $card->c_expire_year,
+                    'transaction_count' => $card->transaction_count
+                ]);
                 continue;
             }
 
-            $finalQualifyingCardIds[] = $card->card_id;
+            // Store the card characteristics instead of card_ids
+            $qualifyingCardCharacteristics[] = [
+                'customer_id' => $card->customer_id,
+                'first6' => $card->first6,
+                'last4' => $card->last4,
+                'c_holder_name' => $card->c_holder_name,
+                'c_expire_month' => $card->c_expire_month,
+                'c_expire_year' => $card->c_expire_year,
+                'transaction_count' => $card->transaction_count
+            ];
+
+            Log::info('Including qualifying card', [
+                'merchant_id' => $card->merchant_id,
+                'customer_id' => $card->customer_id,
+                'first6' => $card->first6,
+                'last4' => $card->last4,
+                'holder_name' => $card->c_holder_name,
+                'expire_month' => $card->c_expire_month,
+                'expire_year' => $card->c_expire_year,
+                'transaction_count' => $card->transaction_count
+            ]);
         }
 
-        return $finalQualifyingCardIds;
+        Log::info('Final qualifying cards after excluding domestic transactions', [
+            'count' => count($qualifyingCardCharacteristics)
+        ]);
+
+        return $qualifyingCardCharacteristics;
     }
 
     /**
-     * Process merchant data based on qualifying cards
+     * Process merchant data based on qualifying cards (same as Excel service)
      */
-    protected function processMerchantData(array $qualifyingCards, array $merchantIds = []): array
+    protected function processMerchantData(array $qualifyingCardCharacteristics, array $merchantIds = []): array
     {
+        if (empty($qualifyingCardCharacteristics)) {
+            return [];
+        }
+
+        $cardIdSubquery = DB::connection('payment_gateway_mysql')
+            ->table('customer_card as cc')
+            ->select('cc.card_id')
+            ->where(function ($q) use ($qualifyingCardCharacteristics) {
+                foreach ($qualifyingCardCharacteristics as $card) {
+                    $q->orWhere(function ($subQ) use ($card) {
+                        $subQ->where('cc.customer_id', $card['customer_id'])
+                            ->where('cc.first6', $card['first6'])
+                            ->where('cc.last4', $card['last4'])
+                            ->where('cc.c_holder_name', $card['c_holder_name'])
+                            ->where('cc.c_expire_month', $card['c_expire_month'])
+                            ->where('cc.c_expire_year', $card['c_expire_year']);
+                    });
+                }
+            });
+
         // Get all merchant IDs from qualifying cards
         $cardMerchantQuery = DB::connection('payment_gateway_mysql')
             ->table('transactions as t')
             ->join('shop as s', 't.shop_id', '=', 's.id')
-            ->whereIn('t.card_id', $qualifyingCards)
+            ->whereIn('t.card_id', $cardIdSubquery)
             ->distinct()
             ->select('s.account_id');
 
@@ -355,22 +567,34 @@ class CesopReportService
 
     /**
      * Get transaction data for the report (individual transactions, not aggregated)
-     *
-     * @param Carbon $startDate
-     * @param Carbon $endDate
-     * @param array $qualifyingCards
-     * @param array $merchantIds
-     * @param array $shopIds
-     * @return Collection
+     * Using the same composite key approach as Excel service
      */
     protected function getTransactionsData(
         Carbon $startDate,
         Carbon $endDate,
-        array  $qualifyingCards,
+        array  $qualifyingCardCharacteristics,
         array  $merchantIds = [],
         array  $shopIds = []
     ): Collection
     {
+        if (empty($qualifyingCardCharacteristics)) {
+            return collect();
+        }
+
+        // Create composite keys for qualifying cards
+        $compositeKeys = [];
+        foreach ($qualifyingCardCharacteristics as $card) {
+            // Create a unique key by concatenating all card attributes
+            $key = $card['customer_id'] . '|' .
+                $card['first6'] . '|' .
+                $card['last4'] . '|' .
+                $card['c_expire_month'] . '|' .
+                $card['c_expire_year'];
+            $compositeKeys[] = $key;
+        }
+
+        $compositeKeysString = "'" . implode("','", array_map('addslashes', $compositeKeys)) . "'";
+
         $query = DB::connection('payment_gateway_mysql')
             ->table('transactions as t')
             ->join('customer_card as cc', 't.card_id', '=', 'cc.card_id')
@@ -396,7 +620,10 @@ class CesopReportService
             ->where('t.transaction_status', 'APPROVED')
             ->whereIn('t.transaction_type', ['Sale', 'Refund'])
             ->whereIn('bb.isoa2', $this->euCountries)
-            ->whereIn('cc.card_id', $qualifyingCards);
+            ->whereRaw("CONCAT(cc.customer_id, '|', cc.first6, '|', cc.last4, '|', cc.c_expire_month, '|', cc.c_expire_year) IN ({$compositeKeysString})")
+            ->orderBy('s.account_id')
+            ->orderBy('s.id')
+            ->orderBy('t.added');
 
         // Apply merchant filter if provided
         if (!empty($merchantIds)) {
@@ -408,11 +635,20 @@ class CesopReportService
             $query->whereIn('s.id', $shopIds);
         }
 
-        return $query
-            ->orderBy('s.account_id')
-            ->orderBy('s.id')
-            ->orderBy('t.added')
-            ->get();
+        return $query->get();
+    }
+
+    /**
+     * Load default PSP data from configuration (same as Excel service)
+     */
+    protected function loadDefaultPspData(): array
+    {
+        return [
+            'bic' => config('cesop.psp.bic', 'ABCDEF12XXX'),
+            'name' => config('cesop.psp.name', 'Intraclear Provider'),
+            'country' => config('cesop.psp.country', 'CY'),
+            'tax_id' => config('cesop.psp.tax_id', 'CY12345678X')
+        ];
     }
 
     /**
@@ -472,29 +708,6 @@ class CesopReportService
         }
 
         return null;
-    }
-
-    /**
-     * Load PSP data from config or defaults
-     *
-     * @param string|null $path Optional path to JSON file with PSP data
-     * @return array
-     */
-    protected function loadPspData(?string $path = null): array
-    {
-        $defaults = [
-            'bic' => config('cesop.psp.bic', 'ABCDEF12XXX'),
-            'name' => config('cesop.psp.name', 'Intraclear Provider'),
-            'country' => config('cesop.psp.country', 'CY'),
-            'tax_id' => config('cesop.psp.tax_id', 'CY12345678X')
-        ];
-
-        if ($path && file_exists($path)) {
-            $data = json_decode(file_get_contents($path), true);
-            return array_merge($defaults, $data);
-        }
-
-        return $defaults;
     }
 
     /**

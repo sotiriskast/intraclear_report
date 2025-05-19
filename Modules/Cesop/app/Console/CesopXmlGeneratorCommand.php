@@ -3,39 +3,40 @@
 namespace Modules\Cesop\Console;
 
 use Illuminate\Console\Command;
-use Modules\Cesop\Services\CesopReportService;
+use Modules\Cesop\Services\CesopXmlGeneratorService;
 use Modules\Cesop\Services\CesopXmlValidator;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\Console\Helper\ProgressBar;
 
-class CesopReportCommand extends Command
+class CesopXmlGeneratorCommand extends Command
 {
     /**
      * The name and signature of the console command.
      *
      * @var string
      */
-    protected $signature = 'cesop:report
-                            {--quarter=}
-                            {--year=}
-                            {--merchants=*}
-                            {--shops=*}
-                            {--output=}
-                            {--format=console}
-                            {--threshold=25}
-                            {--psp-data=}
-                            {--validate}
-                            {--schema-path=}';
+    protected $signature = 'cesop:generate-xml-report
+                            {--quarter= : Reporting quarter (1-4)}
+                            {--year= : Reporting year}
+                            {--merchants=* : Specific merchant IDs to include}
+                            {--shops=* : Specific shop IDs to include}
+                            {--output= : Output directory for files}
+                            {--threshold=25 : Minimum number of transactions to report}
+                            {--psp-data= : Path to JSON file with PSP data}
+                            {--validate : Validate the generated XML against CESOP schema}
+                            {--schema-path= : Path to CESOP XSD schema file}
+                            {--no-progress : Disable progress bar}';
 
     /**
      * The console command description.
      *
      * @var string
      */
-    protected $description = 'Generate CESOP report for European BINs with more than 25 transactions';
+    protected $description = 'Generate CESOP XML report for European BINs with more than 25 transactions';
 
     /**
-     * @var CesopReportService
+     * @var CesopXmlGeneratorService
      */
     protected $reportService;
 
@@ -47,11 +48,11 @@ class CesopReportCommand extends Command
     /**
      * Create a new command instance.
      *
-     * @param CesopReportService $reportService
+     * @param CesopXmlGeneratorService $reportService
      * @param CesopXmlValidator $xmlValidator
      * @return void
      */
-    public function __construct(CesopReportService $reportService, CesopXmlValidator $xmlValidator)
+    public function __construct(CesopXmlGeneratorService $reportService, CesopXmlValidator $xmlValidator)
     {
         parent::__construct();
         $this->reportService = $reportService;
@@ -65,8 +66,8 @@ class CesopReportCommand extends Command
      */
     public function handle()
     {
-        $this->info('CESOP Report Generator');
-        $this->info('======================');
+        $this->info('CESOP XML Report Generator');
+        $this->info('==========================');
         $this->newLine();
 
         // Get command options with defaults
@@ -74,18 +75,23 @@ class CesopReportCommand extends Command
         $year = $this->option('year') ?: Carbon::now()->subQuarter()->year;
         $merchantIds = $this->option('merchants');
         $shopIds = $this->option('shops');
-        $format = $this->option('format') ?: 'console';
         $outputPath = $this->option('output');
         $threshold = $this->option('threshold') ?: 25;
         $shouldValidate = $this->option('validate') ?: false;
         $schemaPath = $this->option('schema-path');
+        $showProgress = !$this->option('no-progress');
 
-        // If schema path provided, set it in the validator
-        if ($schemaPath) {
-            $this->xmlValidator->setSchemaPath($schemaPath);
+        // Determine output directory
+        if (empty($outputPath)) {
+            $outputPath = Storage::path('cesop/xml/' . date('Y-m-d_His'));
         }
 
-        // Load PSP data
+        if (!is_dir($outputPath) && !mkdir($outputPath, 0755, true)) {
+            $this->error("Failed to create output directory: {$outputPath}");
+            return 1;
+        }
+
+        // Load PSP data if provided
         $pspData = null;
         if ($this->option('psp-data')) {
             $pspData = $this->loadPspData($this->option('psp-data'));
@@ -96,21 +102,34 @@ class CesopReportCommand extends Command
         $startDate = Carbon::createFromDate($year, $startMonth, 1)->startOfDay();
         $endDate = (clone $startDate)->addMonths(3)->subDay()->endOfDay();
 
-        $this->info("Generating CESOP report for Q{$quarter} {$year}");
+        $this->info("Generating CESOP XML report for Q{$quarter} {$year}");
         $this->info("Date range: {$startDate->toDateString()} to {$endDate->toDateString()}");
         $this->info("Transaction threshold: {$threshold}");
         $this->newLine();
 
-        // Generate report using service
-        $this->line('Retrieving transaction data...');
-        $result = $this->reportService->generateReport(
-            $quarter,
-            $year,
-            $merchantIds,
-            $shopIds,
-            $threshold,
-            $pspData
-        );
+        // Create progress bar if enabled
+        $progressBar = null;
+        if ($showProgress) {
+            // Initialize with a small number of steps initially (will be updated later)
+            $progressBar = $this->output->createProgressBar(5);
+            $progressBar->setFormat(
+                ' %current%/%max% [%bar%] %percent:3s%% %elapsed:6s%/%estimated:-6s% %memory:6s% | %message%'
+            );
+            $progressBar->setMessage('Starting...');
+            $progressBar->start();
+        }
+
+        // Create report service with progress bar
+        $reportService = new CesopXmlGeneratorService($quarter, $year, $threshold, $pspData, $progressBar);
+
+        // Generate XML report using the updated service
+        $result = $reportService->generateReport($merchantIds, $shopIds, $outputPath);
+
+        // Make sure we finish the progress bar
+        if ($progressBar) {
+            $progressBar->finish();
+            $this->newLine(2);
+        }
 
         if (!$result['success']) {
             $this->error($result['message']);
@@ -118,58 +137,26 @@ class CesopReportCommand extends Command
         }
 
         $stats = $result['data']['stats'];
-        $xml = $result['data']['xml'];
+        $xmlFilePath = $result['data']['file'];
+        $fileSize = $result['data']['file_size'];
 
-        $this->info("Found " . $stats['transaction_groups'] . " qualifying transaction groups");
-        $this->info("Processed " . $stats['processed_merchants'] . " merchants and " . $stats['processed_shops'] . " shops");
+        $this->info("Generated XML file: " . basename($xmlFilePath));
+        $this->info("Generated XML file full path: " . $xmlFilePath);
+        $this->info("File size: " . number_format($fileSize) . " bytes");
+        $this->info("Included {$stats['merchant_count']} merchants with {$stats['transaction_count']} transactions");
+        $this->info("Total transaction amount: " . number_format($stats['total_amount'], 2));
         $this->newLine();
 
-        // Save the XML file if requested
-        if ($format === 'xml' || $this->confirm('Would you like to generate an XML CESOP report?', false)) {
-            $this->line('Generating XML document...');
-
-            // Determine output path
-            if (!$outputPath) {
-                $pspCountry = $pspData['country'] ?? config('cesop.psp.country', 'CY');
-                $pspBic = $pspData['bic'] ?? config('cesop.psp.bic', 'ABCDEF12XXX');
-
-                // Create a CESOP-compliant filename
-                $fileName = sprintf(
-                    'PMT-Q%d-%d-%s-%s-1-1.xml',
-                    $quarter,
-                    $year,
-                    $pspCountry,
-                    $pspBic
-                );
-
-                $outputDir = config('cesop.output_path', storage_path('app/cesop'));
-                $outputPath = $outputDir . '/' . $fileName;
+        // Validate the XML if requested
+        if ($shouldValidate) {
+            // If schema path provided, set it in the validator
+            if ($schemaPath) {
+                $this->xmlValidator->setSchemaPath($schemaPath);
             }
-
-            // Create directory if it doesn't exist
-            $directory = dirname($outputPath);
-            if (!is_dir($directory)) {
-                mkdir($directory, 0755, true);
-            }
-
-            // Save XML to file
-            file_put_contents($outputPath, $xml);
-
-            $this->info("XML CESOP report generated and saved to: {$outputPath}");
-
-            // Validate the XML if requested
-            if ($shouldValidate) {
-                $this->validateXml($outputPath);
-            }
+            $this->validateXml($xmlFilePath);
         }
 
-        $this->info("CESOP report generation completed successfully for {$stats['processed_shops']} shops.");
-
-        // Show transaction stats
-        $this->line("Total transactions: {$stats['total_transactions']}");
-        $formattedAmount = number_format($stats['total_amount'] / 100, 2);
-        $this->line("Total amount: {$formattedAmount}");
-        $this->newLine();
+        $this->info("CESOP XML report generation completed successfully.");
 
         return 0;
     }

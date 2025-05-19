@@ -15,6 +15,7 @@ use App\Mail\NewMerchantCreated;
  * This service is responsible for:
  * - Retrieving merchant data from a payment gateway database
  * - Updating or inserting merchant records in the primary database
+ * - Synchronizing shop data for each merchant
  * - Logging synchronization statistics and errors
  * - Sending email notifications for sync failures and new merchants
  */
@@ -25,10 +26,12 @@ class MerchantSyncService
      *
      * @param  DynamicLogger  $logger  Logging service for sync-related events
      * @param  MerchantSettingRepository  $merchantSettingRepository  Repository for merchant settings
+     * @param  ShopSyncService  $shopSyncService  Service for syncing shops
      */
     public function __construct(
         private readonly DynamicLogger $logger,
-        private MerchantSettingRepository $merchantSettingRepository
+        private MerchantSettingRepository $merchantSettingRepository,
+        private readonly ShopSyncService $shopSyncService
     ) {}
 
     /**
@@ -39,10 +42,11 @@ class MerchantSyncService
      * 2. Fetch merchant data from the payment gateway
      * 3. Begin a database transaction
      * 4. Iterate through source data and upsert (update or insert) merchants
-     * 5. Commit the transaction
-     * 6. Log synchronization statistics
+     * 5. Sync shops for each merchant
+     * 6. Commit the transaction
+     * 7. Log synchronization statistics
      *
-     * @return array Statistics of sync operation (new and updated merchant counts)
+     * @return array Statistics of sync operation (new and updated merchant counts, shop counts)
      *
      * @throws \Exception If synchronization fails, rolls back the transaction
      */
@@ -50,7 +54,18 @@ class MerchantSyncService
     {
         try {
             // Initialize statistics tracking
-            $stats = ['new' => 0, 'updated' => 0, 'settings_created' => 0];
+            $stats = [
+                'new' => 0,
+                'updated' => 0,
+                'settings_created' => 0,
+                'shops' => [
+                    'new' => 0,
+                    'updated' => 0,
+                    'settings_created' => 0,
+                    'fees_created' => 0,
+                ]
+            ];
+
             // Retrieve existing merchants for comparison
             $existingMerchants = $this->getExistingMerchants();
             // Fetch source merchant data from payment gateway
@@ -62,24 +77,22 @@ class MerchantSyncService
 
             // Start database transaction
             DB::connection('pgsql')->beginTransaction();
+
             // Process each merchant
             foreach ($sourceData as $merchant) {
                 $isNew = ! isset($existingMerchants[$merchant->id]);
                 $this->upsertMerchant($merchant);
                 $stats[$isNew ? 'new' : 'updated']++;
+
                 // Only proceed with settings creation for new merchants
                 if ($isNew) {
                     // Retrieve the internal merchant ID using the account_id from the payment gateway
-                    // We need this because the merchant table uses an auto-incrementing ID
-                    // different from the account_id in the payment gateway
                     $merchantId = DB::connection('pgsql')
                         ->table('merchants')
                         ->where('account_id', $merchant->id)
                         ->value('id');
 
-                    // Create settings only if:
-                    // 1. We successfully retrieved the merchant ID
-                    // 2. The merchant doesn't already have settings
+                    // Create settings only if merchant ID was found and doesn't have settings
                     if ($merchantId && ! $this->merchantSettingRepository->isExistingForMerchant($merchantId)) {
                         $this->createDefaultSettings($merchantId);
                         $stats['settings_created']++;
@@ -88,20 +101,41 @@ class MerchantSyncService
                         $this->sendNewMerchantNotification($merchant, $merchantId);
                     }
                 }
+
+                // Sync shops for this merchant (both new and existing merchants)
+                try {
+                    $shopStats = $this->shopSyncService->syncShopsForMerchant($merchant->id);
+                    $stats['shops']['new'] += $shopStats['new'];
+                    $stats['shops']['updated'] += $shopStats['updated'];
+                    $stats['shops']['settings_created'] += $shopStats['settings_created'];
+                    $stats['shops']['fees_created'] += $shopStats['fees_created'];
+                } catch (\Exception $e) {
+                    $this->logger->log('error', 'Failed to sync shops for merchant', [
+                        'merchant_id' => $merchant->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                    // Continue with other merchants instead of failing the entire sync
+                }
             }
+
             // Commit database transaction
             DB::connection('pgsql')->commit();
+
             $this->logger->log('info', 'Merchant sync completed successfully', [
                 'new_merchants' => $stats['new'],
                 'updated_merchants' => $stats['updated'],
                 'settings_created' => $stats['settings_created'],
+                'new_shops' => $stats['shops']['new'],
+                'updated_shops' => $stats['shops']['updated'],
+                'shop_settings_created' => $stats['shops']['settings_created'],
+                'shop_fees_created' => $stats['shops']['fees_created'],
             ]);
 
             return $stats;
         } catch (\Exception $e) {
             // Rollback transaction in case of failure
             DB::connection('pgsql')->rollBack();
-            // @todo Send email for not adding merchant
+
             // Log the error
             $this->logger->log('error', 'Merchant sync failed', [
                 'error' => $e->getMessage(),

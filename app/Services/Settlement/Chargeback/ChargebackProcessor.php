@@ -8,6 +8,7 @@ use App\DTO\ChargebackData;
 use App\Enums\ChargebackStatus;
 use App\Repositories\Interfaces\ChargebackTrackingRepositoryInterface;
 use App\Repositories\MerchantRepository;
+use App\Repositories\ShopRepository;
 use App\Services\DynamicLogger;
 use App\Services\Settlement\Chargeback\Interfaces\ChargebackProcessorInterface;
 
@@ -19,12 +20,15 @@ readonly class ChargebackProcessor implements ChargebackProcessorInterface
     public function __construct(
         private ChargebackTrackingRepositoryInterface $chargebackTrackingRepository,
         private MerchantRepository $merchantRepository,
+        private ShopRepository $shopRepository,
         private DynamicLogger $logger
     ) {}
 
-    public function processChargeback(int $merchantId, ChargebackData $data): void
+    public function processChargeback(int $merchantId, int $shopId, ChargebackData $data): void
     {
-        $merchantId = $this->merchantRepository->getMerchantIdByAccountId($merchantId);
+        // Get internal IDs
+        $internalMerchantId = $this->merchantRepository->getMerchantIdByAccountId($merchantId);
+        $internalShopId = $this->shopRepository->getInternalIdByExternalId($shopId, $merchantId);
 
         // First check if we already have this chargeback
         $existingChargeback = $this->chargebackTrackingRepository->findExistingChargeback($data->transactionId);
@@ -36,6 +40,7 @@ readonly class ChargebackProcessor implements ChargebackProcessorInterface
 
                 $this->logger->log('info', 'Updated existing chargeback status', [
                     'merchant_id' => $merchantId,
+                    'shop_id' => $shopId,
                     'transaction_id' => $data->transactionId,
                     'old_status' => $existingChargeback['current_status'],
                     'new_status' => $data->status->value,
@@ -43,10 +48,11 @@ readonly class ChargebackProcessor implements ChargebackProcessorInterface
             }
         } elseif ($data->status === ChargebackStatus::PROCESSING) {
             // Only track new chargebacks that are in PROCESSING status
-            $this->chargebackTrackingRepository->trackNewChargeback($merchantId, $data);
+            $this->chargebackTrackingRepository->trackNewChargeback($internalMerchantId, $internalShopId, $data);
 
-            $this->logger->log('info', 'Processing new chargeback', [
+            $this->logger->log('info', 'Processing new chargeback for shop', [
                 'merchant_id' => $merchantId,
+                'shop_id' => $shopId,
                 'transaction_id' => $data->transactionId,
                 'amount' => $data->amount,
                 'currency' => $data->currency,
