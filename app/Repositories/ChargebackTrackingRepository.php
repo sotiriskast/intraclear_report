@@ -19,25 +19,43 @@ use Illuminate\Support\Facades\DB;
  */
 readonly class ChargebackTrackingRepository implements ChargebackTrackingRepositoryInterface
 {
-    public function __construct(
-        private DynamicLogger $logger
-    ) {}
+    private const array CURRENCY_PRECISION = [
+        'JPY' => 4,
+        'DEFAULT' => 6
+    ];
 
     /**
-     * Records a new chargeback transaction
+     * Get the appropriate decimal precision for a currency
+     *
+     * @param string $currency The currency code
+     * @return int The precision to use
+     */
+    private function getPrecisionForCurrency(string $currency): int
+    {
+        return self::CURRENCY_PRECISION[$currency] ?? self::CURRENCY_PRECISION['DEFAULT'];
+    }
+
+    public function __construct(private MerchantRepository $merchantRepository,
+                                private DynamicLogger      $logger)
+    {
+    }
+
+    /**
+     * Records a new chargeback transaction with shop tracking
      *
      * @throws \Exception If tracking creation fails
      */
-    public function trackNewChargeback(int $merchantId, ChargebackData $data): void
+    public function trackNewChargeback(int $merchantId, int $shopId, ChargebackData $data): void
     {
         try {
-            DB::transaction(function () use ($merchantId, $data) {
+            DB::transaction(function () use ($merchantId, $shopId, $data) {
                 ChargebackTracking::create([
                     'merchant_id' => $merchantId,
+                    'shop_id' => $shopId,
                     'transaction_id' => $data->transactionId,
-                    'amount' => $data->amount,
+                    'amount' => $data->amount * 100,
                     'currency' => $data->currency,
-                    'amount_eur' => $data->amountEur,
+                    'amount_eur' => $data->amountEur * 100,
                     'exchange_rate' => $data->exchangeRate,
                     'initial_status' => $data->status->value,
                     'current_status' => $data->status->value,
@@ -47,11 +65,13 @@ readonly class ChargebackTrackingRepository implements ChargebackTrackingReposit
 
             $this->logger->log('info', 'New chargeback tracked successfully', [
                 'merchant_id' => $merchantId,
+                'shop_id' => $shopId,
                 'transaction_id' => $data->transactionId,
             ]);
         } catch (\Exception $e) {
             $this->logger->log('error', 'Failed to track chargeback', [
                 'merchant_id' => $merchantId,
+                'shop_id' => $shopId,
                 'transaction_id' => $data->transactionId,
                 'error' => $e->getMessage(),
             ]);
@@ -78,6 +98,7 @@ readonly class ChargebackTrackingRepository implements ChargebackTrackingReposit
 
                 $this->logger->log('info', 'Chargeback status updated', [
                     'transaction_id' => $transactionId,
+                    'shop_id' => $tracking->shop_id,
                     'new_status' => $newStatus->value,
                 ]);
             }
@@ -85,7 +106,7 @@ readonly class ChargebackTrackingRepository implements ChargebackTrackingReposit
     }
 
     /**
-     * Retrieves pending settlements for processing
+     * Retrieves pending settlements for processing (backward compatibility)
      *
      * @return array<int, array>
      */
@@ -100,11 +121,25 @@ readonly class ChargebackTrackingRepository implements ChargebackTrackingReposit
     }
 
     /**
+     * Retrieves pending settlements for a specific shop
+     *
+     * @return array<int, array>
+     */
+    public function getShopPendingSettlements(int $shopId): array
+    {
+        return ChargebackTracking::query()
+            ->where('shop_id', $shopId)
+            ->where('settled', false)
+            ->whereNull('status_changed_date')
+            ->get()
+            ->toArray();
+    }
+
+    /**
      * Get status updates for tracked chargebacks
      */
     public function getChargebackByTransactionId(int $transaction_id): \stdClass
     {
-
         return DB::connection('payment_gateway_mysql')
             ->table('transactions')
             ->select([
@@ -124,7 +159,7 @@ readonly class ChargebackTrackingRepository implements ChargebackTrackingReposit
         $settledDate ??= Carbon::now();
 
         DB::transaction(function () use ($chargebackIds, $settledDate) {
-            // First, check if the keys exist before using them
+            // Check if the keys exist before using them
             if (isset($chargebackIds['approved']) && !empty($chargebackIds['approved'])) {
                 ChargebackTracking::whereIn('id', $chargebackIds['approved'])
                     ->update([
@@ -158,17 +193,28 @@ readonly class ChargebackTrackingRepository implements ChargebackTrackingReposit
                     'status_changed_date' => Carbon::now(),
                 ]);
             }
-
         });
     }
 
     /**
-     * Retrieves chargebacks within a specified date range
+     * Retrieves chargebacks within a specified date range for a merchant
      */
     public function getChargebacksByDateRange(int $merchantId, CarbonPeriod $dateRange): array
     {
         return ChargebackTracking::query()
             ->where('merchant_id', $merchantId)
+            ->whereBetween('processing_date', [$dateRange->start, $dateRange->end])
+            ->get()
+            ->toArray();
+    }
+
+    /**
+     * Retrieves chargebacks within a specified date range for a shop
+     */
+    public function getShopChargebacksByDateRange(int $shopId, CarbonPeriod $dateRange): array
+    {
+        return ChargebackTracking::query()
+            ->where('shop_id', $shopId)
             ->whereBetween('processing_date', [$dateRange->start, $dateRange->end])
             ->get()
             ->toArray();
@@ -180,5 +226,49 @@ readonly class ChargebackTrackingRepository implements ChargebackTrackingReposit
             ->first();
 
         return $tracking ? $tracking->toArray() : null;
+    }
+
+    /**
+     * Updates chargebacks with the final exchange rate for a specific currency
+     */
+    public function updateChargebacksWithFinalExchangeRate(
+        int    $merchantId,
+        ?int   $shopId,
+        string $currency,
+        float  $finalExchangeRate,
+        array  $dateRange
+    ): int
+    {
+        $startDate = Carbon::parse($dateRange['start']);
+        $endDate = Carbon::parse($dateRange['end']);
+        $query = ChargebackTracking::query()
+            ->where('merchant_id', $this->merchantRepository->getMerchantIdByAccountId($merchantId))
+            ->where('currency', $currency)
+            ->whereBetween('processing_date', [$startDate, $endDate]);
+        if ($shopId !== null) {
+            $query->where('shop_id', $shopId);
+        }
+        // Get chargebacks to update
+        $chargebacks = $query->get();
+        $updated = 0;
+        foreach ($chargebacks as $chargeback) {
+            // Recalculate amount_eur based on the final exchange rate
+            $newAmountEur = ($chargeback->amount / 100) * $finalExchangeRate;
+            // Update the chargeback
+            $chargeback->update([
+                'amount_eur' => (int)round($newAmountEur * 100), // Convert back to cents
+                'exchange_rate' => round($finalExchangeRate, $this->getPrecisionForCurrency($currency))
+            ]);
+            $updated++;
+        }
+        $this->logger->log('info', 'Updated chargebacks with final exchange rate', [
+            'merchant_id' => $merchantId,
+            'shop_id' => $shopId,
+            'currency' => $currency,
+            'exchange_rate' => $finalExchangeRate,
+            'chargebacks_updated' => $updated
+        ]);
+
+        return $updated;
     }
 }

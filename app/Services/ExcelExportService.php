@@ -57,7 +57,7 @@ class ExcelExportService
      *
      * @throws \Exception If report generation fails
      */
-    public function generateReport(int $merchantId, array $settlementData, array $dateRange)
+    public function generateReport(int $merchantId, array $settlementData, array $dateRange, ?int $shopId = null): string
     {
         try {
             $this->spreadsheet = new Spreadsheet;
@@ -69,11 +69,12 @@ class ExcelExportService
                 }
             }
 
-            return $this->saveReport($merchantId, $dateRange);
+            return $this->saveReport($merchantId, $dateRange, $shopId);
 
         } catch (\Exception $e) {
             $this->logger->log('error', 'Error generating Excel report: ' . $e->getMessage(), [
                 'merchant_id' => $merchantId,
+                'shop_id' => $shopId,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
@@ -89,7 +90,7 @@ class ExcelExportService
      * @param array $currencyData Transaction and fee data for specific currency
      * @param array $dateRange Settlement period date range
      */
-    protected function createShopCurrencySheet($shopData, $currencyData, $dateRange)
+    protected function createShopCurrencySheet($shopData, $currencyData, $dateRange): void
     {
         $sheetName = $this->createSheetName($shopData, $currencyData['currency']);
         $this->currentSheet = $this->spreadsheet->createSheet();
@@ -100,6 +101,7 @@ class ExcelExportService
         $this->addMerchantDetails($shopData, $currencyData, $dateRange);
         $this->addChargeDetails($currencyData);
         $this->addRefundChargeDetails($currencyData);
+//        $this->addDetailedChargebackSection($currencyData); // Add this line
         $this->addGeneratedReserveDetails($currencyData);
         $this->addRefundedReserveDetails($currencyData);
         $this->addSummarySection($currencyData);
@@ -318,8 +320,74 @@ class ExcelExportService
             "=G{$startRow}+G" . ($startRow + 1) . '-G' . ($startRow + 2)
         );
 
+        // Add detailed chargeback information section
+        $this->addDetailedChargebackSection($currencyData);
     }
+    /**
+     * Add a section with detailed chargeback information
+     *
+     * @param array $currencyData Currency-specific data including chargeback details
+     */
+    private function addDetailedChargebackSection(array $currencyData): void
+    {
+        // Only proceed if detailed chargeback data is available
+        if (empty($currencyData['chargebackSettlement']['detailed_chargebacks'])) {
+            return;
+        }
 
+        $this->currentRow += 3;
+        $this->addSectionHeader('Detailed Chargeback Information');
+        $this->currentRow++;
+
+        // Add table headers
+        $headers = [
+            'Amount',
+            'Amount EUR',
+            'Exchange Rate',
+            'Status',
+            'Settled',
+            'Processing Date',
+            'Currency',
+        ];
+
+        foreach ($headers as $index => $header) {
+            $column = chr(65 + $index); // Convert index to letter (0=A, 1=B, etc.)
+            $this->currentSheet->setCellValue($column . $this->currentRow, $header);
+            $this->currentSheet->getStyle($column . $this->currentRow)->getFont()->setBold(true);
+        }
+        $this->currentRow++;
+
+        // Add each chargeback as a row
+        $detailedChargebacks = $currencyData['chargebackSettlement']['detailed_chargebacks'];
+        foreach ($detailedChargebacks as $chargeback) {
+            // Only include chargebacks in the current currency
+            if ($chargeback['currency'] !== $currencyData['currency']) {
+                continue;
+            }
+
+            $this->currentSheet->setCellValue('A' . $this->currentRow, $chargeback['amount']);
+            $this->currentSheet->setCellValue('B' . $this->currentRow, $chargeback['amount_eur']);
+            $this->currentSheet->setCellValue('C' . $this->currentRow, $chargeback['exchange_rate']);
+            $this->currentSheet->setCellValue('D' . $this->currentRow, $chargeback['status']);
+            $this->currentSheet->setCellValue('E' . $this->currentRow, $chargeback['is_settled'] ? 'Yes' : 'No');
+            $this->currentSheet->setCellValue('F' . $this->currentRow, $chargeback['processing_date']);
+            $this->currentSheet->setCellValue('G' . $this->currentRow, $chargeback['currency']);
+
+            // Apply number formatting to amount cells
+            $this->currentSheet->getStyle('D' . $this->currentRow . ':F' . $this->currentRow)
+                ->getNumberFormat()
+                ->setFormatCode(\PhpOffice\PhpSpreadsheet\Style\NumberFormat::FORMAT_NUMBER_COMMA_SEPARATED2);
+
+            $this->currentRow++;
+        }
+
+        // Apply borders to the entire table
+        $tableStart = $this->currentRow - count($detailedChargebacks) - 1;
+        $this->currentSheet->getStyle("A{$tableStart}:G{$this->currentRow}")
+            ->getBorders()
+            ->getAllBorders()
+            ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+    }
     /**
      * Add table Rolling Reserve with consistent formatting
      *
@@ -396,6 +464,112 @@ class ExcelExportService
     }
 
     /**
+     * Add detailed chargeback information section to the worksheet
+     *
+     * @param array $currencyData Currency-specific data including chargebacks
+     */
+    /**
+     * Add detailed chargeback information section to the worksheet
+     *
+     * @param array $currencyData Currency-specific data including chargebacks
+     */
+//    protected function addDetailedChargebackSection(array $currencyData): void
+//    {
+//        // Skip if no chargebacks are present
+//        if (empty($currencyData['chargebackDetails']) || count($currencyData['chargebackDetails']) === 0) {
+//            return;
+//        }
+//
+//        // Filter chargebacks for the current currency
+//        $currencyChargebacks = array_filter($currencyData['chargebackDetails'], function($chargeback) use ($currencyData) {
+//            return $chargeback['currency'] === $currencyData['currency'];
+//        });
+//
+//        // Skip if no chargebacks for this currency
+//        if (empty($currencyChargebacks)) {
+//            return;
+//        }
+//
+//        $this->currentRow += 2;
+//        $this->addSectionHeader('Detailed Chargeback Information');
+//        $this->currentRow++;
+//
+//        // Define columns
+//        $headers = [
+//            'Amount',
+//            'Amount EUR',
+//            'Exchange Rate',
+//            'Currency',
+//            'Initial Status',
+//            'Processing Date',
+//            'Status Changed Date'
+//        ];
+//
+//        // Add headers
+//        foreach ($headers as $index => $header) {
+//            $column = chr(65 + $index); // A, B, C, etc.
+//            $this->currentSheet->setCellValue($column . $this->currentRow, $header);
+//            $this->currentSheet->getStyle($column . $this->currentRow)->getFont()->setBold(true);
+//        }
+//        $this->currentRow++;
+//
+//        // Add rows for each chargeback
+//        foreach ($currencyChargebacks as $chargeback) {
+//            $this->currentSheet->setCellValue('A' . $this->currentRow, $chargeback['amount'] / 100); // Convert from cents
+//            $this->currentSheet->setCellValue('B' . $this->currentRow, $chargeback['amount_eur'] / 100); // Convert from cents
+//            $this->currentSheet->setCellValue('C' . $this->currentRow, $chargeback['currency']);
+//            $this->currentSheet->setCellValue('D' . $this->currentRow, $chargeback['exchange_rate']);
+//            $this->currentSheet->setCellValue('E' . $this->currentRow, $chargeback['initial_status']);
+//            $this->currentSheet->setCellValue('F' . $this->currentRow, \Carbon\Carbon::parse($chargeback['processing_date'])->format('d/m/Y'));
+//
+//            // Add status changed date if available
+//            if (!empty($chargeback['status_changed_date'])) {
+//                $this->currentSheet->setCellValue('G' . $this->currentRow, \Carbon\Carbon::parse($chargeback['status_changed_date'])->format('d/m/Y'));
+//            } else {
+//                $this->currentSheet->setCellValue('G' . $this->currentRow, 'N/A');
+//            }
+//
+//            // Apply formatting
+//            $this->currentSheet->getStyle('A' . $this->currentRow . ':A' . $this->currentRow)
+//                ->getNumberFormat()
+//                ->setFormatCode(\PhpOffice\PhpSpreadsheet\Style\NumberFormat::FORMAT_NUMBER_COMMA_SEPARATED2);
+//
+//            $this->currentSheet->getStyle('C' . $this->currentRow . ':D' . $this->currentRow)
+//                ->getNumberFormat()
+//                ->setFormatCode(\PhpOffice\PhpSpreadsheet\Style\NumberFormat::FORMAT_NUMBER_COMMA_SEPARATED2);
+//
+//            // Color-code status cells
+//            $statusColor = $this->getStatusColor($chargeback['status_changed_date'] ?? 'N/A');
+//            if ($statusColor) {
+//                $this->currentSheet->getStyle('G' . $this->currentRow)
+//                    ->getFill()
+//                    ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+//                    ->getStartColor()
+//                    ->setRGB($statusColor);
+//            }
+//
+//            $this->currentRow++;
+//        }
+//    }
+//
+//
+//    /**
+//     * Returns a color code for different chargeback statuses
+//     *
+//     * @param string $status The chargeback status
+//     * @return string HEX color code without #
+//     */
+//    private function getStatusColor(string $status): string
+//    {
+//        return match (strtoupper($status)) {
+//            'APPROVED' => 'C6EFCE', // Green
+//            'DECLINED' => 'FFC7CE', // Red
+////            'PROCESSING' => 'FFEB9C', // Yellow
+//            default => 'FFEB9C'
+//        };
+//    }
+
+    /**
      * Apply consistent formatting to the entire worksheet
      * Includes column widths, borders, and number formatting
      */
@@ -426,7 +600,7 @@ class ExcelExportService
      *
      * @throws \Exception If saving fails
      */
-    protected function saveReport(int $merchantId, array $dateRange): string
+    protected function saveReport(int $merchantId, array $dateRange, ?int $shopId = null): string
     {
         try {
             $merchant = DB::connection('pgsql')
@@ -439,7 +613,7 @@ class ExcelExportService
             }
 
             // Generate the storage path
-            $relativePath = $this->generateReportPath($merchant, $dateRange);
+            $relativePath = $this->generateReportPath($merchant, $dateRange, $shopId);
 
             // Save the Excel file directly to memory stream
             $writer = new Xlsx($this->spreadsheet);
@@ -475,18 +649,32 @@ class ExcelExportService
     /**
      * Generate standardized path for reports
      */
-    private function generateReportPath($merchant, array $dateRange): string
+    private function generateReportPath($merchant, array $dateRange, ?int $shopId = null): string
     {
         $dateFolder = Carbon::now()->format('Y-m-d');
         $safeMerchantName = Str::slug($merchant->name ?? 'merchant');
 
-        return sprintf(
-            'reports/%s/%s_%d/settlement_report_%s_to_%s.xlsx',
-            $dateFolder,
-            $safeMerchantName,
-            $merchant->account_id,
-            Carbon::parse($dateRange['start'])->format('Y-m-d'),
-            Carbon::parse($dateRange['end'])->format('Y-m-d')
-        );
+        if ($shopId) {
+            // Create shop directory under merchant directory
+            return sprintf(
+                'reports/%s/%s_%d/shop_%d/settlement_report_%s_to_%s.xlsx',
+                $dateFolder,
+                $safeMerchantName,
+                $merchant->account_id,
+                $shopId,
+                Carbon::parse($dateRange['start'])->format('Y-m-d'),
+                Carbon::parse($dateRange['end'])->format('Y-m-d')
+            );
+        } else {
+            // Fallback for merchant-level reports (if needed)
+            return sprintf(
+                'reports/%s/%s_%d/settlement_report_%s_to_%s.xlsx',
+                $dateFolder,
+                $safeMerchantName,
+                $merchant->account_id,
+                Carbon::parse($dateRange['start'])->format('Y-m-d'),
+                Carbon::parse($dateRange['end'])->format('Y-m-d')
+            );
+        }
     }
 }

@@ -67,7 +67,7 @@ class CesopExcelGeneratorService
     /**
      * Constructor
      */
-    public function __construct(int $quarter = null, int $year = null, int $threshold = 25, array $pspData = null, ?ProgressBar $progressBar = null
+    public function __construct(?int $quarter = null, ?int $year = null, int $threshold = 25, ?array $pspData = null, ?ProgressBar $progressBar = null
 
     )
     {
@@ -109,6 +109,9 @@ class CesopExcelGeneratorService
             if (!is_dir($outputDir)) {
                 mkdir($outputDir, 0755, true);
             }
+
+            // Log the output directory for debugging
+            Log::info('CESOP Excel output directory: ' . $outputDir);
 
             // Calculate date range for the quarter
             $dateRange = $this->getQuarterDateRange($this->quarter, $this->year);
@@ -190,8 +193,38 @@ class CesopExcelGeneratorService
             $excelFileName = "CESOP_Q{$this->quarter}_{$this->year}_" . date('Ymd_His') . ".xlsx";
             $excelPath = $outputDir . '/' . $excelFileName;
 
+            // Check if directory is writable
+            if (!is_writable($outputDir)) {
+                Log::error('Output directory is not writable: ' . $outputDir);
+                return [
+                    'success' => false,
+                    'message' => 'Output directory is not writable: ' . $outputDir,
+                    'data' => null
+                ];
+            }
+
+            // Log the full path before saving
+            Log::info('Attempting to save Excel file to: ' . $excelPath);
+
             $writer = new Xlsx($this->spreadsheet);
             $writer->save($excelPath);
+
+            // Verify the file was actually created
+            if (!file_exists($excelPath)) {
+                Log::error('Excel file was not created at: ' . $excelPath);
+                return [
+                    'success' => false,
+                    'message' => 'Excel file could not be saved to: ' . $excelPath,
+                    'data' => null
+                ];
+            }
+
+            // Log file size for confirmation
+            $fileSize = filesize($excelPath);
+            Log::info('Excel file created successfully', [
+                'path' => $excelPath,
+                'size' => $fileSize . ' bytes'
+            ]);
 
             if ($this->progressBar) {
                 $this->progressBar->finish();
@@ -202,7 +235,9 @@ class CesopExcelGeneratorService
                 'message' => 'Excel file generated successfully.',
                 'data' => [
                     'file' => $excelPath,
-                    'stats' => $stats
+                    'stats' => $stats,
+                    'full_path' => realpath($excelPath), // Add absolute path for clarity
+                    'file_size' => $fileSize
                 ]
             ];
         } catch (\Exception $e) {
@@ -217,7 +252,6 @@ class CesopExcelGeneratorService
             ];
         }
     }
-
     /**
      * Setup spreadsheet with two worksheets
      */
@@ -384,7 +418,7 @@ class CesopExcelGeneratorService
             'map' => $merchantCountryMap
         ]);
 
-        // Build the query to find qualifying cards
+        // Build the query to find qualifying cards - using a composite key for unique cards
         $qualifyingCardsQuery = DB::connection('payment_gateway_mysql')
             ->table('transactions as t')
             ->join('customer_card as cc', 't.card_id', '=', 'cc.card_id')
@@ -393,14 +427,29 @@ class CesopExcelGeneratorService
             ->select(
                 's.account_id as merchant_id',
                 's.id as shop_id',
-                'cc.card_id',
+                // Create a composite identifier for unique physical cards
+                'cc.customer_id',
+                'cc.first6',
+                'cc.last4',
+                'cc.c_holder_name',
+                'cc.c_expire_month',
+                'cc.c_expire_year',
                 'bb.isoa2 as card_country',
-                DB::raw("COUNT(*) as transaction_count")
+                DB::raw("COUNT(*) as transaction_count"),
+                // Keep one card_id for reference (using MIN to get a consistent one)
+                DB::raw("MIN(cc.card_id) as representative_card_id")
             )
             ->whereBetween('t.added', [$startDate, $endDate])
             ->where('t.transaction_status', 'APPROVED')
             ->whereIn('t.transaction_type', ['Sale', 'Refund'])
-            ->whereIn('bb.isoa2', $this->euCountries);
+            ->whereIn('bb.isoa2', $this->euCountries)
+            // Ensure we have the required fields for grouping
+            ->whereNotNull('cc.customer_id')
+            ->whereNotNull('cc.first6')
+            ->whereNotNull('cc.last4')
+            ->whereNotNull('cc.c_holder_name')
+            ->whereNotNull('cc.c_expire_month')
+            ->whereNotNull('cc.c_expire_year');
 
         // Apply merchant filter if provided
         if (!empty($merchantIds)) {
@@ -412,22 +461,27 @@ class CesopExcelGeneratorService
             $qualifyingCardsQuery->whereIn('s.id', $shopIds);
         }
 
-        // Get all potential qualifying cards
-        $potentialQualifyingCards = $qualifyingCardsQuery->groupBy(
+        // Group by the composite key that uniquely identifies a physical card
+        $potentialQualifyingCards = $qualifyingCardsQuery->groupBy([
             's.account_id',
             's.id',
-            'cc.card_id',
+            'cc.customer_id',
+            'cc.first6',
+            'cc.last4',
+            'cc.c_holder_name',
+            'cc.c_expire_month',
+            'cc.c_expire_year',
             'bb.isoa2'
-        )
-            ->havingRaw("COUNT(*) > {$this->threshold}")
+        ])
+            ->havingRaw("COUNT(*) >= {$this->threshold}")
             ->get();
 
         Log::info('Found potential qualifying cards', [
             'count' => count($potentialQualifyingCards)
         ]);
 
-        // Filter out domestic transactions
-        $finalQualifyingCardIds = [];
+        // Filter out domestic transactions and collect card characteristics
+        $qualifyingCardCharacteristics = [];
         foreach ($potentialQualifyingCards as $card) {
             // Skip if we have merchant country info and it matches the card country (domestic transaction)
             if (
@@ -437,33 +491,81 @@ class CesopExcelGeneratorService
                 Log::info('Excluding domestic transaction', [
                     'merchant_id' => $card->merchant_id,
                     'merchant_country' => $merchantCountryMap[$card->merchant_id],
-                    'card_country' => $card->card_country
+                    'card_country' => $card->card_country,
+                    'customer_id' => $card->customer_id,
+                    'first6' => $card->first6,
+                    'last4' => $card->last4,
+                    'holder_name' => $card->c_holder_name,
+                    'expire_month' => $card->c_expire_month,
+                    'expire_year' => $card->c_expire_year,
+                    'transaction_count' => $card->transaction_count
                 ]);
                 continue;
             }
 
-            $finalQualifyingCardIds[] = $card->card_id;
+            // Store the card characteristics instead of card_ids
+            $qualifyingCardCharacteristics[] = [
+                'customer_id' => $card->customer_id,
+                'first6' => $card->first6,
+                'last4' => $card->last4,
+                'c_holder_name' => $card->c_holder_name,
+                'c_expire_month' => $card->c_expire_month,
+                'c_expire_year' => $card->c_expire_year,
+                'transaction_count' => $card->transaction_count
+            ];
+
+            Log::info('Including qualifying card', [
+                'merchant_id' => $card->merchant_id,
+                'customer_id' => $card->customer_id,
+                'first6' => $card->first6,
+                'last4' => $card->last4,
+                'holder_name' => $card->c_holder_name,
+                'expire_month' => $card->c_expire_month,
+                'expire_year' => $card->c_expire_year,
+                'transaction_count' => $card->transaction_count
+            ]);
         }
 
         Log::info('Final qualifying cards after excluding domestic transactions', [
-            'count' => count($finalQualifyingCardIds)
+            'count' => count($qualifyingCardCharacteristics)
         ]);
 
-        return $finalQualifyingCardIds;
+        return $qualifyingCardCharacteristics;
     }
 
     /**
      * Process merchant data based on qualifying cards
      */
-    protected function processMerchantData(array $qualifyingCards, array $merchantIds = []): array
+    protected function processMerchantData(array $qualifyingCardCharacteristics, array $merchantIds = []): array
     {
+
+        if (empty($qualifyingCardCharacteristics)) {
+            return [];
+        }
+
+        $cardIdSubquery = DB::connection('payment_gateway_mysql')
+            ->table('customer_card as cc')
+            ->select('cc.card_id')
+            ->where(function ($q) use ($qualifyingCardCharacteristics) {
+                foreach ($qualifyingCardCharacteristics as $card) {
+                    $q->orWhere(function ($subQ) use ($card) {
+                        $subQ->where('cc.customer_id', $card['customer_id'])
+                            ->where('cc.first6', $card['first6'])
+                            ->where('cc.last4', $card['last4'])
+                            ->where('cc.c_holder_name', $card['c_holder_name'])
+                            ->where('cc.c_expire_month', $card['c_expire_month'])
+                            ->where('cc.c_expire_year', $card['c_expire_year']);
+                    });
+                }
+            });
         // Get all merchant IDs from qualifying cards
         $cardMerchantQuery = DB::connection('payment_gateway_mysql')
             ->table('transactions as t')
             ->join('shop as s', 't.shop_id', '=', 's.id')
-            ->whereIn('t.card_id', $qualifyingCards)
+            ->whereIn('t.card_id', $cardIdSubquery)
             ->distinct()
             ->select('s.account_id');
+
 
         // Apply merchant filter if provided
         if (!empty($merchantIds)) {
@@ -618,10 +720,17 @@ class CesopExcelGeneratorService
      * Process transactions in batches and write to worksheet
      * Excludes domestic transactions (where merchant country matches card country)
      */
+    /**
+     * Process all transactions without batching and write to worksheet
+     * Excludes domestic transactions (where merchant country matches card country)
+     */
+    /**
+     * Alternative approach using IN clause with concatenated keys
+     */
     protected function processTransactionsInBatches(
         Carbon $startDate,
         Carbon $endDate,
-        array  $qualifyingCards,
+        array  $qualifyingCardCharacteristics,
         array  $merchantIds,
         array  $shopIds,
                $worksheet,
@@ -630,172 +739,39 @@ class CesopExcelGeneratorService
     {
         $totalTransactions = 0;
         $totalAmount = 0;
-        $row = 2; // Start from row 2 (after headers)
+        $row = 2;
 
-        // Get total count for progress tracking
-        $totalCount = DB::connection('payment_gateway_mysql')
-            ->table('transactions as t')
-            ->whereIn('t.card_id', $qualifyingCards)
-            ->whereBetween('t.added', [$startDate, $endDate])
-            ->where('t.transaction_status', 'APPROVED')
-            ->whereIn('t.transaction_type', ['Sale', 'Refund'])
-            ->count();
-
-        // Set the total count in the progress bar if available
-        if ($this->progressBar && $totalCount > 0) {
-            // Starting with 5 predefined steps + transaction processing
-            $this->progressBar->setMaxSteps($totalCount + 5);
-            $this->progressBar->setMessage("Processing $totalCount transactions...");
+        if (empty($qualifyingCardCharacteristics)) {
+            return [
+                'merchant_count' => count($merchantData),
+                'transaction_count' => 0,
+                'total_amount' => 0,
+                'quarter' => $this->quarter,
+                'year' => $this->year,
+                'date_range' => [
+                    'start' => $startDate->format('Y-m-d'),
+                    'end' => $endDate->format('Y-m-d')
+                ],
+                'threshold' => $this->threshold,
+                'eu_countries' => count($this->euCountries)
+            ];
         }
 
-        $processedCount = 0;
-        $lastId = 0;
-
-        // Process in batches using keyset pagination (more efficient than offset)
-        do {
-            $batch = $this->getTransactionBatch(
-                $startDate,
-                $endDate,
-                $qualifyingCards,
-                $merchantIds,
-                $shopIds,
-                $lastId,
-                $this->batchSize
-            );
-
-            $batchSize = count($batch);
-            if ($batchSize === 0) {
-                break;
-            }
-
-            $batchData = [];
-            foreach ($batch as $transaction) {
-                // Get merchant data for the transaction
-                $merchant = $merchantData[$transaction->merchant_id] ?? null;
-                if (!$merchant) {
-                    continue; // Skip if merchant not found
-                }
-
-                // Skip domestic transactions (where merchant country matches card country)
-                $merchantCountry = $merchant['iso_country'] ?? '';
-                if (!empty($merchantCountry) && strtoupper($merchantCountry) === strtoupper($transaction->isoa2)) {
-                    continue;
-                }
-
-                // Format date in ISO 8601 format with timezone
-                $dateTime = Carbon::parse($transaction->transaction_date)->toIso8601String();
-
-                // Determine values for each field
-                $accountNumber = $merchant['iban'] ?? '';
-                $transactionReference =
-                    'TX-' .
-                    $transaction->merchant_id . '-' .
-                    $transaction->shop_id . '-' .
-                    $transaction->transaction_id . '-' .
-                    $transaction->trx_id . '-' .
-                    $transaction->card_id . '-' .
-                    $transaction->currency . '-' .
-                    substr(md5(uniqid()), 0, 8);
-                    //$transaction->transaction_id ?? $transaction->trx_id;
-                $isRefund = $transaction->is_refund ? 'True' : 'False';
-                $dateType = 'CESOP701'; // Execution Date by default
-                $amount = number_format($transaction->amount / 100, 2, '.', ''); // Convert cents to base currency
-                $currency = $transaction->currency;
-                $paymentMethod = 'Card payment'; // Default for our transactions
-                $paymentMethodOther = '';
-                $initiatedAtPhysicalPremises = 'False'; // Assuming e-commerce transactions
-                $direction = 'Incoming'; // Merchant perspective - they receive money
-                $payeeIban ='';
-                $payeeCountry = $merchant['iso_country'] ?? 'CY';
-                $payerMS = $transaction->isoa2; // Payer Member State from binbase
-                $payerMSSource = 'Other'; // Source of payer MS identification
-                $payerIban = $merchant['iban'] ?? '';; // Usually not available for card transactions
-                $pspRoleType = 'Four party card scheme'; // Default PSP role
-                $pspRoleTypeOther = '';
-
-                $batchData[] = [
-                    $accountNumber,
-                    $transactionReference,
-                    $isRefund,
-                    $dateTime,
-                    $dateType,
-                    $amount,
-                    $currency,
-                    $paymentMethod,
-                    $paymentMethodOther,
-                    $initiatedAtPhysicalPremises,
-                    $direction,
-                    $payeeIban,
-                    $payeeCountry,
-                    $payerMS,
-                    $payerMSSource,
-                    $payerIban,
-                    $pspRoleType,
-                    $pspRoleTypeOther
-                ];
-
-                // Update statistics
-                $totalTransactions++;
-                $totalAmount += $transaction->amount;
-
-                // Update last ID for next batch
-                $lastId = $transaction->tid;
-
-                // Update progress bar for each transaction
-                if ($this->progressBar) {
-                    $this->progressBar->advance();
-                }
-            }
-
-            // Write batch data to worksheet
-            if (!empty($batchData)) {
-                $worksheet->fromArray($batchData, null, "A{$row}");
-                $row += count($batchData);
-            }
-
-            $processedCount += $batchSize;
-
-            if ($this->progressBar) {
-                $this->progressBar->setMessage("Processed {$processedCount} of {$totalCount} transactions");
-            } else {
-                Log::info("Processed {$processedCount} of {$totalCount} transactions");
-            }
-
-            // Allow garbage collection and prevent memory leaks
-            unset($batch, $batchData);
-            gc_collect_cycles();
-
-        } while ($batchSize === $this->batchSize);
-
-        return [
-            'merchant_count' => count($merchantData),
-            'transaction_count' => $totalTransactions,
-            'total_amount' => $totalAmount / 100, // Convert cents to base currency
-            'quarter' => $this->quarter,
-            'year' => $this->year,
-            'date_range' => [
-                'start' => $startDate->format('Y-m-d'),
-                'end' => $endDate->format('Y-m-d')
-            ],
-            'threshold' => $this->threshold,
-            'eu_countries' => count($this->euCountries)
-        ];
-    }
+        // Create composite keys for qualifying cards
+        $compositeKeys = [];
+        foreach ($qualifyingCardCharacteristics as $card) {
+            // Create a unique key by concatenating all card attributes
+            $key = $card['customer_id'] . '|' .
+                $card['first6'] . '|' .
+                $card['last4'] . '|' .
+                $card['c_expire_month'] . '|' .
+                $card['c_expire_year'];
+            $compositeKeys[] = $key;
+        }
 
 
-    /**
-     * Get a batch of transactions using keyset pagination
-     */
-    protected function getTransactionBatch(
-        Carbon $startDate,
-        Carbon $endDate,
-        array  $qualifyingCards,
-        array  $merchantIds,
-        array  $shopIds,
-        int    $lastId,
-        int    $batchSize
-    ): array
-    {
+        $compositeKeysString = "'" . implode("','", array_map('addslashes', $compositeKeys)) . "'";
+
         $query = DB::connection('payment_gateway_mysql')
             ->table('transactions as t')
             ->join('customer_card as cc', 't.card_id', '=', 'cc.card_id')
@@ -816,28 +792,107 @@ class CesopExcelGeneratorService
                 't.added as transaction_date',
                 't.bank_currency as currency',
                 't.bank_amount as amount',
-                DB::raw("CASE WHEN t.transaction_type = 'Refund' THEN 1 ELSE 0 END as is_refund")
+                DB::raw("CASE WHEN t.transaction_type = 'Refund' THEN 1 ELSE 0 END as is_refund"),
+                // Add the composite key as a selected field for debugging (optional)
+                DB::raw("CONCAT(cc.customer_id, '_', cc.first6, '_', cc.last4, '_', cc.c_expire_month, '_', cc.c_expire_year) as card_composite_key")
             )
             ->whereBetween('t.added', [$startDate, $endDate])
             ->where('t.transaction_status', 'APPROVED')
             ->whereIn('t.transaction_type', ['Sale', 'Refund'])
             ->whereIn('bb.isoa2', $this->euCountries)
-            ->whereIn('cc.card_id', $qualifyingCards)
-            ->where('t.tid', '>', $lastId)
-            ->orderBy('t.tid')  // Important for keyset pagination
-            ->limit($batchSize);
+            ->whereRaw("CONCAT(cc.customer_id, '|', cc.first6, '|', cc.last4, '|', cc.c_expire_month, '|', cc.c_expire_year) IN ({$compositeKeysString})")
+            ->orderBy('t.tid');
 
-        // Apply merchant filter if provided
+        // Apply filters
         if (!empty($merchantIds)) {
             $query->whereIn('s.account_id', $merchantIds);
         }
 
-        // Apply shop filter if provided
         if (!empty($shopIds)) {
             $query->whereIn('s.id', $shopIds);
         }
 
-        return $query->get()->all();
+        $totalCount = $query->count();
+
+        if ($this->progressBar && $totalCount > 0) {
+            $this->progressBar->setMaxSteps($totalCount + 5);
+            $this->progressBar->setMessage("Processing $totalCount transactions...");
+        }
+
+        $transactions = $query->get();
+
+        // Process transactions (same as before)
+        $batchData = [];
+        foreach ($transactions as $transaction) {
+            $merchant = $merchantData[$transaction->merchant_id] ?? null;
+            if (!$merchant) {
+                continue;
+            }
+
+            $merchantCountry = $merchant['iso_country'] ?? '';
+            if (!empty($merchantCountry) && strtoupper($merchantCountry) === strtoupper($transaction->isoa2)) {
+                continue;
+            }
+
+            // Build transaction row data
+            $dateTime = Carbon::parse($transaction->transaction_date)->toIso8601String();
+            $accountNumber = $merchant['iban'] ?? '';
+            $transactionReference = 'TX-' . $transaction->merchant_id . '-' . $transaction->shop_id . '-' .
+                $transaction->transaction_id . '-' . $transaction->trx_id . '-' .
+                $transaction->card_id . '-' . $transaction->currency . '-' .
+                substr(md5(uniqid()), 0, 8);
+            $isRefund = $transaction->is_refund ? 'True' : 'False';
+            $dateType = 'CESOP701';
+            $amount = number_format($transaction->amount / 100, 2, '.', '');
+            $currency = $transaction->currency;
+            $paymentMethod = 'Card payment';
+            $paymentMethodOther = '';
+            $initiatedAtPhysicalPremises = 'False';
+            $direction = $transaction->is_refund ? 'Outgoing' : 'Incoming';
+            $payeeIban = $merchant['iban'] ?? '';
+            $payeeCountry = $merchant['iso_country'] ?? 'CY';
+            $payerMS = $transaction->isoa2;
+            $payerMSSource = 'Other';
+            $payerIban = str_replace(' ', '_', $transaction->card_composite_key) ?? '';
+            $pspRoleType = 'Four party card scheme';
+            $pspRoleTypeOther = '';
+
+            $batchData[] = [
+                $accountNumber, $transactionReference, $isRefund, $dateTime, $dateType,
+                $amount, $currency, $paymentMethod, $paymentMethodOther, $initiatedAtPhysicalPremises,
+                $direction, $payeeIban, $payeeCountry, $payerMS, $payerMSSource,
+                $payerIban, $pspRoleType, $pspRoleTypeOther
+            ];
+
+            $totalTransactions++;
+            $totalAmount += $transaction->amount;
+
+            if ($this->progressBar) {
+                $this->progressBar->advance();
+            }
+        }
+
+        if (!empty($batchData)) {
+            $worksheet->fromArray($batchData, null, "A{$row}");
+        }
+
+        if ($this->progressBar) {
+            $this->progressBar->setMessage("Processed $totalTransactions transactions");
+        }
+
+        return [
+            'merchant_count' => count($merchantData),
+            'transaction_count' => $totalTransactions,
+            'total_amount' => $totalAmount / 100,
+            'quarter' => $this->quarter,
+            'year' => $this->year,
+            'date_range' => [
+                'start' => $startDate->format('Y-m-d'),
+                'end' => $endDate->format('Y-m-d')
+            ],
+            'threshold' => $this->threshold,
+            'eu_countries' => count($this->euCountries)
+        ];
     }
 
     /**

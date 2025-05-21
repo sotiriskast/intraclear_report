@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  *
  * @property int $id
  * @property int $merchant_id
+ * @property int|null $shop_id
  * @property string $transaction_id
  * @property float $amount
  * @property string $currency
@@ -33,6 +34,7 @@ class ChargebackTracking extends Model
 
     protected $fillable = [
         'merchant_id',
+        'shop_id',
         'transaction_id',
         'amount',
         'currency',
@@ -56,5 +58,10 @@ class ChargebackTracking extends Model
     public function merchant(): BelongsTo
     {
         return $this->belongsTo(Merchant::class);
+    }
+
+    public function shop(): BelongsTo
+    {
+        return $this->belongsTo(Shop::class);
     }
 }
