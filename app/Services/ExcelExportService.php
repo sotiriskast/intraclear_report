@@ -627,7 +627,10 @@ class ExcelExportService
             Storage::put($relativePath, $tempStream);
 
             // Close the stream
-            fclose($tempStream);
+//            fclose($tempStream);
+            if (is_resource($tempStream)) {
+                fclose($tempStream);
+            }
 
             $this->logger->log('info', 'Settlement report saved successfully', [
                 'merchant_id' => $merchantId,
