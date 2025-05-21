@@ -30,7 +30,6 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
     /**
      * Default precision for financial calculations
      */
-    private const int DEFAULT_PRECISION = 8;
     private const int DEFAULT_FX_RATE = 0;
 
     /**

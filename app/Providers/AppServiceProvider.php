@@ -127,7 +127,6 @@ class AppServiceProvider extends ServiceProvider
                 return new ChargebackSettlementProcessor(
                     $app->make(ChargebackTrackingRepositoryInterface::class),
                     $app->make(MerchantRepository::class),
-                    $app->make(ShopRepository::class),
                     $app->make(DynamicLogger::class)
                 );
             }

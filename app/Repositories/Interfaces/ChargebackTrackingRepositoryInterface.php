@@ -57,4 +57,21 @@ interface ChargebackTrackingRepositoryInterface
     public function getShopChargebacksByDateRange(int $shopId, CarbonPeriod $dateRange): array;
 
     public function findExistingChargeback(string $transactionId): ?array;
+    /**
+     * Updates chargebacks with the final exchange rate for a specific currency
+     *
+     * @param int $merchantId The merchant ID
+     * @param int|null $shopId The shop ID (optional)
+     * @param string $currency The currency to update
+     * @param float $finalExchangeRate The final calculated exchange rate
+     * @param array $dateRange The date range for the settlement period
+     * @return int Number of chargebacks updated
+     */
+    public function updateChargebacksWithFinalExchangeRate(
+        int $merchantId,
+        ?int $shopId,
+        string $currency,
+        float $finalExchangeRate,
+        array $dateRange
+    ): int;
 }

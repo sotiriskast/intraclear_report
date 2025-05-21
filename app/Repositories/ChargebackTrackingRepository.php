@@ -19,7 +19,26 @@ use Illuminate\Support\Facades\DB;
  */
 readonly class ChargebackTrackingRepository implements ChargebackTrackingRepositoryInterface
 {
-    public function __construct(private DynamicLogger $logger) {}
+    private const array CURRENCY_PRECISION = [
+        'JPY' => 4,
+        'DEFAULT' => 6
+    ];
+
+    /**
+     * Get the appropriate decimal precision for a currency
+     *
+     * @param string $currency The currency code
+     * @return int The precision to use
+     */
+    private function getPrecisionForCurrency(string $currency): int
+    {
+        return self::CURRENCY_PRECISION[$currency] ?? self::CURRENCY_PRECISION['DEFAULT'];
+    }
+
+    public function __construct(private MerchantRepository $merchantRepository,
+                                private DynamicLogger      $logger)
+    {
+    }
 
     /**
      * Records a new chargeback transaction with shop tracking
@@ -34,9 +53,9 @@ readonly class ChargebackTrackingRepository implements ChargebackTrackingReposit
                     'merchant_id' => $merchantId,
                     'shop_id' => $shopId,
                     'transaction_id' => $data->transactionId,
-                    'amount' => $data->amount,
+                    'amount' => $data->amount * 100,
                     'currency' => $data->currency,
-                    'amount_eur' => $data->amountEur,
+                    'amount_eur' => $data->amountEur * 100,
                     'exchange_rate' => $data->exchangeRate,
                     'initial_status' => $data->status->value,
                     'current_status' => $data->status->value,
@@ -207,5 +226,49 @@ readonly class ChargebackTrackingRepository implements ChargebackTrackingReposit
             ->first();
 
         return $tracking ? $tracking->toArray() : null;
+    }
+
+    /**
+     * Updates chargebacks with the final exchange rate for a specific currency
+     */
+    public function updateChargebacksWithFinalExchangeRate(
+        int    $merchantId,
+        ?int   $shopId,
+        string $currency,
+        float  $finalExchangeRate,
+        array  $dateRange
+    ): int
+    {
+        $startDate = Carbon::parse($dateRange['start']);
+        $endDate = Carbon::parse($dateRange['end']);
+        $query = ChargebackTracking::query()
+            ->where('merchant_id', $this->merchantRepository->getMerchantIdByAccountId($merchantId))
+            ->where('currency', $currency)
+            ->whereBetween('processing_date', [$startDate, $endDate]);
+        if ($shopId !== null) {
+            $query->where('shop_id', $shopId);
+        }
+        // Get chargebacks to update
+        $chargebacks = $query->get();
+        $updated = 0;
+        foreach ($chargebacks as $chargeback) {
+            // Recalculate amount_eur based on the final exchange rate
+            $newAmountEur = ($chargeback->amount / 100) * $finalExchangeRate;
+            // Update the chargeback
+            $chargeback->update([
+                'amount_eur' => (int)round($newAmountEur * 100), // Convert back to cents
+                'exchange_rate' => round($finalExchangeRate, $this->getPrecisionForCurrency($currency))
+            ]);
+            $updated++;
+        }
+        $this->logger->log('info', 'Updated chargebacks with final exchange rate', [
+            'merchant_id' => $merchantId,
+            'shop_id' => $shopId,
+            'currency' => $currency,
+            'exchange_rate' => $finalExchangeRate,
+            'chargebacks_updated' => $updated
+        ]);
+
+        return $updated;
     }
 }
