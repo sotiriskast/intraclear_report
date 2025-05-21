@@ -104,7 +104,7 @@ class TruncateMariaDBTables extends Command
         // Disable foreign key checks based on database type
         if ($connection === 'pgsql') {
             // PostgreSQL: Disable triggers (which include foreign key constraints)
-            DB::connection($connection)->statement('SET session_replication_role = \'replica\'');
+//            DB::connection($connection)->statement('SET session_replication_role = \'replica\'');
         } else {
             // MySQL/MariaDB
             DB::connection($connection)->statement('SET FOREIGN_KEY_CHECKS=0');
@@ -136,7 +136,7 @@ class TruncateMariaDBTables extends Command
         // Re-enable foreign key checks based on database type
         if ($connection === 'pgsql') {
             // PostgreSQL: Re-enable triggers
-            DB::connection($connection)->statement('SET session_replication_role = \'origin\'');
+//            DB::connection($connection)->statement('SET session_replication_role = \'origin\'');
         } else {
             // MySQL/MariaDB
             DB::connection($connection)->statement('SET FOREIGN_KEY_CHECKS=1');
