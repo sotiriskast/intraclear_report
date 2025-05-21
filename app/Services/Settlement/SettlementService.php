@@ -83,7 +83,17 @@ readonly class SettlementService
                 $merchantId,
                 $shopId
             );
+            $currencyTotals = $totals[$currency] ?? [];
+            $finalExchangeRate = $currencyTotals['exchange_rate'] ?? 1.0;
 
+            // Update chargebacks with the final exchange rate
+            $this->chargebackSettlement->updateShopChargebacksWithFinalRate(
+                $merchantId,
+                $internalShopId,
+                $currency,
+                $finalExchangeRate,
+                $dateRange
+            );
             // Calculate shop fees
             $currencyTotals = $totals[$currency] ?? [];
             $fees = $this->feeService->calculateFees(
@@ -93,10 +103,10 @@ readonly class SettlementService
                 $dateRange
             );
 
-// Process chargeback settlements for this shop
+            // Process chargeback settlements for this shop
             $chargebackSettlements = $this->chargebackSettlement->processShopSettlementsChargeback(
                 $internalShopId,
-                $dateRange
+                $dateRange,
             );
 
             // Process rolling reserves for this shop

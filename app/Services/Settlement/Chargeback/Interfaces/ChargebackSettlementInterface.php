@@ -20,4 +20,21 @@ interface ChargebackSettlementInterface
      * @return array Settlement results including amounts and processed counts
      */
     public function processShopSettlementsChargeback(int $shopId, array $dateRange): array;
+    /**
+     * Updates chargebacks with the final exchange rate for a specific shop and currency
+     *
+     * @param int $merchantId The merchant ID
+     * @param int $shopId The shop ID
+     * @param string $currency The currency to update
+     * @param float $finalExchangeRate The final calculated exchange rate
+     * @param array $dateRange The date range for the settlement period
+     * @return int Number of chargebacks updated
+     */
+    public function updateShopChargebacksWithFinalRate(
+        int $merchantId,
+        int $shopId,
+        string $currency,
+        float $finalExchangeRate,
+        array $dateRange
+    ): int;
 }

@@ -7,10 +7,10 @@ namespace App\Services\Settlement\Chargeback;
 use App\Enums\ChargebackStatus;
 use App\Repositories\Interfaces\ChargebackTrackingRepositoryInterface;
 use App\Repositories\MerchantRepository;
-use App\Repositories\ShopRepository;
 use App\Services\DynamicLogger;
 use App\Services\Settlement\Chargeback\Interfaces\ChargebackSettlementInterface;
 use Carbon\Carbon;
+use Carbon\CarbonPeriod;
 
 /**
  * Service for processing chargeback settlements
@@ -20,7 +20,6 @@ readonly class ChargebackSettlementProcessor implements ChargebackSettlementInte
     public function __construct(
         private ChargebackTrackingRepositoryInterface $repository,
         private MerchantRepository $merchantRepository,
-        private ShopRepository $shopRepository,
         private DynamicLogger $logger
     ) {}
 
@@ -52,10 +51,46 @@ readonly class ChargebackSettlementProcessor implements ChargebackSettlementInte
         ]);
 
         $pendingChargebacks = $this->repository->getShopPendingSettlements($shopId);
+        $result = $this->processChargebacksList($pendingChargebacks, null, $shopId);
 
-        return $this->processChargebacksList($pendingChargebacks, null, $shopId);
+        // Add detailed chargeback information
+        $result['detailed_chargebacks'] = $this->getDetailedChargebacks($shopId, $dateRange);
+
+        return $result;
     }
+    /**
+     * Get detailed information about chargebacks for a shop
+     *
+     * @param int $shopId Shop ID
+     * @param array $dateRange Date range for the settlement period
+     * @return array Array of chargeback details
+     */
+    private function getDetailedChargebacks(int $shopId, array $dateRange): array
+    {
+        $start = Carbon::parse($dateRange['start']);
+        $end = Carbon::parse($dateRange['end']);
+        $period = new CarbonPeriod($start, $end);
 
+        // Get all chargebacks within the date range
+        $chargebacks = $this->repository->getShopChargebacksByDateRange($shopId, $period);
+
+        $detailedList = [];
+        foreach ($chargebacks as $chargeback) {
+            $detailedList[] = [
+                'transaction_id' => $chargeback['transaction_id'],
+                'amount' => $chargeback['amount'] / 100, // Convert from cents to base currency
+                'currency' => $chargeback['currency'],
+                'amount_eur' => $chargeback['amount_eur'] / 100,
+                'exchange_rate' => $chargeback['exchange_rate'],
+                'status' => $chargeback['current_status'],
+                'is_settled' => $chargeback['settled'],
+                'processing_date' => Carbon::parse($chargeback['processing_date'])->format('Y-m-d'),
+                'settled_date' => $chargeback['settled_date'] ? Carbon::parse($chargeback['settled_date'])->format('Y-m-d') : null,
+            ];
+        }
+
+        return $detailedList;
+    }
     /**
      * Common logic to process a list of chargebacks
      */
@@ -109,5 +144,32 @@ readonly class ChargebackSettlementProcessor implements ChargebackSettlementInte
         }
 
         return $settlements;
+    }
+    /**
+     * Updates chargebacks with the final exchange rate for a specific shop and currency
+     */
+    public function updateShopChargebacksWithFinalRate(
+        int $merchantId,
+        int $shopId,
+        string $currency,
+        float $finalExchangeRate,
+        array $dateRange
+    ): int
+    {
+        $this->logger->log('info', 'Updating shop chargebacks with final exchange rate', [
+            'merchant_id' => $merchantId,
+            'shop_id' => $shopId,
+            'currency' => $currency,
+            'exchange_rate' => $finalExchangeRate,
+            'date_range' => $dateRange,
+        ]);
+
+        return $this->repository->updateChargebacksWithFinalExchangeRate(
+            $merchantId,
+            $shopId,
+            $currency,
+            $finalExchangeRate,
+            $dateRange
+        );
     }
 }
