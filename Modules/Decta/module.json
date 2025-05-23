@@ -1,0 +1,11 @@
+{
+    "name": "Decta",
+    "alias": "decta",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\Decta\\Providers\\DectaServiceProvider"
+    ],
+    "files": []
+}

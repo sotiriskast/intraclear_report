@@ -1,0 +1,30 @@
+{
+    "name": "intraclear/decta",
+    "description": "",
+    "authors": [
+        {
+            "name": "Sotiris Kastanas",
+            "email": "s.kastanas@intraclear.com"
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {
+
+            }
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\Decta\\": "app/",
+            "Modules\\Decta\\Database\\Factories\\": "database/factories/",
+            "Modules\\Decta\\Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\Decta\\Tests\\": "tests/"
+        }
+    }
+}
