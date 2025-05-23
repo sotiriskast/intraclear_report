@@ -4,9 +4,14 @@ namespace Modules\Decta\Providers;
 
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\ServiceProvider;
+use Modules\Decta\Console\DectaTestConnectionCommand;
+use Modules\Decta\Console\DectaTestLatestFileCommand;
 use Nwidart\Modules\Traits\PathNamespace;
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
+use Illuminate\Console\Scheduling\Schedule;
+use Modules\Decta\Console\DectaDownloadFilesCommand;
+use Modules\Decta\Console\DectaProcessFilesCommand;
+use Modules\Decta\Services\DectaSftpService;
+use Modules\Decta\Repositories\DectaFileRepository;
 
 class DectaServiceProvider extends ServiceProvider
 {
@@ -36,6 +41,16 @@ class DectaServiceProvider extends ServiceProvider
     {
         $this->app->register(EventServiceProvider::class);
         $this->app->register(RouteServiceProvider::class);
+
+        // Register the SFTP service
+        $this->app->bind(DectaSftpService::class, function ($app) {
+            return new DectaSftpService();
+        });
+
+        // Register the file repository
+        $this->app->bind(DectaFileRepository::class, function ($app) {
+            return new DectaFileRepository();
+        });
     }
 
     /**
@@ -43,7 +58,12 @@ class DectaServiceProvider extends ServiceProvider
      */
     protected function registerCommands(): void
     {
-        // $this->commands([]);
+        $this->commands([
+            DectaDownloadFilesCommand::class,
+            DectaProcessFilesCommand::class,
+            DectaTestConnectionCommand::class,
+            DectaTestLatestFileCommand::class,
+        ]);
     }
 
     /**
@@ -51,10 +71,21 @@ class DectaServiceProvider extends ServiceProvider
      */
     protected function registerCommandSchedules(): void
     {
-        // $this->app->booted(function () {
-        //     $schedule = $this->app->make(Schedule::class);
-        //     $schedule->command('inspire')->hourly();
-        // });
+        $this->app->booted(function () {
+            $schedule = $this->app->make(Schedule::class);
+
+            // Schedule the download command to run every hour
+            $schedule->command('decta:download-files')
+                ->hourly()
+                ->withoutOverlapping()
+                ->appendOutputTo(storage_path('logs/decta-download.log'));
+
+            // Schedule the process command to run every hour, 15 minutes after download
+            $schedule->command('decta:process-files')
+                ->hourly()
+                ->withoutOverlapping()
+                ->appendOutputTo(storage_path('logs/decta-process.log'));
+        });
     }
 
     /**
@@ -78,43 +109,12 @@ class DectaServiceProvider extends ServiceProvider
      */
     protected function registerConfig(): void
     {
-        $configPath = module_path($this->name, config('modules.paths.generator.config.path'));
-
-        if (is_dir($configPath)) {
-            $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($configPath));
-
-            foreach ($iterator as $file) {
-                if ($file->isFile() && $file->getExtension() === 'php') {
-                    $config = str_replace($configPath.DIRECTORY_SEPARATOR, '', $file->getPathname());
-                    $config_key = str_replace([DIRECTORY_SEPARATOR, '.php'], ['.', ''], $config);
-                    $segments = explode('.', $this->nameLower.'.'.$config_key);
-
-                    // Remove duplicated adjacent segments
-                    $normalized = [];
-                    foreach ($segments as $segment) {
-                        if (end($normalized) !== $segment) {
-                            $normalized[] = $segment;
-                        }
-                    }
-
-                    $key = ($config === 'config.php') ? $this->nameLower : implode('.', $normalized);
-
-                    $this->publishes([$file->getPathname() => config_path($config)], 'config');
-                    $this->merge_config_from($file->getPathname(), $key);
-                }
-            }
-        }
-    }
-
-    /**
-     * Merge config from the given path recursively.
-     */
-    protected function merge_config_from(string $path, string $key): void
-    {
-        $existing = config($key, []);
-        $module_config = require $path;
-
-        config([$key => array_replace_recursive($existing, $module_config)]);
+        $this->publishes([
+            module_path($this->name, 'config/config.php') => config_path($this->nameLower . '.php'),
+        ], 'config');
+        $this->mergeConfigFrom(
+            module_path($this->name, 'config/config.php'), $this->nameLower
+        );
     }
 
     /**
@@ -137,7 +137,10 @@ class DectaServiceProvider extends ServiceProvider
      */
     public function provides(): array
     {
-        return [];
+        return [
+            DectaSftpService::class,
+            DectaFileRepository::class,
+        ];
     }
 
     private function getPublishableViewPaths(): array
