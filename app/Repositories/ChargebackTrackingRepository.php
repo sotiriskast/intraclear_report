@@ -25,6 +25,12 @@ readonly class ChargebackTrackingRepository implements ChargebackTrackingReposit
     ];
 
     /**
+     * Maximum safe value for monetary calculations (to prevent overflow)
+     * This is well below PHP_INT_MAX and database bigint limits
+     */
+    private const int MAX_SAFE_AMOUNT = 9223372036854775000; // About 92 trillion cents
+
+    /**
      * Get the appropriate decimal precision for a currency
      *
      * @param string $currency The currency code
@@ -49,13 +55,17 @@ readonly class ChargebackTrackingRepository implements ChargebackTrackingReposit
     {
         try {
             DB::transaction(function () use ($merchantId, $shopId, $data) {
+                // Safe conversion to cents with overflow protection
+                $amountCents = $this->safeAmountToCents($data->amount);
+                $amountEurCents = $this->safeAmountToCents($data->amountEur);
+
                 ChargebackTracking::create([
                     'merchant_id' => $merchantId,
                     'shop_id' => $shopId,
                     'transaction_id' => $data->transactionId,
-                    'amount' => $data->amount * 100,
+                    'amount' => $amountCents,
                     'currency' => $data->currency,
-                    'amount_eur' => $data->amountEur * 100,
+                    'amount_eur' => $amountEurCents,
                     'exchange_rate' => $data->exchangeRate,
                     'initial_status' => $data->status->value,
                     'current_status' => $data->status->value,
@@ -245,22 +255,40 @@ readonly class ChargebackTrackingRepository implements ChargebackTrackingReposit
             ->where('merchant_id', $this->merchantRepository->getMerchantIdByAccountId($merchantId))
             ->where('currency', $currency)
             ->whereBetween('processing_date', [$startDate, $endDate]);
+
         if ($shopId !== null) {
             $query->where('shop_id', $shopId);
         }
+
         // Get chargebacks to update
         $chargebacks = $query->get();
         $updated = 0;
+
         foreach ($chargebacks as $chargeback) {
-            // Recalculate amount_eur based on the final exchange rate
-            $newAmountEur = ($chargeback->amount / 100) * $finalExchangeRate;
-            // Update the chargeback
-            $chargeback->update([
-                'amount_eur' => (int)round($newAmountEur * 100), // Convert back to cents
-                'exchange_rate' => round($finalExchangeRate, $this->getPrecisionForCurrency($currency))
-            ]);
-            $updated++;
+            try {
+                // Safely calculate new amount in EUR
+                $newAmountEur = $this->safeCalculateEurAmount(
+                    $chargeback->amount,
+                    $finalExchangeRate
+                );
+
+                // Update the chargeback with safe values
+                $chargeback->update([
+                    'amount_eur' => $newAmountEur,
+                    'exchange_rate' => round($finalExchangeRate, $this->getPrecisionForCurrency($currency))
+                ]);
+
+                $updated++;
+            } catch (\Exception $e) {
+                $this->logger->log('error', 'Failed to update chargeback with final exchange rate', [
+                    'chargeback_id' => $chargeback->id,
+                    'transaction_id' => $chargeback->transaction_id,
+                    'error' => $e->getMessage(),
+                ]);
+                // Continue with other chargebacks instead of failing completely
+            }
         }
+
         $this->logger->log('info', 'Updated chargebacks with final exchange rate', [
             'merchant_id' => $merchantId,
             'shop_id' => $shopId,
@@ -270,5 +298,54 @@ readonly class ChargebackTrackingRepository implements ChargebackTrackingReposit
         ]);
 
         return $updated;
+    }
+
+    /**
+     * Safely convert an amount to cents with overflow protection
+     *
+     * @param float $amount Amount in base currency
+     * @return int Amount in cents
+     * @throws \Exception If the amount would cause overflow
+     */
+    private function safeAmountToCents(float $amount): int
+    {
+        $amountCents = (int) round($amount * 100);
+
+        if ($amountCents > self::MAX_SAFE_AMOUNT) {
+            throw new \Exception("Amount too large for safe storage: {$amount}");
+        }
+
+        return $amountCents;
+    }
+
+    /**
+     * Safely calculate EUR amount from original amount and exchange rate
+     *
+     * @param int $originalAmountCents Original amount in cents
+     * @param float $exchangeRate Exchange rate
+     * @return int EUR amount in cents
+     * @throws \Exception If the calculated amount would cause overflow
+     */
+    private function safeCalculateEurAmount(int $originalAmountCents, float $exchangeRate): int
+    {
+        // Convert cents to base currency
+        $originalAmount = $originalAmountCents / 100;
+
+        // Calculate EUR amount
+        $eurAmount = $originalAmount * $exchangeRate;
+
+        // Check if the result would be too large
+        if ($eurAmount > (self::MAX_SAFE_AMOUNT / 100)) {
+            $this->logger->log('warning', 'EUR amount calculation would exceed safe limits', [
+                'original_amount_cents' => $originalAmountCents,
+                'exchange_rate' => $exchangeRate,
+                'calculated_eur_amount' => $eurAmount,
+            ]);
+
+            // Return the maximum safe value instead of failing
+            return self::MAX_SAFE_AMOUNT;
+        }
+
+        return (int) round($eurAmount * 100);
     }
 }
