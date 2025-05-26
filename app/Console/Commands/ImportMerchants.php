@@ -36,7 +36,9 @@ class ImportMerchants extends Command
     {
         try {
             $stats = $this->merchantSync->sync();
-            $message = "Imported {$stats['new']} new merchants, created Merchant Settings {$stats['settings_created']}, updated {$stats['updated']} existing merchants";
+            $message = "Imported {$stats['new']} new merchants, updated {$stats['updated']} existing merchants";
+            $this->info($message);
+            $message = "Imported {$stats['shops']['new']} new Shops, updated {$stats['shops']['updated']} existing shops";
             $this->info($message);
             $this->logger->log('debug', $message);
         } catch (\Exception $e) {

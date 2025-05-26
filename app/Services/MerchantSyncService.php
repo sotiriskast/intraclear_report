@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Repositories\MerchantSettingRepository;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\MerchantSyncFailed;
@@ -24,15 +23,15 @@ class MerchantSyncService
     /**
      * Create a new MerchantSyncService instance.
      *
-     * @param  DynamicLogger  $logger  Logging service for sync-related events
-     * @param  MerchantSettingRepository  $merchantSettingRepository  Repository for merchant settings
-     * @param  ShopSyncService  $shopSyncService  Service for syncing shops
+     * @param DynamicLogger $logger Logging service for sync-related events
+     * @param ShopSyncService $shopSyncService Service for syncing shops
      */
     public function __construct(
-        private readonly DynamicLogger $logger,
-        private MerchantSettingRepository $merchantSettingRepository,
+        private readonly DynamicLogger   $logger,
         private readonly ShopSyncService $shopSyncService
-    ) {}
+    )
+    {
+    }
 
     /**
      * Synchronizes merchant data from the payment gateway to the primary database.
@@ -57,7 +56,6 @@ class MerchantSyncService
             $stats = [
                 'new' => 0,
                 'updated' => 0,
-                'settings_created' => 0,
                 'shops' => [
                     'new' => 0,
                     'updated' => 0,
@@ -80,28 +78,20 @@ class MerchantSyncService
 
             // Process each merchant
             foreach ($sourceData as $merchant) {
-                $isNew = ! isset($existingMerchants[$merchant->id]);
+                $isNew = !isset($existingMerchants[$merchant->id]);
                 $this->upsertMerchant($merchant);
                 $stats[$isNew ? 'new' : 'updated']++;
-
-                // Only proceed with settings creation for new merchants
+                // Only send notification for new merchant
                 if ($isNew) {
-                    // Retrieve the internal merchant ID using the account_id from the payment gateway
                     $merchantId = DB::connection('pgsql')
                         ->table('merchants')
                         ->where('account_id', $merchant->id)
                         ->value('id');
 
-                    // Create settings only if merchant ID was found and doesn't have settings
-                    if ($merchantId && ! $this->merchantSettingRepository->isExistingForMerchant($merchantId)) {
-                        $this->createDefaultSettings($merchantId);
-                        $stats['settings_created']++;
-
-                        // Send email notification for new merchant
+                    if ($merchantId) {
                         $this->sendNewMerchantNotification($merchant, $merchantId);
                     }
                 }
-
                 // Sync shops for this merchant (both new and existing merchants)
                 try {
                     $shopStats = $this->shopSyncService->syncShopsForMerchant($merchant->id);
@@ -124,7 +114,6 @@ class MerchantSyncService
             $this->logger->log('info', 'Merchant sync completed successfully', [
                 'new_merchants' => $stats['new'],
                 'updated_merchants' => $stats['updated'],
-                'settings_created' => $stats['settings_created'],
                 'new_shops' => $stats['shops']['new'],
                 'updated_shops' => $stats['shops']['updated'],
                 'shop_settings_created' => $stats['shops']['settings_created'],
@@ -217,48 +206,6 @@ class MerchantSyncService
     }
 
     /**
-     * Creates default settings for a new merchant.
-     *
-     * @param  int  $merchantId  The ID of the merchant
-     *
-     * @throws \Exception If settings creation fails
-     */
-    private function createDefaultSettings(int $merchantId): void
-    {
-        try {
-            $defaultSettings = [
-                'merchant_id' => $merchantId,
-                'rolling_reserve_percentage' => 1000,
-                'holding_period_days' => 180,
-                'mdr_percentage' => 500,
-                'transaction_fee' => 35,
-                'declined_fee' => 25,
-                'payout_fee' => 100,
-                'refund_fee' => 100,
-                'chargeback_fee' => 400,
-                'monthly_fee' => 15000,
-                'mastercard_high_risk_fee_applied' => 15000,
-                'visa_high_risk_fee_applied' => 15000,
-                'setup_fee' => 50000,
-                'setup_fee_charged' => false,
-                'exchange_rate_markup'=>1.01
-            ];
-
-            $this->merchantSettingRepository->create($defaultSettings);
-
-            $this->logger->log('info', 'Created default settings for merchant', [
-                'merchant_id' => $merchantId,
-            ]);
-        } catch (\Exception $e) {
-            $this->logger->log('error', 'Failed to create default settings for merchant', [
-                'merchant_id' => $merchantId,
-                'error' => $e->getMessage(),
-            ]);
-            throw $e;
-        }
-    }
-
-    /**
      * Retrieves existing merchants from the primary database.
      *
      * Creates a lookup array mapping account IDs to merchant IDs.
@@ -307,7 +254,7 @@ class MerchantSyncService
         // Get all shops linked to these bank keys
         $shopIds = DB::connection('payment_gateway_mysql')
             ->table('shop_bank_keys')
-            ->whereIn('key_id', function($query) use ($intraclearBankId) {
+            ->whereIn('key_id', function ($query) use ($intraclearBankId) {
                 $query->select('id')
                     ->from('bank_keys')
                     ->where('bank_id', $intraclearBankId);
@@ -322,7 +269,7 @@ class MerchantSyncService
         // Finally, get all merchants (accounts) linked to these shops
         return DB::connection('payment_gateway_mysql')
             ->table('account')
-            ->whereIn('id', function($query) use ($shopIds) {
+            ->whereIn('id', function ($query) use ($shopIds) {
                 $query->select('account_id')
                     ->from('shop')
                     ->whereIn('id', $shopIds);
@@ -343,7 +290,7 @@ class MerchantSyncService
      * If a merchant with the given account ID exists, updates the record.
      * If no such merchant exists, creates a new record.
      *
-     * @param  object  $merchant  Merchant data object from source
+     * @param object $merchant Merchant data object from source
      */
     private function upsertMerchant($merchant): void
     {

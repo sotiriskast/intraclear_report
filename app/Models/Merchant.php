@@ -43,11 +43,6 @@ class Merchant extends Model
         return $query->where('active', true);
     }
 
-    public function merchantFees(): HasMany
-    {
-        return $this->hasMany(MerchantFee::class);
-    }
-
     public function rollingReserves(): HasMany
     {
         return $this->hasMany(RollingReserveEntry::class);

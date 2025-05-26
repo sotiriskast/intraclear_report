@@ -4,7 +4,6 @@ namespace App\Repositories;
 
 use App\Models\FeeHistory;
 use App\Models\FeeType;
-use App\Models\MerchantFee;
 use App\Models\ShopFee;
 use App\Repositories\Interfaces\FeeRepositoryInterface;
 use Illuminate\Database\Eloquent\Collection;
@@ -26,30 +25,6 @@ use Illuminate\Database\Eloquent\Collection;
 readonly class FeeRepository implements FeeRepositoryInterface
 {
     public function __construct(private MerchantRepository $merchantRepository) {}
-
-    /**
-     * Get active merchant fees for a given date
-     *
-     * @param int $merchantId Merchant's account ID
-     * @param string|null $date Specific date to check fees (null for current)
-     * @return Collection<MerchantFee> Collection of active merchant fees
-     */
-    public function getMerchantFees(int $merchantId, ?string $date = null): Collection
-    {
-        $query = MerchantFee::with(['feeType'])
-            ->where('merchant_id', $this->merchantRepository->getMerchantIdByAccountId($merchantId))
-            ->where('active', true);
-
-        if ($date) {
-            $query->where('effective_from', '<=', $date)
-                ->where(function ($q) use ($date) {
-                    $q->where('effective_to', '>=', $date)
-                        ->orWhereNull('effective_to');
-                });
-        }
-
-        return $query->get();
-    }
 
     /**
      * Get active shop fees for a given date
@@ -86,17 +61,6 @@ readonly class FeeRepository implements FeeRepositoryInterface
     }
 
     /**
-     * Create a new merchant fee
-     *
-     * @param array $data Fee data including merchant_id, fee_type_id, amount
-     * @return MerchantFee Newly created merchant fee
-     */
-    public function createMerchantFee(array $data): MerchantFee
-    {
-        return MerchantFee::create($data);
-    }
-
-    /**
      * Create a new shop fee
      *
      * @param array $data Fee data including shop_id, fee_type_id, amount
@@ -105,22 +69,6 @@ readonly class FeeRepository implements FeeRepositoryInterface
     public function createShopFee(array $data): ShopFee
     {
         return ShopFee::create($data);
-    }
-
-    /**
-     * Update an existing merchant fee
-     *
-     * @param int $feeId Fee ID to update
-     * @param array $data Updated fee data
-     * @return MerchantFee Updated merchant fee
-     * @throws \Illuminate\Database\Eloquent\ModelNotFoundException
-     */
-    public function updateMerchantFee(int $feeId, array $data): MerchantFee
-    {
-        $fee = MerchantFee::findOrFail($feeId);
-        $fee->update($data);
-
-        return $fee;
     }
 
     /**
