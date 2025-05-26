@@ -256,7 +256,7 @@ Mock test:
   $DPFX cp $(eval "echo \$ENV_$ENVIRONMENT") front:/var/www/app/.env
   $DPFX exec front bash -c "cd ./app && git checkout $BRANCH"
   if [[ "$BRANCH" == "staging" || "$BRANCH" == "master" ]]; then
-    $DPFX exec front bash -c "cd ./app && composer i --no-dev --optimize-autoloader --no-interaction"
+    $DPFX exec front bash -c "cd ./app && composer i"
     $DPFX exec front bash -c "cd ./app && php artisan config:cache"
     $DPFX exec front bash -c "cd ./app && php artisan route:cache"
     $DPFX exec front bash -c "cd ./app && php artisan view:cache"
