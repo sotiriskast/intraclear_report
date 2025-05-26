@@ -50,7 +50,9 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
     public function __construct(
         private ChargebackProcessorInterface $chargebackProcessor,
         private DynamicLogger                $logger,
-        private MerchantRepository           $merchantRepository
+        private MerchantRepository           $merchantRepository,
+        private ShopRepository               $shopRepository,
+        private ShopSettingRepository        $shopSettingRepository,
     )
     {
     }
@@ -147,7 +149,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
     {
         try {
             // Use the same calculation logic but include shop context in logging
-            $totals = $this->calculateTransactionTotals($transactions, $exchangeRates, $merchantId);
+            $totals = $this->calculateTransactionTotals($transactions, $exchangeRates, $merchantId, $shopId);
 
             $this->logger->log('info', 'Calculated shop transaction totals', [
                 'merchant_id' => $merchantId,
@@ -232,7 +234,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
      * @return array Associative array of transaction totals per currency
      * @throws Exception
      */
-    public function calculateTransactionTotals(mixed $transactions, array $exchangeRates, int $merchantId): array
+    public function calculateTransactionTotals(mixed $transactions, array $exchangeRates, int $merchantId, ?int $shopId = null): array
     {
         try {
             // Initialize totals array with all currencies in the transactions
@@ -573,19 +575,39 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
         }
     }
 
-    private function getMerchantFXRateMarkup(int $merchantId): int
+    /**
+     * Get FX rate markup for a specific shop (Updated method)
+     */
+    private function getMerchantFXRateMarkup(int $merchantId, ?int $shopId = null): int
     {
         try {
             $internalMerchantId = $this->merchantRepository->getMerchantIdByAccountId($merchantId);
 
-            $markup = DB::table('merchant_settings')
-                ->where('merchant_id', $internalMerchantId)
-                ->value('fx_rate_markup');
-            return $markup ?? self::DEFAULT_FX_RATE;
+            if ($shopId) {
+                // If we have a specific shop, use its settings
+                $internalShopId = $this->shopRepository->getInternalIdByExternalId($shopId, $merchantId);
+                $shopSettings = $this->shopSettingRepository->findByShop($internalShopId);
+
+                if ($shopSettings) {
+                    return $shopSettings->fx_rate_markup ?? self::DEFAULT_FX_RATE;
+                }
+            }
+
+            // Fallback: Use the first shop's settings for this merchant
+            $firstShop = $this->shopRepository->getByMerchant($internalMerchantId)->first();
+            if ($firstShop) {
+                $shopSettings = $this->shopSettingRepository->findByShop($firstShop->id);
+                if ($shopSettings) {
+                    return $shopSettings->fx_rate_markup ?? self::DEFAULT_FX_RATE;
+                }
+            }
+
+            return self::DEFAULT_FX_RATE;
 
         } catch (Exception $e) {
             $this->logger->log('warning', 'Failed to retrieve FX rate markup, using default', [
                 'merchant_id' => $merchantId,
+                'shop_id' => $shopId,
                 'error' => $e->getMessage()
             ]);
 
@@ -600,10 +622,10 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
      * @param array $exchangeRates Exchange rates lookup
      * @param int $merchantId The merchant ID
      */
-    private function calculateFinalExchangeRates(array &$totals, array $exchangeRates, int $merchantId): void
+    private function calculateFinalExchangeRates(array &$totals, array $exchangeRates, int $merchantId,?int $shopId = null): void
     {
         // Get merchant-specific exchange rate markup
-        $rateMarkup = $this->getMerchantExchangeRateMarkup($merchantId);
+        $rateMarkup = $this->getMerchantExchangeRateMarkup($merchantId, $shopId);
 
         foreach ($totals as $currency => &$currencyData) {
             // Set appropriate decimal precision based on currency
@@ -613,7 +635,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
                 // Calculate the exchange rate from existing data
                 $netSales = $currencyData['total_sales'] - ($currencyData['total_refunds'] ?? 0);
                 $netSalesEur = $currencyData['total_sales_eur'] - ($currencyData['total_refunds_eur'] ?? 0);
-                $currencyData['fx_rate'] = $this->getMerchantFXRateMarkup($merchantId);
+                $currencyData['fx_rate'] = $this->getMerchantFXRateMarkup($merchantId, $shopId);
                 // Avoid division by zero
                 if ($netSalesEur > 0) {
                     $rawExchangeRate = $netSales / $netSalesEur;
@@ -713,24 +735,40 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
     }
 
     /**
-     * Get exchange rate markup for a specific merchant
-     *
-     * @param int $merchantId The merchant ID
-     * @return float The exchange rate markup
+     * Get exchange rate markup for a specific shop (Updated method)
+     * Since a merchant can have multiple shops with different settings,
+     * we need to calculate a weighted average or use the primary shop
      */
-    private function getMerchantExchangeRateMarkup(int $merchantId): float
+    private function getMerchantExchangeRateMarkup(int $merchantId, ?int $shopId = null): float
     {
         try {
             $internalMerchantId = $this->merchantRepository->getMerchantIdByAccountId($merchantId);
 
-            $markup = DB::table('merchant_settings')
-                ->where('merchant_id', $internalMerchantId)
-                ->value('exchange_rate_markup');
+            if ($shopId) {
+                // If we have a specific shop, use its settings
+                $internalShopId = $this->shopRepository->getInternalIdByExternalId($shopId, $merchantId);
+                $shopSettings = $this->shopSettingRepository->findByShop($internalShopId);
 
-            return $markup ?? self::DEFAULT_EXCHANGE_RATE_MARKUP;
+                if ($shopSettings) {
+                    return $shopSettings->exchange_rate_markup ?? self::DEFAULT_EXCHANGE_RATE_MARKUP;
+                }
+            }
+
+            // Fallback: Use the first shop's settings for this merchant
+            $firstShop = $this->shopRepository->getByMerchant($internalMerchantId)->first();
+            if ($firstShop) {
+                $shopSettings = $this->shopSettingRepository->findByShop($firstShop->id);
+                if ($shopSettings) {
+                    return $shopSettings->exchange_rate_markup ?? self::DEFAULT_EXCHANGE_RATE_MARKUP;
+                }
+            }
+
+            return self::DEFAULT_EXCHANGE_RATE_MARKUP;
+
         } catch (Exception $e) {
             $this->logger->log('warning', 'Failed to retrieve exchange rate markup, using default', [
                 'merchant_id' => $merchantId,
+                'shop_id' => $shopId,
                 'error' => $e->getMessage()
             ]);
 

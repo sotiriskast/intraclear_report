@@ -3,21 +3,11 @@
 namespace App\Repositories\Interfaces;
 
 use App\Models\FeeHistory;
-use App\Models\MerchantFee;
 use App\Models\ShopFee;
 use Illuminate\Database\Eloquent\Collection;
 
 interface FeeRepositoryInterface
 {
-    /**
-     * Get active merchant fees for a given date
-     *
-     * @param int $merchantId Merchant's account ID
-     * @param string|null $date Specific date to check fees (null for current)
-     * @return Collection<MerchantFee> Collection of active merchant fees
-     */
-    public function getMerchantFees(int $merchantId, ?string $date = null): Collection;
-
     /**
      * Get active shop fees for a given date
      *
@@ -34,13 +24,6 @@ interface FeeRepositoryInterface
      */
     public function getActiveFeeTypes(): Collection;
 
-    /**
-     * Create a new merchant fee
-     *
-     * @param array $data Fee data including merchant_id, fee_type_id, amount
-     * @return MerchantFee Newly created merchant fee
-     */
-    public function createMerchantFee(array $data): MerchantFee;
 
     /**
      * Create a new shop fee
@@ -50,14 +33,6 @@ interface FeeRepositoryInterface
      */
     public function createShopFee(array $data): ShopFee;
 
-    /**
-     * Update an existing merchant fee
-     *
-     * @param int $feeId Fee ID to update
-     * @param array $data Updated fee data
-     * @return MerchantFee Updated merchant fee
-     */
-    public function updateMerchantFee(int $feeId, array $data): MerchantFee;
 
     /**
      * Update an existing shop fee
