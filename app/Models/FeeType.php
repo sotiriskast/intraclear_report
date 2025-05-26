@@ -17,10 +17,6 @@ class FeeType extends Model
         'is_percentage',
     ];
 
-    public function merchantFees(): HasMany
-    {
-        return $this->hasMany(MerchantFee::class);
-    }
     public function shopFees(): HasMany
     {
         return $this->hasMany(ShopFee::class);

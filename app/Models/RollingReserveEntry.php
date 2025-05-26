@@ -46,4 +46,8 @@ class RollingReserveEntry extends Model
     {
         return $this->belongsTo(Merchant::class);
     }
+    public function shop(): BelongsTo
+    {
+        return $this->belongsTo(Shop::class);
+    }
 }
