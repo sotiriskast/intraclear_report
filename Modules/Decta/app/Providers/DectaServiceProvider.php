@@ -4,14 +4,21 @@ namespace Modules\Decta\Providers;
 
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\ServiceProvider;
+use Modules\Decta\Console\DectaDebugCommand;
+use Modules\Decta\Console\DectaRecoveryCommand;
 use Modules\Decta\Console\DectaTestConnectionCommand;
 use Modules\Decta\Console\DectaTestLatestFileCommand;
+use Modules\Decta\Console\DectaMatchTransactionsCommand;
+use Modules\Decta\Console\DectaCleanupCommand;
+use Modules\Decta\Console\DectaStatusCommand;
 use Nwidart\Modules\Traits\PathNamespace;
 use Illuminate\Console\Scheduling\Schedule;
 use Modules\Decta\Console\DectaDownloadFilesCommand;
 use Modules\Decta\Console\DectaProcessFilesCommand;
 use Modules\Decta\Services\DectaSftpService;
+use Modules\Decta\Services\DectaTransactionService;
 use Modules\Decta\Repositories\DectaFileRepository;
+use Modules\Decta\Repositories\DectaTransactionRepository;
 
 class DectaServiceProvider extends ServiceProvider
 {
@@ -51,6 +58,18 @@ class DectaServiceProvider extends ServiceProvider
         $this->app->bind(DectaFileRepository::class, function ($app) {
             return new DectaFileRepository();
         });
+
+        // Register the transaction repository
+        $this->app->bind(DectaTransactionRepository::class, function ($app) {
+            return new DectaTransactionRepository();
+        });
+
+        // Register the transaction service
+        $this->app->bind(DectaTransactionService::class, function ($app) {
+            return new DectaTransactionService(
+                $app->make(DectaTransactionRepository::class)
+            );
+        });
     }
 
     /**
@@ -61,8 +80,13 @@ class DectaServiceProvider extends ServiceProvider
         $this->commands([
             DectaDownloadFilesCommand::class,
             DectaProcessFilesCommand::class,
+            DectaMatchTransactionsCommand::class,
+            DectaCleanupCommand::class,
+            DectaStatusCommand::class,
             DectaTestConnectionCommand::class,
             DectaTestLatestFileCommand::class,
+            DectaDebugCommand::class,
+            DectaRecoveryCommand::class,
         ]);
     }
 
@@ -74,17 +98,38 @@ class DectaServiceProvider extends ServiceProvider
         $this->app->booted(function () {
             $schedule = $this->app->make(Schedule::class);
 
-            // Schedule the download command to run every hour
+            // Schedule the download command to run every day at 2 AM for yesterday's files
             $schedule->command('decta:download-files')
-                ->hourly()
-                ->withoutOverlapping()
-                ->appendOutputTo(storage_path('logs/decta-download.log'));
+                ->dailyAt('02:00')
+                ->withoutOverlapping(1440) // 24 hours overlap protection
+                ->appendOutputTo(storage_path('logs/decta-download.log'))
+                ->emailOutputOnFailure(config('app.admin_email'));
 
-            // Schedule the process command to run every hour, 15 minutes after download
+            // Schedule the process command to run every day at 3 AM
             $schedule->command('decta:process-files')
-                ->hourly()
-                ->withoutOverlapping()
-                ->appendOutputTo(storage_path('logs/decta-process.log'));
+                ->dailyAt('03:00')
+                ->withoutOverlapping(1440) // 24 hours overlap protection
+                ->appendOutputTo(storage_path('logs/decta-process.log'))
+                ->emailOutputOnFailure(config('app.admin_email'));
+
+            // Schedule retry of failed processing every 6 hours
+            $schedule->command('decta:process-files --retry-failed --limit=10')
+                ->everySixHours()
+                ->withoutOverlapping(360) // 6 hours overlap protection
+                ->appendOutputTo(storage_path('logs/decta-retry.log'));
+
+            // Schedule transaction matching retry every 4 hours
+            $schedule->command('decta:match-transactions --retry-failed --limit=50')
+                ->cron('0 */4 * * *') // Every 4 hours
+                ->withoutOverlapping(240) // 4 hours overlap protection
+                ->appendOutputTo(storage_path('logs/decta-matching.log'));
+
+            // Schedule cleanup of old records every Sunday at 1 AM
+            $schedule->command('decta:cleanup --days-old=90 --remove-processed --remove-unmatched')
+                ->weekly()
+                ->sundays()
+                ->at('01:00')
+                ->appendOutputTo(storage_path('logs/decta-cleanup.log'));
         });
     }
 
@@ -140,6 +185,8 @@ class DectaServiceProvider extends ServiceProvider
         return [
             DectaSftpService::class,
             DectaFileRepository::class,
+            DectaTransactionRepository::class,
+            DectaTransactionService::class,
         ];
     }
 

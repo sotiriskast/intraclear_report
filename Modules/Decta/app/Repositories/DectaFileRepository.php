@@ -5,9 +5,17 @@ namespace Modules\Decta\Repositories;
 use Modules\Decta\Models\DectaFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class DectaFileRepository
 {
+    /**
+     * The disk to use for file operations
+     *
+     * @var string
+     */
+    protected $diskName = 'decta';
+
     /**
      * Create a new file record
      *
@@ -28,6 +36,17 @@ class DectaFileRepository
     public function findByFilename(string $filename): ?DectaFile
     {
         return DectaFile::where('filename', $filename)->first();
+    }
+
+    /**
+     * Find a file by ID
+     *
+     * @param int $id
+     * @return DectaFile|null
+     */
+    public function findById(int $id): ?DectaFile
+    {
+        return DectaFile::find($id);
     }
 
     /**
@@ -115,33 +134,74 @@ class DectaFileRepository
     }
 
     /**
-     * Get file content from storage
+     * Get file content from storage using the decta disk
      *
      * @param DectaFile $file
      * @return string|null
      */
     public function getFileContent(DectaFile $file): ?string
     {
-        if (Storage::disk('local')->exists($file->local_path)) {
-            return Storage::disk('local')->get($file->local_path);
+        if (Storage::disk($this->diskName)->exists($file->local_path)) {
+            return Storage::disk($this->diskName)->get($file->local_path);
         }
 
         return null;
     }
 
     /**
-     * Delete file from storage
+     * Delete file from storage using the decta disk
      *
      * @param DectaFile $file
      * @return bool
      */
     public function deleteFile(DectaFile $file): bool
     {
-        if (Storage::disk('local')->exists($file->local_path)) {
-            Storage::disk('local')->delete($file->local_path);
+        if (Storage::disk($this->diskName)->exists($file->local_path)) {
+            Storage::disk($this->diskName)->delete($file->local_path);
         }
 
         return $file->delete();
+    }
+
+    /**
+     * Check if file exists in storage using the decta disk
+     *
+     * @param DectaFile $file
+     * @return bool
+     */
+    public function fileExistsInStorage(DectaFile $file): bool
+    {
+        return Storage::disk($this->diskName)->exists($file->local_path);
+    }
+
+    /**
+     * Get file size from storage using the decta disk
+     *
+     * @param DectaFile $file
+     * @return int|false
+     */
+    public function getFileSize(DectaFile $file): int|false
+    {
+        if (Storage::disk($this->diskName)->exists($file->local_path)) {
+            return Storage::disk($this->diskName)->size($file->local_path);
+        }
+
+        return false;
+    }
+
+    /**
+     * Get file's last modified time from storage using the decta disk
+     *
+     * @param DectaFile $file
+     * @return int|false
+     */
+    public function getFileLastModified(DectaFile $file): int|false
+    {
+        if (Storage::disk($this->diskName)->exists($file->local_path)) {
+            return Storage::disk($this->diskName)->lastModified($file->local_path);
+        }
+
+        return false;
     }
 
     /**
@@ -172,6 +232,36 @@ class DectaFileRepository
             ->pluck('count', 'file_type')
             ->toArray();
 
+        // Group by target date - Fixed for PostgreSQL
+        $byDate = [];
+        try {
+            // Check if we're using PostgreSQL or MySQL
+            $connection = DB::connection();
+            $driverName = $connection->getDriverName();
+
+            if ($driverName === 'pgsql') {
+                // PostgreSQL syntax
+                $byDate = DectaFile::where('created_at', '>=', $startDate)
+                    ->whereNotNull('metadata')
+                    ->whereRaw("metadata->>'target_date' IS NOT NULL")
+                    ->selectRaw("metadata->>'target_date' as target_date, COUNT(*) as count")
+                    ->groupBy(DB::raw("metadata->>'target_date'"))
+                    ->pluck('count', 'target_date')
+                    ->toArray();
+            } else {
+                // MySQL syntax
+                $byDate = DectaFile::where('created_at', '>=', $startDate)
+                    ->whereNotNull('metadata->target_date')
+                    ->selectRaw("JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.target_date')) as target_date, COUNT(*) as count")
+                    ->groupBy('target_date')
+                    ->pluck('count', 'target_date')
+                    ->toArray();
+            }
+        } catch (\Exception $e) {
+            // Fallback: just return empty array for byDate if JSON parsing fails
+            $byDate = [];
+        }
+
         return [
             'total' => $totalFiles,
             'processed' => $processedFiles,
@@ -179,6 +269,57 @@ class DectaFileRepository
             'pending' => $pendingFiles,
             'success_rate' => $totalFiles > 0 ? ($processedFiles / $totalFiles) * 100 : 0,
             'by_file_type' => $byFileType,
+            'by_date' => $byDate,
+            'disk_used' => $this->diskName,
         ];
+    }
+
+    /**
+     * Validate file integrity
+     *
+     * @param DectaFile $file
+     * @return array
+     */
+    public function validateFileIntegrity(DectaFile $file): array
+    {
+        $result = [
+            'exists_in_storage' => false,
+            'size_matches' => false,
+            'is_readable' => false,
+            'storage_size' => null,
+            'database_size' => $file->file_size,
+            'issues' => [],
+        ];
+
+        // Check if file exists
+        if (Storage::disk($this->diskName)->exists($file->local_path)) {
+            $result['exists_in_storage'] = true;
+
+            // Check file size
+            $storageSize = Storage::disk($this->diskName)->size($file->local_path);
+            $result['storage_size'] = $storageSize;
+
+            if ($storageSize === $file->file_size) {
+                $result['size_matches'] = true;
+            } else {
+                $result['issues'][] = "Size mismatch: storage={$storageSize}, database={$file->file_size}";
+            }
+
+            // Check readability
+            try {
+                $content = Storage::disk($this->diskName)->get($file->local_path);
+                if ($content !== false) {
+                    $result['is_readable'] = true;
+                } else {
+                    $result['issues'][] = 'File exists but cannot be read';
+                }
+            } catch (\Exception $e) {
+                $result['issues'][] = "Read error: {$e->getMessage()}";
+            }
+        } else {
+            $result['issues'][] = 'File does not exist in storage';
+        }
+
+        return $result;
     }
 }
