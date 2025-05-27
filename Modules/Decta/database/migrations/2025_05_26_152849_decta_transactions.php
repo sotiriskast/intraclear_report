@@ -18,16 +18,19 @@ return new class extends Migration
             $table->foreignId('decta_file_id')->constrained('decta_files')->onDelete('cascade');
 
             // Gateway matching data
+            $table->unsignedBigInteger('gateway_account_id')->nullable()->index();
+            $table->unsignedBigInteger('gateway_shop_id')->nullable()->index();
             $table->string('gateway_transaction_id')->nullable()->index();
-            $table->unsignedBigInteger('account_id')->nullable()->index();
-            $table->unsignedBigInteger('shop_id')->nullable()->index();
-            $table->string('gateway_trx_id')->nullable();
+            $table->string('gateway_trx_id')->nullable()->index();
+            $table->string('gateway_transaction_date')->nullable();
+            $table->string('gateway_bank_response_date')->nullable();
+
 
             // Core transaction data from Decta CSV
             $table->string('payment_id')->index();
             $table->string('card')->nullable();
             $table->string('merchant_name')->nullable();
-            $table->string('merchant_id')->nullable()->index();
+            $table->string('merchant_id')->nullable();
             $table->string('terminal_id')->nullable();
             $table->string('card_type_name')->nullable();
             $table->string('acq_ref_nr')->nullable();

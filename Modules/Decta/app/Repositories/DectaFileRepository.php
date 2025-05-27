@@ -6,6 +6,7 @@ use Modules\Decta\Models\DectaFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class DectaFileRepository
 {
@@ -134,18 +135,85 @@ class DectaFileRepository
     }
 
     /**
-     * Get file content from storage using the decta disk
+     * Get file content from storage with smart path resolution
      *
      * @param DectaFile $file
      * @return string|null
      */
     public function getFileContent(DectaFile $file): ?string
     {
+        // Try the current path first
         if (Storage::disk($this->diskName)->exists($file->local_path)) {
             return Storage::disk($this->diskName)->get($file->local_path);
         }
 
+        // If not found, try to locate the file in failed/processed directories
+        $actualPath = $this->findActualFilePath($file);
+
+        if ($actualPath) {
+            Log::info('File found at different location, updating database', [
+                'file_id' => $file->id,
+                'old_path' => $file->local_path,
+                'new_path' => $actualPath
+            ]);
+
+            // Update the database with the correct path
+            $file->update(['local_path' => $actualPath]);
+
+            return Storage::disk($this->diskName)->get($actualPath);
+        }
+
+        Log::warning('File not found in any expected location', [
+            'file_id' => $file->id,
+            'filename' => $file->filename,
+            'expected_path' => $file->local_path,
+            'searched_paths' => $this->getPossiblePaths($file->local_path)
+        ]);
+
         return null;
+    }
+
+    /**
+     * Find the actual file path by checking multiple possible locations
+     *
+     * @param DectaFile $file
+     * @return string|null
+     */
+    public function findActualFilePath(DectaFile $file): ?string
+    {
+        $possiblePaths = $this->getPossiblePaths($file->local_path);
+
+        foreach ($possiblePaths as $path) {
+            if (Storage::disk($this->diskName)->exists($path)) {
+                return $path;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Get all possible paths where a file might be located
+     *
+     * @param string $originalPath
+     * @return array
+     */
+    private function getPossiblePaths(string $originalPath): array
+    {
+        $filename = basename($originalPath);
+        $directory = dirname($originalPath);
+        $failedDir = config('decta.files.failed_dir', 'failed');
+        $processedDir = config('decta.files.processed_dir', 'processed');
+
+        return [
+            $originalPath, // Current path
+            $directory . '/' . $failedDir . '/' . $filename, // Failed directory
+            $directory . '/' . $processedDir . '/' . $filename, // Processed directory
+            // Also try without the year/month structure in case of path changes
+            'files/' . $filename,
+            'files/' . $failedDir . '/' . $filename,
+            'files/' . $processedDir . '/' . $filename
+        ];
     }
 
     /**
@@ -156,8 +224,11 @@ class DectaFileRepository
      */
     public function deleteFile(DectaFile $file): bool
     {
-        if (Storage::disk($this->diskName)->exists($file->local_path)) {
-            Storage::disk($this->diskName)->delete($file->local_path);
+        // Find actual file path
+        $actualPath = $this->findActualFilePath($file);
+
+        if ($actualPath && Storage::disk($this->diskName)->exists($actualPath)) {
+            Storage::disk($this->diskName)->delete($actualPath);
         }
 
         return $file->delete();
@@ -171,7 +242,7 @@ class DectaFileRepository
      */
     public function fileExistsInStorage(DectaFile $file): bool
     {
-        return Storage::disk($this->diskName)->exists($file->local_path);
+        return $this->findActualFilePath($file) !== null;
     }
 
     /**
@@ -182,8 +253,10 @@ class DectaFileRepository
      */
     public function getFileSize(DectaFile $file): int|false
     {
-        if (Storage::disk($this->diskName)->exists($file->local_path)) {
-            return Storage::disk($this->diskName)->size($file->local_path);
+        $actualPath = $this->findActualFilePath($file);
+
+        if ($actualPath && Storage::disk($this->diskName)->exists($actualPath)) {
+            return Storage::disk($this->diskName)->size($actualPath);
         }
 
         return false;
@@ -197,11 +270,54 @@ class DectaFileRepository
      */
     public function getFileLastModified(DectaFile $file): int|false
     {
-        if (Storage::disk($this->diskName)->exists($file->local_path)) {
-            return Storage::disk($this->diskName)->lastModified($file->local_path);
+        $actualPath = $this->findActualFilePath($file);
+
+        if ($actualPath && Storage::disk($this->diskName)->exists($actualPath)) {
+            return Storage::disk($this->diskName)->lastModified($actualPath);
         }
 
         return false;
+    }
+
+    /**
+     * Fix file paths for files that may have been moved but database not updated
+     *
+     * @param Collection|null $files
+     * @return int Number of files fixed
+     */
+    public function fixFilePathsInBatch(?Collection $files = null): int
+    {
+        if ($files === null) {
+            // Get all files that might need fixing
+            $files = DectaFile::whereIn('status', [
+                DectaFile::STATUS_FAILED,
+                DectaFile::STATUS_PROCESSED,
+                DectaFile::STATUS_PROCESSING
+            ])->get();
+        }
+
+        $fixedCount = 0;
+
+        foreach ($files as $file) {
+            // Check if current path is wrong
+            if (!Storage::disk($this->diskName)->exists($file->local_path)) {
+                $actualPath = $this->findActualFilePath($file);
+
+                if ($actualPath && $actualPath !== $file->local_path) {
+                    $file->update(['local_path' => $actualPath]);
+                    $fixedCount++;
+
+                    Log::info('Fixed file path in batch operation', [
+                        'file_id' => $file->id,
+                        'filename' => $file->filename,
+                        'old_path' => $file->local_path,
+                        'new_path' => $actualPath
+                    ]);
+                }
+            }
+        }
+
+        return $fixedCount;
     }
 
     /**
@@ -288,15 +404,19 @@ class DectaFileRepository
             'is_readable' => false,
             'storage_size' => null,
             'database_size' => $file->file_size,
+            'actual_path' => null,
             'issues' => [],
         ];
 
-        // Check if file exists
-        if (Storage::disk($this->diskName)->exists($file->local_path)) {
+        // Find actual file path
+        $actualPath = $this->findActualFilePath($file);
+
+        if ($actualPath) {
             $result['exists_in_storage'] = true;
+            $result['actual_path'] = $actualPath;
 
             // Check file size
-            $storageSize = Storage::disk($this->diskName)->size($file->local_path);
+            $storageSize = Storage::disk($this->diskName)->size($actualPath);
             $result['storage_size'] = $storageSize;
 
             if ($storageSize === $file->file_size) {
@@ -307,7 +427,7 @@ class DectaFileRepository
 
             // Check readability
             try {
-                $content = Storage::disk($this->diskName)->get($file->local_path);
+                $content = Storage::disk($this->diskName)->get($actualPath);
                 if ($content !== false) {
                     $result['is_readable'] = true;
                 } else {
@@ -316,8 +436,15 @@ class DectaFileRepository
             } catch (\Exception $e) {
                 $result['issues'][] = "Read error: {$e->getMessage()}";
             }
+
+            // Check if path in database is correct
+            if ($actualPath !== $file->local_path) {
+                $result['issues'][] = "Database path outdated: DB={$file->local_path}, Actual={$actualPath}";
+            }
         } else {
-            $result['issues'][] = 'File does not exist in storage';
+            $result['issues'][] = 'File does not exist in any expected location';
+            $searchedPaths = $this->getPossiblePaths($file->local_path);
+            $result['issues'][] = 'Searched paths: ' . implode(', ', $searchedPaths);
         }
 
         return $result;

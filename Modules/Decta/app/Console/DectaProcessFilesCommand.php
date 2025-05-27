@@ -126,7 +126,7 @@ class DectaProcessFilesCommand extends Command
 
                         // Mark file as processed and move to processed directory
                         $file->markAsProcessed();
-                        $this->sftpService->moveToProcessed($file->local_path);
+                        $this->moveFileToProcessed($file);
 
                         $processedCount++;
                         $totalMatched += $matchingResults['matched'];
@@ -299,6 +299,9 @@ class DectaProcessFilesCommand extends Command
             if ($file && ($file->status === DectaFile::STATUS_FAILED || $file->status === DectaFile::STATUS_PROCESSING)) {
                 // Reset processing status for specific file if it's stuck or failed
                 $file->update(['status' => DectaFile::STATUS_PENDING]);
+
+                // Fix file path if it's in failed directory
+                $this->fixFilePathIfNeeded($file);
             }
             return collect($file ? [$file] : []);
         }
@@ -318,11 +321,73 @@ class DectaProcessFilesCommand extends Command
 
             $files = $files->merge($stuckFiles);
 
+            // Fix file paths for retry
+            foreach ($files->take($limit) as $file) {
+                $this->fixFilePathIfNeeded($file);
+            }
+
             return $files->take($limit);
         }
 
         // Get pending files
         return $this->fileRepository->getPendingFiles()->take($limit);
+    }
+
+    /**
+     * Fix file path if the file is in failed/processed directory but database has wrong path
+     */
+    private function fixFilePathIfNeeded(DectaFile $file): void
+    {
+        // Check if file exists at current path
+        if ($this->fileRepository->fileExistsInStorage($file)) {
+            return; // File is where it should be
+        }
+
+        // Try to find file in failed directory
+        $failedPath = $this->getFailedPath($file->local_path);
+        $processedPath = $this->getProcessedPath($file->local_path);
+
+        if (\Storage::disk('decta')->exists($failedPath)) {
+            $this->line("  Found file in failed directory, updating path...");
+            $file->update(['local_path' => $failedPath]);
+            Log::info('Fixed file path for retry', [
+                'file_id' => $file->id,
+                'old_path' => $file->local_path,
+                'new_path' => $failedPath
+            ]);
+        } elseif (\Storage::disk('decta')->exists($processedPath)) {
+            $this->line("  Found file in processed directory, updating path...");
+            $file->update(['local_path' => $processedPath]);
+            Log::info('Fixed file path for retry', [
+                'file_id' => $file->id,
+                'old_path' => $file->local_path,
+                'new_path' => $processedPath
+            ]);
+        } else {
+            $this->warn("  File not found in any expected location for {$file->filename}");
+        }
+    }
+
+    /**
+     * Get the failed directory path for a file
+     */
+    private function getFailedPath(string $originalPath): string
+    {
+        $filename = basename($originalPath);
+        $directory = dirname($originalPath);
+        $failedDir = config('decta.files.failed_dir', 'failed');
+        return $directory . '/' . $failedDir . '/' . $filename;
+    }
+
+    /**
+     * Get the processed directory path for a file
+     */
+    private function getProcessedPath(string $originalPath): string
+    {
+        $filename = basename($originalPath);
+        $directory = dirname($originalPath);
+        $processedDir = config('decta.files.processed_dir', 'processed');
+        return $directory . '/' . $processedDir . '/' . $filename;
     }
 
     /**
@@ -333,7 +398,7 @@ class DectaProcessFilesCommand extends Command
         // Get file content
         $content = $this->fileRepository->getFileContent($file);
         if (!$content) {
-            throw new Exception('Could not read file content');
+            throw new Exception('Could not read file content from: ' . $file->local_path);
         }
 
         // Check if it's a CSV file
@@ -361,7 +426,44 @@ class DectaProcessFilesCommand extends Command
 
         // Fresh processing
         return $this->transactionService->processCsvFile($file, $content);
+    }
 
+    /**
+     * Move file to processed directory and update database
+     */
+    private function moveFileToProcessed(DectaFile $file): void
+    {
+        $newPath = $this->getProcessedPath($file->local_path);
+
+        if ($this->sftpService->moveToProcessed($file->local_path)) {
+            // Update database with new path
+            $file->update(['local_path' => $newPath]);
+
+            Log::info('File moved to processed and database updated', [
+                'file_id' => $file->id,
+                'old_path' => $file->local_path,
+                'new_path' => $newPath
+            ]);
+        }
+    }
+
+    /**
+     * Move file to failed directory and update database
+     */
+    private function moveFileToFailed(DectaFile $file): void
+    {
+        $newPath = $this->getFailedPath($file->local_path);
+
+        if ($this->sftpService->moveToFailed($file->local_path)) {
+            // Update database with new path
+            $file->update(['local_path' => $newPath]);
+
+            Log::info('File moved to failed and database updated', [
+                'file_id' => $file->id,
+                'old_path' => $file->local_path,
+                'new_path' => $newPath
+            ]);
+        }
     }
 
     /**
@@ -406,6 +508,7 @@ class DectaProcessFilesCommand extends Command
             $this->info("Use --retry-failed option to retry failed files.");
         }
     }
+
     /**
      * Enhanced error handling for processing failures
      */
@@ -421,15 +524,13 @@ class DectaProcessFilesCommand extends Command
                 'status' => DectaFile::STATUS_PROCESSING,
                 'error_message' => "Partial processing interrupted: {$e->getMessage()}. {$transactionCount} transactions were processed.",
                 'updated_at' => now()
-
-
             ]);
 
             $this->warn("  File partially processed ({$transactionCount} transactions). Can be resumed later.");
         } else {
             // Complete failure - mark as failed and move to failed directory
             $file->markAsFailed($e->getMessage());
-            $this->sftpService->moveToFailed($file->local_path);
+            $this->moveFileToFailed($file); // This now updates the database path too
         }
     }
 }

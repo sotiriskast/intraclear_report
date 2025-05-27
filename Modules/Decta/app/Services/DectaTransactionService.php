@@ -245,7 +245,7 @@ class DectaTransactionService
      */
     private function normalizeHeaders(array $headers): array
     {
-        return array_map(function($header) {
+        return array_map(function ($header) {
             // Remove BOM, trim whitespace, convert to uppercase
             $header = trim($header);
             $header = str_replace(["\xEF\xBB\xBF", "\r", "\n"], '', $header);
@@ -263,21 +263,29 @@ class DectaTransactionService
     private function storeTransaction(DectaFile $file, array $rowData): DectaTransaction
     {
         // Map CSV data to database fields
-        $transactionData = ['decta_file_id' => $file->id];
         $query = DB::connection('payment_gateway_mysql')
             ->table('transactions')
-            ->leftJoin('bank_response', 'transactions.trx_added', '=', 'bank_response.tid')
+            ->leftJoin('bank_response', 'transactions.trx_id', '=', 'bank_response.tid')
             ->select([
                 'transactions.tid as transaction_id',
                 'transactions.account_id',
                 'transactions.shop_id',
                 'transactions.trx_id as trx_id',
-                'transactions.bank_amount',
-                'transactions.bank_currency',
                 'transactions.added as transaction_date',
+                'bank_response.added as transaction_date',
             ])->where('bank_response.bank_trx_id', $rowData['PAYMENT_ID'])
             ->where('bank_response.added', $rowData['TR_DATE_TIME'])
+            ->where('transactions.amount', (((int)$rowData['TR_AMOUNT']) * 100))
             ->first();
+        $transactionData = [
+            'decta_file_id' => $file->id,
+            'gateway_account_id' => $query->account_id,
+            'gateway_shop_id' => $query->shop_id,
+            'gateway_trx_id' => $query->trx_id,
+            'gateway_transaction_id' => $query->transaction_id,
+            'gateway_transaction_date' => $query->transaction_date,
+            'gateway_bank_response_date' => $query->transaction_date,
+        ];
         foreach (self::CSV_COLUMNS as $csvColumn => $dbColumn) {
             $value = $rowData[$csvColumn] ?? null;
 
@@ -287,7 +295,7 @@ class DectaTransactionService
                     // Convert amount to cents (multiply by 100)
                     if ($value !== null && $value !== '') {
                         $cleanValue = str_replace([',', ' '], '', $value);
-                        $transactionData[$dbColumn] = (int) round(floatval($cleanValue) * 100);
+                        $transactionData[$dbColumn] = (int)round(floatval($cleanValue) * 100);
                     } else {
                         $transactionData[$dbColumn] = null;
                     }
@@ -308,6 +316,7 @@ class DectaTransactionService
 
         return DectaTransaction::create($transactionData);
     }
+
     /**
      * Enhanced CSV processing with resume capability
      *
@@ -491,6 +500,7 @@ class DectaTransactionService
             'can_resume' => $processedRows < $totalRows && $processedRows > 0,
         ];
     }
+
     /**
      * Parse CSV line handling quoted values and different delimiters
      *
@@ -774,7 +784,7 @@ class DectaTransactionService
         // Return the highest scored match
         $bestMatch = $scoredMatches->sortByDesc('match_score')->first();
 
-        return $bestMatch && $bestMatch->match_score > 0 ? (array) $bestMatch : null;
+        return $bestMatch && $bestMatch->match_score > 0 ? (array)$bestMatch : null;
     }
 
     /**
@@ -803,7 +813,7 @@ class DectaTransactionService
                 ->first();
 
             if ($result) {
-                return (array) $result;
+                return (array)$result;
             }
         }
 

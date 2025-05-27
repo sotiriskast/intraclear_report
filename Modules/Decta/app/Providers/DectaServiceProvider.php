@@ -5,6 +5,7 @@ namespace Modules\Decta\Providers;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\ServiceProvider;
 use Modules\Decta\Console\DectaDebugCommand;
+use Modules\Decta\Console\DectaFixFilePathsCommand;
 use Modules\Decta\Console\DectaRecoveryCommand;
 use Modules\Decta\Console\DectaTestConnectionCommand;
 use Modules\Decta\Console\DectaTestLatestFileCommand;
@@ -85,9 +86,7 @@ class DectaServiceProvider extends ServiceProvider
             DectaStatusCommand::class,
             DectaTestConnectionCommand::class,
             DectaTestLatestFileCommand::class,
-            DectaDebugCommand::class,
-            DectaRecoveryCommand::class,
-        ]);
+            DectaFixFilePathsCommand::class        ]);
     }
 
     /**

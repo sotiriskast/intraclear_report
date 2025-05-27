@@ -371,7 +371,7 @@ class DectaSftpService
     }
 
     /**
-     * Move a local file to the processed directory
+     * Move a local file to the processed directory with smart path handling
      *
      * @param string $localPath Local file path
      * @return bool Whether the move was successful
@@ -380,22 +380,27 @@ class DectaSftpService
     {
         try {
             $filename = basename($localPath);
-            $directory = dirname($localPath);
-            $processedDir = $directory . '/' . config('decta.files.processed_dir');
+            $processedPath = $this->getSmartProcessedPath($localPath);
 
             // Create processed directory if it doesn't exist
+            $processedDir = dirname($processedPath);
             if (!Storage::disk($this->diskName)->exists($processedDir)) {
                 Storage::disk($this->diskName)->makeDirectory($processedDir);
             }
 
-            $processedPath = $processedDir . '/' . $filename;
+            // Only move if not already in the right place
+            if ($localPath !== $processedPath) {
+                Storage::disk($this->diskName)->move($localPath, $processedPath);
 
-            Storage::disk($this->diskName)->move($localPath, $processedPath);
-
-            Log::info('File moved to processed directory', [
-                'from' => $localPath,
-                'to' => $processedPath
-            ]);
+                Log::info('File moved to processed directory', [
+                    'from' => $localPath,
+                    'to' => $processedPath
+                ]);
+            } else {
+                Log::info('File already in processed directory', [
+                    'path' => $processedPath
+                ]);
+            }
 
             return true;
         } catch (Exception $e) {
@@ -408,7 +413,7 @@ class DectaSftpService
     }
 
     /**
-     * Move a local file to the failed directory
+     * Move a local file to the failed directory with smart path handling
      *
      * @param string $localPath Local file path
      * @return bool Whether the move was successful
@@ -417,22 +422,27 @@ class DectaSftpService
     {
         try {
             $filename = basename($localPath);
-            $directory = dirname($localPath);
-            $failedDir = $directory . '/' . config('decta.files.failed_dir');
+            $failedPath = $this->getSmartFailedPath($localPath);
 
             // Create failed directory if it doesn't exist
+            $failedDir = dirname($failedPath);
             if (!Storage::disk($this->diskName)->exists($failedDir)) {
                 Storage::disk($this->diskName)->makeDirectory($failedDir);
             }
 
-            $failedPath = $failedDir . '/' . $filename;
+            // Only move if not already in the right place
+            if ($localPath !== $failedPath) {
+                Storage::disk($this->diskName)->move($localPath, $failedPath);
 
-            Storage::disk($this->diskName)->move($localPath, $failedPath);
-
-            Log::info('File moved to failed directory', [
-                'from' => $localPath,
-                'to' => $failedPath
-            ]);
+                Log::info('File moved to failed directory', [
+                    'from' => $localPath,
+                    'to' => $failedPath
+                ]);
+            } else {
+                Log::info('File already in failed directory', [
+                    'path' => $failedPath
+                ]);
+            }
 
             return true;
         } catch (Exception $e) {
@@ -442,5 +452,87 @@ class DectaSftpService
             ]);
             return false;
         }
+    }
+
+    /**
+     * Get smart processed path that prevents nested directories
+     *
+     * @param string $currentPath Current file path
+     * @return string Correct processed path
+     */
+    private function getSmartProcessedPath(string $currentPath): string
+    {
+        $filename = basename($currentPath);
+        $processedDir = config('decta.files.processed_dir', 'processed');
+        $failedDir = config('decta.files.failed_dir', 'failed');
+
+        // Get the base directory structure (e.g., "files/2025/05/26")
+        $baseDir = $this->getBaseDirectory($currentPath);
+
+        // Return the processed path in the base directory
+        return $baseDir . '/' . $processedDir . '/' . $filename;
+    }
+
+    /**
+     * Get smart failed path that prevents nested directories
+     *
+     * @param string $currentPath Current file path
+     * @return string Correct failed path
+     */
+    private function getSmartFailedPath(string $currentPath): string
+    {
+        $filename = basename($currentPath);
+        $failedDir = config('decta.files.failed_dir', 'failed');
+
+        // Get the base directory structure (e.g., "files/2025/05/26")
+        $baseDir = $this->getBaseDirectory($currentPath);
+
+        // Return the failed path in the base directory
+        return $baseDir . '/' . $failedDir . '/' . $filename;
+    }
+
+    /**
+     * Extract the base directory from a path, removing any failed/processed subdirectories
+     *
+     * @param string $path File path
+     * @return string Base directory path
+     */
+    private function getBaseDirectory(string $path): string
+    {
+        $directory = dirname($path);
+        $processedDir = config('decta.files.processed_dir', 'processed');
+        $failedDir = config('decta.files.failed_dir', 'failed');
+
+        // Remove trailing /failed or /processed from the directory
+        $directory = preg_replace('/\/' . preg_quote($failedDir, '/') . '$/', '', $directory);
+        $directory = preg_replace('/\/' . preg_quote($processedDir, '/') . '$/', '', $directory);
+
+        return $directory;
+    }
+
+    /**
+     * Get the target directory path for processed files
+     *
+     * @param string $basePath Base file path
+     * @return string Processed directory path
+     */
+    public function getProcessedDirectoryPath(string $basePath): string
+    {
+        $baseDir = $this->getBaseDirectory($basePath);
+        $processedDir = config('decta.files.processed_dir', 'processed');
+        return $baseDir . '/' . $processedDir;
+    }
+
+    /**
+     * Get the target directory path for failed files
+     *
+     * @param string $basePath Base file path
+     * @return string Failed directory path
+     */
+    public function getFailedDirectoryPath(string $basePath): string
+    {
+        $baseDir = $this->getBaseDirectory($basePath);
+        $failedDir = config('decta.files.failed_dir', 'failed');
+        return $baseDir . '/' . $failedDir;
     }
 }
