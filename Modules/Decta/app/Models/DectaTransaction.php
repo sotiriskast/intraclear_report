@@ -69,8 +69,12 @@ class DectaTransaction extends Model
         'pos_env_indicator',
         'par',
         'gateway_transaction_id',
-        'account_id',
-        'shop_id',
+        'gateway_account_id',
+        'gateway_shop_id',
+        'gateway_trx_id',
+        'gateway_transaction_status',
+        'gateway_bank_response_date',
+        'gateway_transaction_date',
         'gateway_trx_id',
         'is_matched',
         'matched_at',
@@ -92,6 +96,8 @@ class DectaTransaction extends Model
         'is_matched' => 'boolean',
         'matching_attempts' => 'json',
         'tr_amount' => 'integer',
+        'gateway_bank_response_date' => 'datetime',
+        'gateway_transaction_date' => 'datetime',
     ];
 
     /**
@@ -135,18 +141,26 @@ class DectaTransaction extends Model
     }
 
     /**
-     * Mark transaction as matched
+     * Mark transaction as matched with gateway data
      */
     public function markAsMatched(array $gatewayData): self
     {
         $this->update([
+            // Gateway transaction identifiers
             'gateway_transaction_id' => $gatewayData['transaction_id'] ?? null,
-            'account_id' => $gatewayData['account_id'] ?? null,
-            'shop_id' => $gatewayData['shop_id'] ?? null,
+            'gateway_account_id' => $gatewayData['account_id'] ?? null,
+            'gateway_shop_id' => $gatewayData['shop_id'] ?? null,
             'gateway_trx_id' => $gatewayData['trx_id'] ?? null,
+
+            // Gateway transaction dates
+            'gateway_transaction_date' => $gatewayData['transaction_date'] ?? null,
+            'gateway_bank_response_date' => $gatewayData['bank_response_date'] ?? null,
+
+            // Matching status
             'is_matched' => true,
             'matched_at' => Carbon::now(),
             'status' => self::STATUS_MATCHED,
+            'error_message' => null, // Clear any previous error
         ]);
 
         return $this;
@@ -251,6 +265,84 @@ class DectaTransaction extends Model
             'failed' => $failed,
             'pending' => $pending,
             'match_rate' => $total > 0 ? ($matched / $total) * 100 : 0,
+        ];
+    }
+
+    /**
+     * Validate that gateway data was stored correctly
+     *
+     * @return array Validation results
+     */
+    public function validateGatewayData(): array
+    {
+        $validation = [
+            'is_valid' => true,
+            'has_required_fields' => true,
+            'missing_fields' => [],
+            'issues' => [],
+        ];
+
+        if (!$this->is_matched) {
+            $validation['is_valid'] = false;
+            $validation['issues'][] = 'Transaction not marked as matched';
+            return $validation;
+        }
+
+        // Check required gateway fields
+        $requiredFields = [
+            'gateway_transaction_id' => 'Gateway Transaction ID',
+            'gateway_account_id' => 'Gateway Account ID',
+            'gateway_shop_id' => 'Gateway Shop ID',
+            'gateway_trx_id' => 'Gateway TRX ID',
+        ];
+
+        foreach ($requiredFields as $field => $label) {
+            if (empty($this->$field)) {
+                $validation['has_required_fields'] = false;
+                $validation['missing_fields'][] = $label;
+                $validation['issues'][] = "Missing {$label}";
+            }
+        }
+
+        // Check if matched_at timestamp is set
+        if (!$this->matched_at) {
+            $validation['issues'][] = 'Missing matched_at timestamp';
+        }
+
+        // Check if status is correct
+        if ($this->status !== self::STATUS_MATCHED) {
+            $validation['issues'][] = "Status should be 'matched' but is '{$this->status}'";
+        }
+
+        $validation['is_valid'] = empty($validation['issues']);
+
+        return $validation;
+    }
+
+    /**
+     * Get gateway transaction summary for display
+     *
+     * @return array
+     */
+    public function getGatewaySummary(): array
+    {
+        if (!$this->is_matched) {
+            return [
+                'matched' => false,
+                'message' => 'Transaction not matched with gateway'
+            ];
+        }
+
+        return [
+            'matched' => true,
+            'gateway_transaction_id' => $this->gateway_transaction_id,
+            'gateway_account_id' => $this->gateway_account_id,
+            'gateway_shop_id' => $this->gateway_shop_id,
+            'gateway_trx_id' => $this->gateway_trx_id,
+            'gateway_transaction_date' => $this->gateway_transaction_date,
+            'gateway_bank_response_date' => $this->gateway_bank_response_date,
+            'matched_at' => $this->matched_at,
+            'validation' => $this->validateGatewayData()
         ];
     }
 }

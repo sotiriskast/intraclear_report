@@ -24,6 +24,7 @@ return new class extends Migration
             $table->string('gateway_trx_id')->nullable()->index();
             $table->string('gateway_transaction_date')->nullable();
             $table->string('gateway_bank_response_date')->nullable();
+            $table->string('gateway_transaction_status')->nullable();
 
 
             // Core transaction data from Decta CSV
