@@ -263,28 +263,8 @@ class DectaTransactionService
     private function storeTransaction(DectaFile $file, array $rowData): DectaTransaction
     {
         // Map CSV data to database fields
-        $query = DB::connection('payment_gateway_mysql')
-            ->table('transactions')
-            ->leftJoin('bank_response', 'transactions.trx_id', '=', 'bank_response.tid')
-            ->select([
-                'transactions.tid as transaction_id',
-                'transactions.account_id',
-                'transactions.shop_id',
-                'transactions.trx_id as trx_id',
-                'transactions.added as transaction_date',
-                'bank_response.added as transaction_date',
-            ])->where('bank_response.bank_trx_id', $rowData['PAYMENT_ID'])
-            ->where('bank_response.added', $rowData['TR_DATE_TIME'])
-            ->where('transactions.amount', (((int)$rowData['TR_AMOUNT']) * 100))
-            ->first();
         $transactionData = [
             'decta_file_id' => $file->id,
-            'gateway_account_id' => $query->account_id,
-            'gateway_shop_id' => $query->shop_id,
-            'gateway_trx_id' => $query->trx_id,
-            'gateway_transaction_id' => $query->transaction_id,
-            'gateway_transaction_date' => $query->transaction_date,
-            'gateway_bank_response_date' => $query->transaction_date,
         ];
         foreach (self::CSV_COLUMNS as $csvColumn => $dbColumn) {
             $value = $rowData[$csvColumn] ?? null;
