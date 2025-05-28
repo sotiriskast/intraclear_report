@@ -671,13 +671,13 @@ class DectaTransactionService
                 'Y-m-d\TH:i:s\Z',
                 'd.m.Y H:i:s',
                 'd.m.Y',
-                'Y.m.d H:i:s',  // Fixed: was 'YYYY.mm.dd H:i:s'
-                'Y.m.d',        // Fixed: was 'YYYY.mm.dd'
+                'Y.m.d H:i:s',
+                'Y.m.d',
                 'Y/m/d H:i:s',
                 'Y/m/d',
-                'j/n/Y H:i:s',  // Single digit day/month
+                'j/n/Y H:i:s',
                 'j/n/Y',
-                'n/j/Y H:i:s',  // US format with single digits
+                'n/j/Y H:i:s',
                 'n/j/Y',
                 'j.n.Y H:i:s',
                 'j.n.Y',
