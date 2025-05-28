@@ -37,7 +37,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
      */
     private const array CURRENCY_PRECISION = [
         'JPY' => 8,
-        'DEFAULT' => 6
+        'DEFAULT' => 8
     ];
 
     /**
@@ -270,6 +270,9 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
     {
         foreach ($totals as $currency => &$currencyData) {
             // List of all fields containing EUR values
+            if ($currencyData['currency'] === 'EUR') {
+                continue;
+            }
             $eurFields = [
                 'total_sales_eur',
                 'total_declined_sales_eur',
