@@ -3,6 +3,7 @@
 namespace Modules\Decta\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class DectaFile extends Model
@@ -31,6 +32,7 @@ class DectaFile extends Model
         'processed_at',
         'error_message',
         'metadata',
+        'updated_at'
     ];
 
     /**
@@ -50,6 +52,14 @@ class DectaFile extends Model
     const STATUS_PROCESSING = 'processing';
     const STATUS_PROCESSED = 'processed';
     const STATUS_FAILED = 'failed';
+
+    /**
+     * Get the transactions that belong to this file
+     */
+    public function dectaTransactions(): HasMany
+    {
+        return $this->hasMany(DectaTransaction::class, 'decta_file_id');
+    }
 
     /**
      * Scope a query to only include pending files.
@@ -172,5 +182,92 @@ class DectaFile extends Model
         $this->error_message = $errorMessage;
         $this->save();
         return $this;
+    }
+
+    /**
+     * Get transaction statistics for this file
+     *
+     * @return array
+     */
+    public function getTransactionStats(): array
+    {
+        $total = $this->dectaTransactions()->count();
+        $matched = $this->dectaTransactions()->where('is_matched', true)->count();
+        $failed = $this->dectaTransactions()->where('status', DectaTransaction::STATUS_FAILED)->count();
+        $pending = $this->dectaTransactions()->where('status', DectaTransaction::STATUS_PENDING)->count();
+
+        return [
+            'total' => $total,
+            'matched' => $matched,
+            'unmatched' => $total - $matched,
+            'failed' => $failed,
+            'pending' => $pending,
+            'match_rate' => $total > 0 ? ($matched / $total) * 100 : 0,
+        ];
+    }
+
+    /**
+     * Get file size in human readable format
+     *
+     * @return string
+     */
+    public function getHumanFileSizeAttribute(): string
+    {
+        if (!$this->file_size) {
+            return 'Unknown';
+        }
+
+        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        $bytes = $this->file_size;
+        $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
+        $pow = min($pow, count($units) - 1);
+        $bytes /= (1 << (10 * $pow));
+
+        return round($bytes, 2) . ' ' . $units[$pow];
+    }
+
+    /**
+     * Get processing duration in human readable format
+     *
+     * @return string|null
+     */
+    public function getProcessingDurationAttribute(): ?string
+    {
+        if (!$this->processed_at) {
+            return null;
+        }
+
+        $duration = $this->created_at->diffInMinutes($this->processed_at);
+
+        if ($duration < 1) {
+            return 'Less than 1 minute';
+        } elseif ($duration < 60) {
+            return $duration . ' minute' . ($duration > 1 ? 's' : '');
+        } else {
+            $hours = floor($duration / 60);
+            $minutes = $duration % 60;
+            return $hours . ' hour' . ($hours > 1 ? 's' : '') .
+                ($minutes > 0 ? ' ' . $minutes . ' minute' . ($minutes > 1 ? 's' : '') : '');
+        }
+    }
+
+    /**
+     * Get the file's target date from metadata
+     *
+     * @return string|null
+     */
+    public function getTargetDateAttribute(): ?string
+    {
+        return $this->metadata['target_date'] ?? null;
+    }
+
+    /**
+     * Get the file's download date from metadata
+     *
+     * @return string|null
+     */
+    public function getDownloadDateAttribute(): ?string
+    {
+        return $this->metadata['download_date'] ?? null;
     }
 }
