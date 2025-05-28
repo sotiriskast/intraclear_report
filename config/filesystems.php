@@ -58,6 +58,12 @@ return [
             'throw' => false,
             'visibility' => 'public',
         ],
+        'decta' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private/decta'),
+            'serve' => true,
+            'throw' => false,
+        ],
 
     ],
 

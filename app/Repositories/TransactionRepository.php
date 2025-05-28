@@ -36,7 +36,7 @@ readonly class TransactionRepository implements TransactionRepositoryInterface
      * Currency-specific precision settings
      */
     private const array CURRENCY_PRECISION = [
-        'JPY' => 4,
+        'JPY' => 8,
         'DEFAULT' => 6
     ];
 
