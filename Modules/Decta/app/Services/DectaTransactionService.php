@@ -298,29 +298,30 @@ class DectaTransactionService
     }
 
     /**
-     * Enhanced CSV processing with resume capability
+     * Enhanced CSV processing with improved resume capability
      *
      * @param DectaFile $file
      * @param string $content
-     * @param int $skipRows Number of rows to skip (for resume)
+     * @param int $alreadyProcessed Number of transactions already in database
      * @return array Processing results
      */
-    public function processCsvFileWithResume(DectaFile $file, string $content, int $skipRows = 0): array
+    public function processCsvFileWithResume(DectaFile $file, string $content, int $alreadyProcessed = 0): array
     {
         $results = [
             'total_rows' => 0,
             'processed' => 0,
             'failed' => 0,
-            'skipped' => $skipRows,
+            'skipped' => 0,
+            'resumed_from_row' => $alreadyProcessed + 1, // +1 because we skip header
             'errors' => [],
         ];
 
         try {
-            Log::info('Starting CSV processing with resume capability', [
+            Log::info('Starting CSV processing with enhanced resume capability', [
                 'file_id' => $file->id,
                 'filename' => $file->filename,
                 'content_length' => strlen($content),
-                'skip_rows' => $skipRows,
+                'already_processed' => $alreadyProcessed,
             ]);
 
             // Parse CSV content
@@ -331,7 +332,7 @@ class DectaTransactionService
             }
 
             // Get headers from first line
-            $headerLine = array_shift($lines);
+            $headerLine = array_shift($lines); // Remove header from lines array
             $headers = $this->parseCsvLine($headerLine);
             $headers = $this->normalizeHeaders($headers);
 
@@ -339,96 +340,148 @@ class DectaTransactionService
                 throw new Exception('No headers found in CSV file');
             }
 
+            // Now $lines contains only data rows (no header)
             $results['total_rows'] = count($lines);
 
-            // Skip already processed rows if resuming
-            if ($skipRows > 0) {
-                $lines = array_slice($lines, $skipRows);
-                Log::info("Skipping {$skipRows} already processed rows");
-            }
-
-            if (empty($lines)) {
-                Log::info('No remaining rows to process');
-                return $results;
-            }
-
-            Log::info('Processing remaining rows', [
+            Log::info('CSV structure analyzed', [
                 'file_id' => $file->id,
-                'remaining_rows' => count($lines),
+                'total_data_rows' => $results['total_rows'],
+                'already_processed' => $alreadyProcessed,
                 'headers' => $headers,
             ]);
 
-            // Process each remaining row
-            foreach ($lines as $index => $line) {
+            if ($results['total_rows'] === 0) {
+                throw new Exception('CSV file contains headers but no data rows');
+            }
+
+            // Validate that we're not trying to skip more rows than exist
+            if ($alreadyProcessed > $results['total_rows']) {
+                Log::warning('Already processed count exceeds total rows, starting fresh', [
+                    'already_processed' => $alreadyProcessed,
+                    'total_rows' => $results['total_rows'],
+                ]);
+                $alreadyProcessed = 0;
+            }
+
+            // Get existing payment IDs to avoid duplicates
+            $existingPaymentIds = $this->getExistingPaymentIds($file);
+            Log::info('Found existing payment IDs', [
+                'count' => count($existingPaymentIds),
+                'sample' => array_slice($existingPaymentIds, 0, 5),
+            ]);
+
+            // Process rows starting from where we left off
+            $startFromRow = $alreadyProcessed;
+            $processedInThisRun = 0;
+
+            for ($rowIndex = 0; $rowIndex < count($lines); $rowIndex++) {
+                $csvRowNumber = $rowIndex + 2; // +2 because: +1 for 1-based counting, +1 for header row
+                $line = $lines[$rowIndex];
+
                 if (empty(trim($line))) {
+                    continue; // Skip empty lines
+                }
+
+                // Skip rows that were already processed
+                if ($rowIndex < $startFromRow) {
+                    $results['skipped']++;
                     continue;
                 }
 
                 try {
                     $data = $this->parseCsvLine($line);
 
+                    Log::debug('Processing CSV row for resume', [
+                        'file_id' => $file->id,
+                        'csv_row_number' => $csvRowNumber,
+                        'array_index' => $rowIndex,
+                        'data_count' => count($data),
+                        'header_count' => count($headers),
+                        'raw_line' => substr($line, 0, 200), // Truncate for logging
+                    ]);
+
                     // Handle column count mismatch
                     if (count($data) !== count($headers)) {
                         if (count($data) < count($headers)) {
                             $data = array_pad($data, count($headers), '');
+                            Log::debug('Padded row with empty values', [
+                                'csv_row_number' => $csvRowNumber,
+                                'original_count' => count($data),
+                                'padded_to' => count($headers),
+                            ]);
                         } else {
                             $data = array_slice($data, 0, count($headers));
+                            Log::debug('Trimmed excess columns', [
+                                'csv_row_number' => $csvRowNumber,
+                                'original_count' => count($data),
+                                'trimmed_to' => count($headers),
+                            ]);
                         }
                     }
 
+                    // Combine headers with data
                     $rowData = array_combine($headers, $data);
                     if ($rowData === false) {
                         throw new Exception("Failed to combine headers with data");
                     }
 
                     // Check for duplicates based on payment_id
-                    if (isset($rowData['PAYMENT_ID']) && !empty($rowData['PAYMENT_ID'])) {
-                        $exists = DectaTransaction::where('decta_file_id', $file->id)
-                            ->where('payment_id', $rowData['PAYMENT_ID'])
-                            ->exists();
+                    $paymentId = $rowData['PAYMENT_ID'] ?? null;
+                    if (empty($paymentId)) {
+                        throw new Exception("Missing PAYMENT_ID in row data");
+                    }
 
-                        if ($exists) {
-                            Log::debug('Skipping duplicate transaction', [
-                                'payment_id' => $rowData['PAYMENT_ID'],
-                                'file_id' => $file->id,
-                            ]);
-                            continue;
-                        }
+                    // Skip if this payment ID was already processed
+                    if (in_array($paymentId, $existingPaymentIds)) {
+                        Log::debug('Skipping duplicate payment ID', [
+                            'payment_id' => $paymentId,
+                            'csv_row_number' => $csvRowNumber,
+                        ]);
+                        $results['skipped']++;
+                        continue;
                     }
 
                     // Store the transaction
                     $transaction = $this->storeTransaction($file, $rowData);
                     $results['processed']++;
+                    $processedInThisRun++;
 
-                    Log::debug('Transaction stored', [
+                    // Add to existing payment IDs to prevent duplicates within this run
+                    $existingPaymentIds[] = $paymentId;
+
+                    Log::debug('Transaction stored successfully', [
                         'file_id' => $file->id,
-                        'row' => $skipRows + $index + 2, // +2 for header and 0-based index
+                        'csv_row_number' => $csvRowNumber,
                         'transaction_id' => $transaction->id,
                         'payment_id' => $transaction->payment_id,
+                        'processed_in_this_run' => $processedInThisRun,
                     ]);
 
                 } catch (Exception $e) {
                     $results['failed']++;
-                    $error = "Row " . ($skipRows + $index + 2) . ": " . $e->getMessage();
+                    $error = "Row {$csvRowNumber}: " . $e->getMessage();
                     $results['errors'][] = $error;
 
-                    Log::warning('Failed to process CSV row', [
+                    Log::warning('Failed to process CSV row during resume', [
                         'file_id' => $file->id,
-                        'row' => $skipRows + $index + 2,
+                        'csv_row_number' => $csvRowNumber,
+                        'array_index' => $rowIndex,
                         'error' => $e->getMessage(),
-                        'raw_line' => $line ?? 'empty',
+                        'raw_line' => substr($line ?? '', 0, 200),
+                        'payment_id' => $rowData['PAYMENT_ID'] ?? 'unknown',
                     ]);
                 }
             }
 
-            Log::info('Completed processing Decta CSV file', [
+            Log::info('Completed CSV processing with resume', [
                 'file_id' => $file->id,
                 'results' => $results,
+                'processed_in_this_run' => $processedInThisRun,
             ]);
 
         } catch (Exception $e) {
             $results['errors'][] = $e->getMessage();
-            Log::error('Failed to process Decta CSV file', [
+            Log::error('Failed to process CSV file with resume', [
                 'file_id' => $file->id,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
@@ -437,9 +490,8 @@ class DectaTransactionService
 
         return $results;
     }
-
     /**
-     * Count total rows in CSV content
+     * Improved method to count CSV rows more accurately
      *
      * @param string $content
      * @return int
@@ -447,40 +499,109 @@ class DectaTransactionService
     public function countCsvRows(string $content): int
     {
         $lines = $this->parseContentToLines($content);
-        return max(0, count($lines) - 1); // Subtract header row
+
+        if (empty($lines)) {
+            return 0;
+        }
+
+        // Subtract 1 for header row
+        return max(0, count($lines) - 1);
     }
 
     /**
-     * Get file processing progress
+     * Get detailed file processing progress with better accuracy
      *
      * @param DectaFile $file
      * @return array
      */
     public function getFileProgress(DectaFile $file): array
     {
-        $content = Storage::disk('decta')->get($file->local_path);
-        if (!$content) {
+        try {
+            // Get file content
+            $content = Storage::disk('decta')->get($file->local_path);
+            if (!$content) {
+                return [
+                    'total_rows' => 0,
+                    'processed_rows' => 0,
+                    'completion_percentage' => 0,
+                    'can_resume' => false,
+                    'status' => 'file_not_found',
+                ];
+            }
+
+            $totalRows = $this->countCsvRows($content);
+            $processedRows = $file->dectaTransactions()->count();
+            $completionPercentage = $totalRows > 0 ? ($processedRows / $totalRows) * 100 : 0;
+
+            // Check for potential issues
+            $issues = [];
+            if ($processedRows > $totalRows) {
+                $issues[] = 'More transactions in database than CSV rows - possible duplicate processing';
+            }
+
+            // Get sample of processed payment IDs for verification
+            $sampleProcessed = $file->dectaTransactions()
+                ->orderBy('id')
+                ->limit(5)
+                ->pluck('payment_id')
+                ->toArray();
+
+            return [
+                'total_rows' => $totalRows,
+                'processed_rows' => $processedRows,
+                'remaining_rows' => max(0, $totalRows - $processedRows),
+                'completion_percentage' => round($completionPercentage, 2),
+                'can_resume' => $processedRows < $totalRows && $processedRows > 0,
+                'is_complete' => $processedRows >= $totalRows,
+                'status' => $this->getProgressStatus($processedRows, $totalRows),
+                'sample_processed_payment_ids' => $sampleProcessed,
+                'issues' => $issues,
+            ];
+
+        } catch (Exception $e) {
+            Log::error('Error getting file progress', [
+                'file_id' => $file->id,
+                'error' => $e->getMessage(),
+            ]);
+
             return [
                 'total_rows' => 0,
                 'processed_rows' => 0,
                 'completion_percentage' => 0,
                 'can_resume' => false,
+                'status' => 'error',
+                'error' => $e->getMessage(),
             ];
         }
-
-        $totalRows = $this->countCsvRows($content);
-        $processedRows = $file->dectaTransactions()->count();
-        $completionPercentage = $totalRows > 0 ? ($processedRows / $totalRows) * 100 : 0;
-
-        return [
-            'total_rows' => $totalRows,
-            'processed_rows' => $processedRows,
-            'remaining_rows' => max(0, $totalRows - $processedRows),
-            'completion_percentage' => round($completionPercentage, 2),
-            'can_resume' => $processedRows < $totalRows && $processedRows > 0,
-        ];
     }
 
+    /**
+     * Get progress status based on processed vs total rows
+     *
+     * @param int $processed
+     * @param int $total
+     * @return string
+     */
+    private function getProgressStatus(int $processed, int $total): string
+    {
+        if ($total === 0) {
+            return 'empty_file';
+        }
+
+        if ($processed === 0) {
+            return 'not_started';
+        }
+
+        if ($processed >= $total) {
+            return 'complete';
+        }
+
+        if ($processed > 0) {
+            return 'in_progress';
+        }
+
+        return 'unknown';
+    }
     /**
      * Parse CSV line handling quoted values and different delimiters
      *
@@ -504,14 +625,41 @@ class DectaTransactionService
      * @param string|null $dateString
      * @return Carbon|null
      */
+    /**
+     * Parse date from various formats by first detecting the format
+     *
+     * @param string|null $dateString
+     * @return Carbon|null
+     */
     private function parseDate(?string $dateString): ?Carbon
     {
         if (empty($dateString)) {
             return null;
         }
 
+        // Clean the date string
+        $dateString = trim($dateString);
+
         try {
-            // Try common date formats
+            // First, try to detect the format
+            $detectedFormat = $this->detectDateFormat($dateString);
+
+            if ($detectedFormat) {
+                try {
+                    $date = Carbon::createFromFormat($detectedFormat, $dateString);
+                    if ($date && $date->format($detectedFormat) === $dateString) {
+                        return $date;
+                    }
+                } catch (Exception $e) {
+                    Log::debug('Failed to parse with detected format', [
+                        'date_string' => $dateString,
+                        'detected_format' => $detectedFormat,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            // If format detection fails, try common formats one by one
             $formats = [
                 'Y-m-d H:i:s',
                 'Y-m-d',
@@ -523,27 +671,159 @@ class DectaTransactionService
                 'Y-m-d\TH:i:s\Z',
                 'd.m.Y H:i:s',
                 'd.m.Y',
+                'Y.m.d H:i:s',  // Fixed: was 'YYYY.mm.dd H:i:s'
+                'Y.m.d',        // Fixed: was 'YYYY.mm.dd'
                 'Y/m/d H:i:s',
                 'Y/m/d',
+                'j/n/Y H:i:s',  // Single digit day/month
+                'j/n/Y',
+                'n/j/Y H:i:s',  // US format with single digits
+                'n/j/Y',
+                'j.n.Y H:i:s',
+                'j.n.Y',
+                'd-m-Y H:i:s',
+                'd-m-Y',
+                'm-d-Y H:i:s',
+                'm-d-Y',
             ];
 
             foreach ($formats as $format) {
-                $date = Carbon::createFromFormat($format, $dateString);
-                if ($date !== false) {
-                    return $date;
+                try {
+                    $date = Carbon::createFromFormat($format, $dateString);
+
+                    // Verify the parsing was successful by formatting back
+                    if ($date && $this->validateParsedDate($date, $dateString, $format)) {
+                        return $date;
+                    }
+                } catch (Exception $e) {
+                    // Continue to next format
+                    continue;
                 }
             }
 
-            // Fallback to Carbon's parsing
-            return Carbon::parse($dateString);
+            // Last resort: try Carbon's built-in parsing
+            try {
+                $date = Carbon::parse($dateString);
+                if ($date) {
+                    return $date;
+                }
+            } catch (Exception $e) {
+                // Continue to logging
+            }
+
+            // If all else fails, log and return null
+            Log::warning('Failed to parse date with all methods', [
+                'date_string' => $dateString,
+                'detected_format' => $detectedFormat ?? 'none',
+            ]);
+
+            return null;
 
         } catch (Exception $e) {
-            Log::warning('Failed to parse date', [
+            Log::error('Unexpected error in date parsing', [
                 'date_string' => $dateString,
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
             return null;
         }
+    }
+
+    /**
+     * Detect the most likely date format based on string patterns
+     *
+     * @param string $dateString
+     * @return string|null
+     */
+    private function detectDateFormat(string $dateString): ?string
+    {
+        // Define regex patterns with their corresponding Carbon formats
+        $patterns = [
+            // ISO format variations
+            '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/' => 'Y-m-d H:i:s',
+            '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z?$/' => 'Y-m-d\TH:i:s',
+            '/^\d{4}-\d{2}-\d{2}$/' => 'Y-m-d',
+
+            // European format (dd/mm/yyyy or dd.mm.yyyy)
+            '/^\d{1,2}\/\d{1,2}\/\d{4} \d{2}:\d{2}:\d{2}$/' => 'd/m/Y H:i:s',
+            '/^\d{1,2}\/\d{1,2}\/\d{4}$/' => 'd/m/Y',
+            '/^\d{1,2}\.\d{1,2}\.\d{4} \d{2}:\d{2}:\d{2}$/' => 'd.m.Y H:i:s',
+            '/^\d{1,2}\.\d{1,2}\.\d{4}$/' => 'd.m.Y',
+
+            // US format (mm/dd/yyyy)
+            '/^\d{1,2}\/\d{1,2}\/\d{4} \d{2}:\d{2}:\d{2}$/' => 'm/d/Y H:i:s',
+            '/^\d{1,2}\/\d{1,2}\/\d{4}$/' => 'm/d/Y',
+
+            // Alternative formats
+            '/^\d{4}\.\d{1,2}\.\d{1,2} \d{2}:\d{2}:\d{2}$/' => 'Y.m.d H:i:s',
+            '/^\d{4}\.\d{1,2}\.\d{1,2}$/' => 'Y.m.d',
+            '/^\d{4}\/\d{1,2}\/\d{1,2} \d{2}:\d{2}:\d{2}$/' => 'Y/m/d H:i:s',
+            '/^\d{4}\/\d{1,2}\/\d{1,2}$/' => 'Y/m/d',
+
+            // With single digit tolerance
+            '/^\d{1,2}-\d{1,2}-\d{4} \d{2}:\d{2}:\d{2}$/' => 'd-m-Y H:i:s',
+            '/^\d{1,2}-\d{1,2}-\d{4}$/' => 'd-m-Y',
+        ];
+
+        foreach ($patterns as $pattern => $format) {
+            if (preg_match($pattern, $dateString)) {
+                return $format;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Validate that the parsed date makes sense
+     *
+     * @param Carbon $date
+     * @param string $originalString
+     * @param string $format
+     * @return bool
+     */
+    private function validateParsedDate(Carbon $date, string $originalString, string $format): bool
+    {
+        try {
+            // Check if formatting the date back gives us the original string
+            $reformatted = $date->format($format);
+
+            // For some formats, we need to be more flexible
+            if ($reformatted === $originalString) {
+                return true;
+            }
+
+            // Handle cases where single digits might have leading zeros
+            if ($this->isFlexibleMatch($reformatted, $originalString)) {
+                return true;
+            }
+
+            // Check if the date is reasonable (not too far in past/future)
+            $now = Carbon::now();
+            $yearsDiff = abs($now->year - $date->year);
+
+            // Allow dates within 50 years of current date
+            return $yearsDiff <= 50;
+
+        } catch (Exception $e) {
+            return false;
+        }
+    }
+
+    /**
+     * Check if two date strings are flexibly equivalent (accounting for leading zeros)
+     *
+     * @param string $formatted
+     * @param string $original
+     * @return bool
+     */
+    private function isFlexibleMatch(string $formatted, string $original): bool
+    {
+        // Remove leading zeros from both strings for comparison
+        $normalizedFormatted = preg_replace('/\b0+(\d)/', '$1', $formatted);
+        $normalizedOriginal = preg_replace('/\b0+(\d)/', '$1', $original);
+
+        return $normalizedFormatted === $normalizedOriginal;
     }
 
     /**
@@ -640,18 +920,22 @@ class DectaTransactionService
             // Build search criteria based on available data
             $searchCriteria = $this->getSearchCriteria($dectaTransaction);
 
-            // Search in payment_gateway database
+            // Search in payment_gateway database with more complete data selection
             $query = DB::connection('payment_gateway_mysql')
                 ->table('transactions')
-                ->leftJoin('bank_response', 'transactions.trx_id', '=', 'bank_response.tid')
+                ->rightJoin('bank_response', 'transactions.trx_id', '=', 'bank_response.tid')
                 ->select([
-                    'transactions.id as transaction_id',
+                    'transactions.tid as transaction_id',
                     'transactions.account_id',
                     'transactions.shop_id',
-                    'transactions.tid as trx_id',
+                    'transactions.trx_id as trx_id',
                     'transactions.bank_amount',
                     'transactions.bank_currency',
+                    'transactions.transaction_status',
                     'transactions.added as transaction_date',
+                    'bank_response.added as bank_response_date',
+                    'bank_response.bank_trx_id as bank_response_bank_trx_id',
+                    'bank_response.bank_message as bank_response_bank_message',
                 ]);
 
             // Apply search criteria with fallback strategies
@@ -659,10 +943,12 @@ class DectaTransactionService
 
             if ($matches->count() === 1) {
                 // Perfect match found
-                return $matches->first();
+                $match = $matches->first();
+                return $this->formatGatewayData($match);
             } elseif ($matches->count() > 1) {
                 // Multiple matches - try to narrow down
-                return $this->selectBestMatch($matches, $dectaTransaction);
+                $bestMatch = $this->selectBestMatch($matches, $dectaTransaction);
+                return $bestMatch ? $this->formatGatewayData((object)$bestMatch) : null;
             }
 
             // Try alternative search strategies
@@ -676,7 +962,26 @@ class DectaTransactionService
             return null;
         }
     }
-
+    /**
+     * Format gateway data for storage
+     *
+     * @param object $gatewayTransaction
+     * @return array
+     */
+    private function formatGatewayData(object $gatewayTransaction): array
+    {
+        return [
+            'transaction_id' => $gatewayTransaction->transaction_id,
+            'account_id' => $gatewayTransaction->account_id,
+            'shop_id' => $gatewayTransaction->shop_id,
+            'trx_id' => $gatewayTransaction->trx_id,
+            'transaction_date' => $gatewayTransaction->transaction_date ?? null,
+            'bank_response_date' => $gatewayTransaction->bank_response_date ?? null,
+            'bank_amount' => $gatewayTransaction->bank_amount ?? null,
+            'bank_currency' => $gatewayTransaction->bank_currency ?? null,
+            'transaction_status' => $gatewayTransaction->transaction_status ?? null,
+        ];
+    }
     /**
      * Get search criteria from Decta transaction
      *
@@ -686,18 +991,14 @@ class DectaTransactionService
     private function getSearchCriteria(DectaTransaction $transaction): array
     {
         return [
-            'approval_id' => $transaction->tr_approval_id,
-            'ret_ref_nr' => $transaction->tr_ret_ref_nr,
+            'payment_id' => $transaction->payment_id,
             'amount' => $transaction->tr_amount, // Already in cents
             'currency' => $transaction->tr_ccy,
-            'transaction_date' => $transaction->tr_date_time,
-            'merchant_id' => $transaction->merchant_id,
-            'terminal_id' => $transaction->terminal_id,
         ];
     }
 
     /**
-     * Apply search criteria to query
+     * Apply search criteria to query with multiple strategies
      *
      * @param \Illuminate\Database\Query\Builder $query
      * @param array $criteria
@@ -705,23 +1006,36 @@ class DectaTransactionService
      */
     private function applySearchCriteria($query, array $criteria)
     {
-        // Primary search: approval_id and amount
-        if (!empty($criteria['amount'])) {
-            $query->where('transactions.bank_amount', $criteria['amount']);
+        $originalQuery = clone $query;
+
+        // Strategy 3: Amount + Currency + Date range
+        if (!empty($criteria['payment_id'])) {
+            $amountQuery = clone $originalQuery;
+            $amountQuery->where('bank_response.bank_trx_id', $criteria['payment_id']);
+
+            // Add currency if available
+            if (!empty($criteria['currency'])) {
+                $amountQuery->where('transactions.bank_currency', $criteria['currency']);
+            }
+
+            // Add date range search (within same day)
+            if ($criteria['amount']) {
+                $amountQuery->where('amount', $criteria['amount']);
+            }
+
+            $results = $amountQuery->get();
+
+            if ($results->count() > 0) {
+                Log::info('Found match using amount, currency, and date', [
+                    'amount' => $criteria['amount'],
+                    'currency' => $criteria['currency'],
+                    'matches' => $results->count()
+                ]);
+                return $results;
+            }
         }
 
-        // Add currency if available
-        if (!empty($criteria['currency'])) {
-            $query->where('transactions.bank_currency', $criteria['currency']);
-        }
-
-        // Add date range search (within same day)
-        if ($criteria['transaction_date']) {
-            $date = Carbon::parse($criteria['transaction_date']);
-            $query->whereDate('transactions.added', $date->toDateString());
-        }
-
-        return $query->get();
+        return collect();
     }
 
     /**
@@ -767,33 +1081,43 @@ class DectaTransactionService
         return $bestMatch && $bestMatch->match_score > 0 ? (array)$bestMatch : null;
     }
 
+
     /**
-     * Try alternative search strategies
+     * Try alternative search strategies for difficult matches
      *
      * @param DectaTransaction $dectaTransaction
      * @return array|null
      */
     private function tryAlternativeSearch(DectaTransaction $dectaTransaction): ?array
     {
-
+        // Strategy 4: Fuzzy amount matching (within 1% tolerance)
         if ($dectaTransaction->tr_amount && $dectaTransaction->tr_date_time) {
+            $amount = $dectaTransaction->tr_amount;
+            $tolerance = max(1, round($amount * 0.01)); // 1% tolerance, minimum 1 cent
             $date = Carbon::parse($dectaTransaction->tr_date_time);
 
             $result = DB::connection('payment_gateway_mysql')
                 ->table('transactions')
                 ->leftJoin('bank_response', 'transactions.trx_id', '=', 'bank_response.tid')
-                ->where('transactions.bank_amount', $dectaTransaction->tr_amount)
+                ->whereBetween('transactions.bank_amount', [$amount - $tolerance, $amount + $tolerance])
                 ->whereDate('transactions.added', $date->toDateString())
                 ->select([
-                    'transactions.tid as transaction_id',
+                    'transactions.id as transaction_id',
                     'transactions.account_id',
                     'transactions.shop_id',
                     'transactions.trx_id as trx_id',
+                    'transactions.added as transaction_date',
+                    'bank_response.created as bank_response_date',
                 ])
                 ->first();
 
             if ($result) {
-                return (array)$result;
+                Log::info('Found match using fuzzy amount matching', [
+                    'decta_amount' => $amount,
+                    'tolerance' => $tolerance,
+                    'gateway_transaction_id' => $result->transaction_id
+                ]);
+                return $this->formatGatewayData($result);
             }
         }
 
@@ -810,5 +1134,16 @@ class DectaTransactionService
     {
         return DectaTransaction::getMatchingStats($fileId);
     }
-
+    /**
+     * Get existing payment IDs for a file to avoid duplicates
+     *
+     * @param DectaFile $file
+     * @return array
+     */
+    private function getExistingPaymentIds(DectaFile $file): array
+    {
+        return DectaTransaction::where('decta_file_id', $file->id)
+            ->pluck('payment_id')
+            ->toArray();
+    }
 }
