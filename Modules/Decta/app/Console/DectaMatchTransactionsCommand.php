@@ -3,6 +3,7 @@
 namespace Modules\Decta\Console;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Carbon;
 use Modules\Decta\Services\DectaTransactionService;
 use Modules\Decta\Repositories\DectaTransactionRepository;
 use Modules\Decta\Models\DectaTransaction;
@@ -191,7 +192,7 @@ class DectaMatchTransactionsCommand extends Command
     }
 
     /**
-     * Process individual transaction
+     * Process individual transaction for matching
      */
     private function processTransaction(DectaTransaction $transaction, int $maxAttempts): array
     {
@@ -209,38 +210,90 @@ class DectaMatchTransactionsCommand extends Command
         $gatewayData = $this->findMatchingGatewayTransaction($transaction);
 
         if ($gatewayData) {
-            // Match found
+            // Match found - store all gateway information
             $transaction->markAsMatched($gatewayData);
 
-            $this->line(" ✓ Matched: {$transaction->payment_id} → Gateway TID: {$gatewayData['trx_id']}");
+            // Display detailed match information
+            $this->line(" ✓ Matched: {$transaction->payment_id}");
+            $this->line("   → Gateway TID: {$gatewayData['trx_id']}");
+            $this->line("   → Account ID: {$gatewayData['account_id']}");
+            $this->line("   → Shop ID: {$gatewayData['shop_id']}");
 
-            Log::info('Transaction matched successfully', [
-                'decta_payment_id' => $transaction->payment_id,
-                'gateway_trx_id' => $gatewayData['trx_id'],
-                'account_id' => $gatewayData['account_id'],
-                'shop_id' => $gatewayData['shop_id'],
-            ]);
-
-            return ['status' => 'matched'];
-        } else {
-            // No match found - add attempt and mark as failed if max attempts reached
-            $transaction->addMatchingAttempt([
-                'strategy' => 'standard_search',
-                'search_criteria' => $this->getSearchCriteria($transaction),
-                'result' => 'no_match_found',
-            ]);
-
-            if (count($transaction->matching_attempts) >= $maxAttempts) {
-                $transaction->markAsFailed('No matching gateway transaction found after ' . $maxAttempts . ' attempts');
-                $this->line(" ✗ Failed: {$transaction->payment_id} (max attempts reached)");
-            } else {
-                $this->line(" ! No match: {$transaction->payment_id} (attempt " . count($transaction->matching_attempts) . "/{$maxAttempts})");
+            if (isset($gatewayData['transaction_date'])) {
+                $this->line("   → Gateway Date: {$gatewayData['transaction_date']}");
             }
 
-            return ['status' => 'failed'];
+            if (isset($gatewayData['bank_amount']) && isset($gatewayData['bank_currency'])) {
+                $amount = $gatewayData['bank_amount'] / 100; // Convert from cents
+                $this->line("   → Gateway Amount: {$amount} {$gatewayData['bank_currency']}");
+            }
+
+            // Log comprehensive match details
+            Log::info('Transaction matched successfully with full gateway data', [
+                'decta_payment_id' => $transaction->payment_id,
+                'decta_transaction_id' => $transaction->id,
+                'gateway_data_stored' => [
+                    'gateway_transaction_id' => $gatewayData['transaction_id'],
+                    'gateway_account_id' => $gatewayData['account_id'],
+                    'gateway_shop_id' => $gatewayData['shop_id'],
+                    'gateway_trx_id' => $gatewayData['trx_id'],
+                    'gateway_transaction_date' => $gatewayData['transaction_date'] ?? null,
+                    'gateway_bank_response_date' => $gatewayData['bank_response_date'] ?? null,
+                ],
+                'matching_criteria_used' => $this->getSearchCriteria($transaction),
+            ]);
+
+            return ['status' => 'matched', 'gateway_data' => $gatewayData];
+
+        } else {
+            // No match found - add detailed attempt information
+            $searchCriteria = $this->getSearchCriteria($transaction);
+
+            $transaction->addMatchingAttempt([
+                'strategy' => 'comprehensive_search',
+                'search_criteria' => $searchCriteria,
+                'searched_fields' => [
+                    'approval_id' => !empty($searchCriteria['approval_id']),
+                    'ret_ref_nr' => !empty($searchCriteria['ret_ref_nr']),
+                    'amount' => !empty($searchCriteria['amount']),
+                    'currency' => !empty($searchCriteria['currency']),
+                    'date' => !empty($searchCriteria['transaction_date']),
+                ],
+                'result' => 'no_match_found',
+                'attempted_at' => Carbon::now()->toISOString(),
+            ]);
+
+            $currentAttempts = count($transaction->matching_attempts);
+
+            if ($currentAttempts >= $maxAttempts) {
+                $transaction->markAsFailed('No matching gateway transaction found after ' . $maxAttempts . ' attempts');
+                $this->line(" ✗ Failed: {$transaction->payment_id} (max attempts reached)");
+
+                // Show what we searched for
+                $this->line("   → Search criteria used:");
+                if (!empty($searchCriteria['approval_id'])) {
+                    $this->line("     - Approval ID: {$searchCriteria['approval_id']}");
+                }
+                if (!empty($searchCriteria['ret_ref_nr'])) {
+                    $this->line("     - Return Ref: {$searchCriteria['ret_ref_nr']}");
+                }
+                if (!empty($searchCriteria['amount'])) {
+                    $amount = $searchCriteria['amount'] / 100;
+                    $currency = $searchCriteria['currency'] ?? 'N/A';
+                    $this->line("     - Amount: {$amount} {$currency}");
+                }
+                if (!empty($searchCriteria['transaction_date'])) {
+                    $date = Carbon::parse($searchCriteria['transaction_date'])->format('Y-m-d H:i:s');
+                    $this->line("     - Date: {$date}");
+                }
+
+            } else {
+                $this->line(" ! No match: {$transaction->payment_id} (attempt {$currentAttempts}/{$maxAttempts})");
+            }
+
+            return ['status' => 'failed', 'attempts' => $currentAttempts];
         }
     }
-
     /**
      * Find matching transaction in payment gateway
      */
@@ -248,22 +301,6 @@ class DectaMatchTransactionsCommand extends Command
     {
         try {
             $searchCriteria = $this->getSearchCriteria($transaction);
-
-            // Primary search strategy: approval_id + amount
-            if (!empty($searchCriteria['approval_id']) && !empty($searchCriteria['amount'])) {
-                $match = $this->searchByApprovalIdAndAmount($searchCriteria);
-                if ($match) {
-                    return $match;
-                }
-            }
-
-            // Secondary search: ret_ref_nr
-            if (!empty($searchCriteria['ret_ref_nr'])) {
-                $match = $this->searchByRetRefNr($searchCriteria['ret_ref_nr']);
-                if ($match) {
-                    return $match;
-                }
-            }
 
             // Tertiary search: amount + date + currency
             if (!empty($searchCriteria['amount']) && !empty($searchCriteria['transaction_date'])) {
@@ -284,50 +321,6 @@ class DectaMatchTransactionsCommand extends Command
         }
     }
 
-    /**
-     * Search by approval ID and amount
-     */
-    private function searchByApprovalIdAndAmount(array $criteria): ?array
-    {
-        $result = DB::connection('payment_gateway_mysql')
-            ->table('transactions')
-            ->join('bank_response', 'transactions.tid', '=', 'bank_response.tid')
-            ->where('bank_response.approval_id', $criteria['approval_id'])
-            ->where('transactions.bank_amount', $criteria['amount'])
-            ->select([
-                'transactions.id as transaction_id',
-                'transactions.account_id',
-                'transactions.shop_id',
-                'transactions.tid as trx_id',
-                'transactions.bank_amount',
-                'transactions.bank_currency',
-            ])
-            ->first();
-
-        return $result ? (array) $result : null;
-    }
-
-    /**
-     * Search by return reference number
-     */
-    private function searchByRetRefNr(string $retRefNr): ?array
-    {
-        $result = DB::connection('payment_gateway_mysql')
-            ->table('transactions')
-            ->join('bank_response', 'transactions.tid', '=', 'bank_response.tid')
-            ->where('bank_response.ret_ref_nr', $retRefNr)
-            ->select([
-                'transactions.id as transaction_id',
-                'transactions.account_id',
-                'transactions.shop_id',
-                'transactions.tid as trx_id',
-                'transactions.bank_amount',
-                'transactions.bank_currency',
-            ])
-            ->first();
-
-        return $result ? (array) $result : null;
-    }
 
     /**
      * Search by amount and date
@@ -340,7 +333,7 @@ class DectaMatchTransactionsCommand extends Command
             ->table('transactions')
             ->join('bank_response', 'transactions.tid', '=', 'bank_response.tid')
             ->where('transactions.bank_amount', $criteria['amount'])
-            ->whereDate('transactions.added', $date);
+            ->whereDate('bank_response.added', $date);
 
         if (!empty($criteria['currency'])) {
             $query->where('transactions.bank_currency', $criteria['currency']);
@@ -366,12 +359,10 @@ class DectaMatchTransactionsCommand extends Command
     private function getSearchCriteria(DectaTransaction $transaction): array
     {
         return [
-            'approval_id' => $transaction->tr_approval_id,
-            'ret_ref_nr' => $transaction->tr_ret_ref_nr,
+            'payment_id' => $transaction->payment_id,
             'amount' => $transaction->tr_amount,
             'currency' => $transaction->tr_ccy,
             'transaction_date' => $transaction->tr_date_time,
-            'merchant_id' => $transaction->merchant_id,
         ];
     }
 

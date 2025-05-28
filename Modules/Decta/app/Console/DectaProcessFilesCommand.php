@@ -406,28 +406,61 @@ class DectaProcessFilesCommand extends Command
             throw new Exception("Unsupported file type: {$file->file_type}. Only CSV files are supported.");
         }
 
-        // Check if processing was already started
-        $existingTransactions = $file->dectaTransactions()->count();
-        $totalRows = $this->transactionService->countCsvRows($content);
+        // Get detailed progress information
+        $progress = $this->transactionService->getFileProgress($file);
 
-        if ($existingTransactions > 0) {
-            $this->line("  Found {$existingTransactions} existing transactions out of {$totalRows} total rows");
+        Log::info('File processing progress check', [
+            'file_id' => $file->id,
+            'progress' => $progress,
+        ]);
 
-            if ($existingTransactions >= $totalRows) {
-                $this->info("  File appears to be completely processed");
-                return ['processed' => $existingTransactions, 'failed' => 0];
+        // Check for issues before processing
+        if (!empty($progress['issues'])) {
+            foreach ($progress['issues'] as $issue) {
+                $this->warn("  Issue detected: {$issue}");
+            }
+        }
+
+        $existingTransactions = $progress['processed_rows'];
+        $totalRows = $progress['total_rows'];
+
+        if ($totalRows === 0) {
+            throw new Exception('CSV file appears to have no data rows');
+        }
+
+        if ($existingTransactions >= $totalRows) {
+            $this->info("  File processing appears complete ({$existingTransactions}/{$totalRows} rows)");
+
+            // Verify completion by checking for any missing data
+            if ($this->shouldReprocessFile($file, $progress)) {
+                $this->line("  Detected data quality issues, reprocessing...");
+                return $this->reprocessFile($file, $content);
             }
 
-            $this->line("  Resuming from row " . ($existingTransactions + 1));
+            return [
+                'processed' => $existingTransactions,
+                'failed' => 0,
+                'total_rows' => $totalRows,
+                'status' => 'already_complete'
+            ];
+        }
+
+        if ($existingTransactions > 0) {
+            $this->line("  Resuming from transaction " . ($existingTransactions + 1) . " of {$totalRows}");
+
+            // Show sample of what's already processed
+            if (!empty($progress['sample_processed_payment_ids'])) {
+                $this->line("  Already processed (sample): " . implode(', ', array_slice($progress['sample_processed_payment_ids'], 0, 3)));
+            }
 
             // Resume processing from where we left off
             return $this->transactionService->processCsvFileWithResume($file, $content, $existingTransactions);
         }
 
         // Fresh processing
+        $this->line("  Starting fresh processing of {$totalRows} rows");
         return $this->transactionService->processCsvFile($file, $content);
     }
-
     /**
      * Move file to processed directory and update database
      */
@@ -514,23 +547,103 @@ class DectaProcessFilesCommand extends Command
      */
     private function handleProcessingError(DectaFile $file, Exception $e): void
     {
-        // Check if this was a partial processing (some transactions were created)
-        $transactionCount = $file->dectaTransactions()->count();
+        // Get current progress to understand what was processed
+        $progress = $this->transactionService->getFileProgress($file);
+        $transactionCount = $progress['processed_rows'];
+
+        Log::error('Processing error details', [
+            'file_id' => $file->id,
+            'error' => $e->getMessage(),
+            'progress' => $progress,
+            'trace' => $e->getTraceAsString(),
+        ]);
 
         if ($transactionCount > 0) {
-            // Partial processing - don't mark as completely failed, leave as processing
-            // so it can be resumed later
+            // Partial processing - leave as processing so it can be resumed
+            $errorMessage = "Processing interrupted after {$transactionCount} transactions: {$e->getMessage()}";
+
             $file->update([
                 'status' => DectaFile::STATUS_PROCESSING,
-                'error_message' => "Partial processing interrupted: {$e->getMessage()}. {$transactionCount} transactions were processed.",
+                'error_message' => $errorMessage,
                 'updated_at' => now()
             ]);
 
             $this->warn("  File partially processed ({$transactionCount} transactions). Can be resumed later.");
+
+            // Show what percentage was completed
+            if ($progress['total_rows'] > 0) {
+                $percentage = round(($transactionCount / $progress['total_rows']) * 100, 1);
+                $this->line("  Progress: {$percentage}% complete ({$transactionCount}/{$progress['total_rows']} rows)");
+            }
+
         } else {
             // Complete failure - mark as failed and move to failed directory
             $file->markAsFailed($e->getMessage());
-            $this->moveFileToFailed($file); // This now updates the database path too
+            $this->moveFileToFailed($file);
+
+            $this->error("  File processing completely failed - no transactions were imported.");
         }
+    }
+    /**
+     * Check if file should be reprocessed due to data quality issues
+     *
+     * @param DectaFile $file
+     * @param array $progress
+     * @return bool
+     */
+    private function shouldReprocessFile(DectaFile $file, array $progress): bool
+    {
+        // Check if there are more transactions than CSV rows (indicates duplicates)
+        if ($progress['processed_rows'] > $progress['total_rows']) {
+            Log::warning('File has more database transactions than CSV rows', [
+                'file_id' => $file->id,
+                'db_count' => $progress['processed_rows'],
+                'csv_count' => $progress['total_rows'],
+            ]);
+            return true;
+        }
+
+        // Check for missing payment IDs or other data quality issues
+        $transactionsWithoutPaymentId = $file->dectaTransactions()
+            ->whereNull('payment_id')
+            ->orWhere('payment_id', '')
+            ->count();
+
+        if ($transactionsWithoutPaymentId > 0) {
+            Log::warning('File has transactions without payment IDs', [
+                'file_id' => $file->id,
+                'count' => $transactionsWithoutPaymentId,
+            ]);
+            return true;
+        }
+
+        return false;
+    }
+    /**
+     * Reprocess file by cleaning up existing data and starting fresh
+     *
+     * @param DectaFile $file
+     * @param string $content
+     * @return array
+     */
+    private function reprocessFile(DectaFile $file, string $content): array
+    {
+        Log::info('Reprocessing file due to data quality issues', [
+            'file_id' => $file->id,
+            'filename' => $file->filename,
+        ]);
+
+        // Delete existing transactions for this file
+        $deletedCount = $file->dectaTransactions()->delete();
+
+        Log::info('Deleted existing transactions for reprocessing', [
+            'file_id' => $file->id,
+            'deleted_count' => $deletedCount,
+        ]);
+
+        $this->line("  Deleted {$deletedCount} existing transactions for clean reprocessing");
+
+        // Process fresh
+        return $this->transactionService->processCsvFile($file, $content);
     }
 }
