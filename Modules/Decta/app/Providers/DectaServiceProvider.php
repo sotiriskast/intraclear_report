@@ -123,7 +123,7 @@ class DectaServiceProvider extends ServiceProvider
                 ->appendOutputTo(storage_path('logs/decta-matching.log'));
 
             // Schedule cleanup of old records every Sunday at 1 AM
-            $schedule->command('decta:cleanup --days-old=90 --remove-processed --remove-unmatched')
+            $schedule->command('decta:cleanup --days-old=90 --remove-processed')
                 ->weekly()
                 ->sundays()
                 ->at('01:00')
