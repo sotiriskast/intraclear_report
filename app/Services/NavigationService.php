@@ -16,17 +16,40 @@ class NavigationService
                 'icon' => 'dashboard',
                 'permission' => null, // Always visible
             ],
-            'reports' => [
-                'label' => 'Reports',
+            'settlement' => [
+                'label' => 'Settlement',
                 'icon' => 'settlement',
                 'children' => [
+                    'settlement_archive' => [
+                        'route' => 'settlements.archives',
+                        'label' => 'Archive Reports',
+                        'permission' => 'manage-settlements',
+                    ],
                     'settlement_report' => [
                         'route' => 'settlements.index',
-                        'label' => 'Settlements',
+                        'label' => 'Merchants Reports',
                         'permission' => 'manage-settlements',
                     ],
                 ],
             ],
+            'decta' => [
+                'label' => 'Decta',
+                'icon' => 'credit-card',
+                'children' => [
+                    'decta_reports' => [
+                        'route' => 'decta.reports.index',
+                        'label' => 'Reports',
+//                        'permission' => 'manage-decta',
+                        'permission' => null,
+                    ],
+                    'decta_sftp' => [
+                        'route' => 'decta.sftp.index',
+                        'label' => 'SFTP Management',
+                        'permission' => null,
+                    ],
+                ],
+            ],
+
             'cesop' => [
                 'label' => 'CESOP',
                 'icon' => 'merchant',

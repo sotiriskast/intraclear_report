@@ -16,6 +16,7 @@ use Modules\Decta\Console\DectaDownloadFilesCommand;
 use Modules\Decta\Console\DectaProcessFilesCommand;
 use Modules\Decta\Services\DectaSftpService;
 use Modules\Decta\Services\DectaTransactionService;
+use Modules\Decta\Services\DectaReportService;
 use Modules\Decta\Repositories\DectaFileRepository;
 use Modules\Decta\Repositories\DectaTransactionRepository;
 
@@ -69,6 +70,11 @@ class DectaServiceProvider extends ServiceProvider
                 $app->make(DectaTransactionRepository::class)
             );
         });
+
+        // Register the report service
+        $this->app->bind(DectaReportService::class, function ($app) {
+            return new DectaReportService();
+        });
     }
 
     /**
@@ -84,7 +90,7 @@ class DectaServiceProvider extends ServiceProvider
             DectaStatusCommand::class,
             DectaTestConnectionCommand::class,
             DectaTestLatestFileCommand::class,
-            DectaFixFilePathsCommand::class   ,
+            DectaFixFilePathsCommand::class,
         ]);
     }
 
@@ -116,11 +122,11 @@ class DectaServiceProvider extends ServiceProvider
                 ->withoutOverlapping(360) // 6 hours overlap protection
                 ->appendOutputTo(storage_path('logs/decta-retry.log'));
 
-//            // Schedule transaction matching retry every 4 hours
-//            $schedule->command('decta:match-transactions --retry-failed --limit=50')
-//                ->cron('0 */4 * * *') // Every 4 hours
-//                ->withoutOverlapping(240) // 4 hours overlap protection
-//                ->appendOutputTo(storage_path('logs/decta-matching.log'));
+            // Schedule transaction matching retry every 4 hours
+            $schedule->command('decta:match-transactions --retry-failed --limit=50')
+                ->cron('0 */4 * * *') // Every 4 hours
+                ->withoutOverlapping(240) // 4 hours overlap protection
+                ->appendOutputTo(storage_path('logs/decta-matching.log'));
 
             // Schedule cleanup of old records every Sunday at 1 AM
             $schedule->command('decta:cleanup --days-old=90 --remove-processed')
@@ -185,6 +191,7 @@ class DectaServiceProvider extends ServiceProvider
             DectaFileRepository::class,
             DectaTransactionRepository::class,
             DectaTransactionService::class,
+            DectaReportService::class,
         ];
     }
 

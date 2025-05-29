@@ -22,8 +22,8 @@ return new class extends Migration
             $table->unsignedBigInteger('gateway_shop_id')->nullable()->index();
             $table->string('gateway_transaction_id')->nullable()->index();
             $table->string('gateway_trx_id')->nullable()->index();
-            $table->string('gateway_transaction_date')->nullable();
-            $table->string('gateway_bank_response_date')->nullable();
+            $table->string('gateway_transaction_date')->nullable()->index();
+            $table->string('gateway_bank_response_date')->nullable()->index();
             $table->string('gateway_transaction_status')->nullable();
 
 
@@ -44,7 +44,7 @@ return new class extends Migration
             $table->string('msc')->nullable();
             $table->string('tr_ret_ref_nr')->nullable();
             $table->string('tr_approval_id')->nullable();
-            $table->timestamp('tr_processing_date')->nullable();
+            $table->timestamp('tr_processing_date')->nullable()->index();
             $table->string('merchant_iban_code')->nullable();
             $table->string('proc_code')->nullable();
             $table->string('issuer_country')->nullable();
