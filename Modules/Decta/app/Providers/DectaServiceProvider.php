@@ -116,11 +116,11 @@ class DectaServiceProvider extends ServiceProvider
                 ->withoutOverlapping(360) // 6 hours overlap protection
                 ->appendOutputTo(storage_path('logs/decta-retry.log'));
 
-            // Schedule transaction matching retry every 4 hours
-            $schedule->command('decta:match-transactions --retry-failed --limit=50')
-                ->cron('0 */4 * * *') // Every 4 hours
-                ->withoutOverlapping(240) // 4 hours overlap protection
-                ->appendOutputTo(storage_path('logs/decta-matching.log'));
+//            // Schedule transaction matching retry every 4 hours
+//            $schedule->command('decta:match-transactions --retry-failed --limit=50')
+//                ->cron('0 */4 * * *') // Every 4 hours
+//                ->withoutOverlapping(240) // 4 hours overlap protection
+//                ->appendOutputTo(storage_path('logs/decta-matching.log'));
 
             // Schedule cleanup of old records every Sunday at 1 AM
             $schedule->command('decta:cleanup --days-old=90 --remove-processed')

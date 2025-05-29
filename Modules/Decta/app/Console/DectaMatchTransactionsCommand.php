@@ -3,10 +3,11 @@
 namespace Modules\Decta\Console;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Carbon;
 use Modules\Decta\Services\DectaTransactionService;
 use Modules\Decta\Repositories\DectaTransactionRepository;
+use Modules\Decta\Repositories\DectaFileRepository;
 use Modules\Decta\Models\DectaTransaction;
+use Modules\Decta\Models\DectaFile;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Exception;
@@ -20,17 +21,18 @@ class DectaMatchTransactionsCommand extends Command
      */
     protected $signature = 'decta:match-transactions
                             {--file-id= : Match transactions for a specific file}
-                            {--limit=100 : Limit number of transactions to process}
+                            {--limit=100 : Limit number of files to process for matching}
                             {--retry-failed : Retry previously failed matches}
                             {--max-attempts=3 : Maximum matching attempts per transaction}
-                            {--force : Force re-matching of already matched transactions}';
+                            {--force : Force re-matching of already matched transactions}
+                            {--all : Process all files with unmatched transactions}';
 
     /**
      * The console command description.
      *
      * @var string
      */
-    protected $description = 'Match Decta transactions with payment gateway database';
+    protected $description = 'Match Decta transactions with payment gateway database using the same logic as file processing';
 
     /**
      * @var DectaTransactionService
@@ -43,15 +45,22 @@ class DectaMatchTransactionsCommand extends Command
     protected $transactionRepository;
 
     /**
+     * @var DectaFileRepository
+     */
+    protected $fileRepository;
+
+    /**
      * Create a new command instance.
      */
     public function __construct(
         DectaTransactionService $transactionService,
-        DectaTransactionRepository $transactionRepository
+        DectaTransactionRepository $transactionRepository,
+        DectaFileRepository $fileRepository
     ) {
         parent::__construct();
         $this->transactionService = $transactionService;
         $this->transactionRepository = $transactionRepository;
+        $this->fileRepository = $fileRepository;
     }
 
     /**
@@ -73,49 +82,81 @@ class DectaMatchTransactionsCommand extends Command
             $retryFailed = $this->option('retry-failed');
             $maxAttempts = (int) $this->option('max-attempts');
             $force = $this->option('force');
+            $all = $this->option('all');
 
-            // Get transactions to process
-            $transactions = $this->getTransactionsToProcess($fileId, $limit, $retryFailed, $maxAttempts, $force);
+            // Get files to process for matching
+            $filesToProcess = $this->getFilesToProcess($fileId, $limit, $retryFailed, $force, $all);
 
-            if ($transactions->isEmpty()) {
-                $this->info('No transactions found to match.');
+            if ($filesToProcess->isEmpty()) {
+                $this->info('No files found with transactions to match.');
                 return 0;
             }
 
-            $this->info(sprintf('Found %d transaction(s) to match.', $transactions->count()));
+            $this->info(sprintf('Found %d file(s) with transactions to match.', $filesToProcess->count()));
 
-            // Display initial statistics
-            $this->displayInitialStats($fileId);
+            // Display initial overall statistics
+            $this->displayOverallStats();
 
-            $matchedCount = 0;
-            $failedCount = 0;
-            $skippedCount = 0;
+            $totalMatched = 0;
+            $totalUnmatched = 0;
+            $totalErrors = 0;
+            $filesProcessed = 0;
 
-            $progressBar = $this->output->createProgressBar($transactions->count());
+            $progressBar = $this->output->createProgressBar($filesToProcess->count());
             $progressBar->start();
 
-            foreach ($transactions as $transaction) {
+            foreach ($filesToProcess as $file) {
                 try {
-                    $result = $this->processTransaction($transaction, $maxAttempts);
+                    $this->line(" Processing file: {$file->filename} (ID: {$file->id})");
 
-                    switch ($result['status']) {
-                        case 'matched':
-                            $matchedCount++;
-                            break;
-                        case 'failed':
-                            $failedCount++;
-                            break;
-                        case 'skipped':
-                            $skippedCount++;
-                            break;
+                    // Check if matching is needed for this file
+                    if (!$force && $this->isMatchingComplete($file)) {
+                        $this->info("  All transactions already matched, skipping...");
+                        $progressBar->advance();
+                        continue;
                     }
 
+                    // Get file statistics before matching
+                    $beforeStats = $this->getFileMatchingStats($file);
+                    $this->info("  Before matching: {$beforeStats['unmatched']} unmatched, {$beforeStats['matched']} matched");
+
+                    // Use the same matching logic as ProcessFilesCommand
+                    $matchingResults = $this->handleMatching($file, $force, $maxAttempts);
+
+                    $totalMatched += $matchingResults['matched'];
+                    $totalUnmatched += $matchingResults['failed'];
+
+                    if (isset($matchingResults['error'])) {
+                        $totalErrors++;
+                    }
+
+                    $filesProcessed++;
+
+                    // Display results for this file
+                    $this->info("  Results:");
+                    $this->info("   - Transactions matched: {$matchingResults['matched']}");
+                    $this->info("   - Transactions unmatched: {$matchingResults['failed']}");
+
+                    if (isset($matchingResults['error'])) {
+                        $this->warn("   - Error occurred: {$matchingResults['error']}");
+                    }
+
+                    // Log successful matching
+                    Log::info('File matching completed', [
+                        'file_id' => $file->id,
+                        'filename' => $file->filename,
+                        'matching_results' => $matchingResults,
+                    ]);
+
                 } catch (Exception $e) {
-                    $failedCount++;
-                    Log::error('Error processing transaction for matching', [
-                        'transaction_id' => $transaction->id,
-                        'payment_id' => $transaction->payment_id,
+                    $totalErrors++;
+                    $this->error("  Failed to match transactions for {$file->filename}: {$e->getMessage()}");
+
+                    Log::error('Error matching transactions for file', [
+                        'file_id' => $file->id,
+                        'filename' => $file->filename,
                         'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString(),
                     ]);
                 }
 
@@ -125,10 +166,10 @@ class DectaMatchTransactionsCommand extends Command
             $progressBar->finish();
             $this->newLine(2);
 
-            // Display results
-            $this->displayResults($matchedCount, $failedCount, $skippedCount, $fileId);
+            // Display final results
+            $this->displayFinalResults($filesProcessed, $totalMatched, $totalUnmatched, $totalErrors);
 
-            return $failedCount > 0 ? 1 : 0;
+            return $totalErrors > 0 ? 1 : 0;
 
         } catch (Exception $e) {
             $this->error("Matching process failed: {$e->getMessage()}");
@@ -162,223 +203,161 @@ class DectaMatchTransactionsCommand extends Command
     }
 
     /**
-     * Get transactions to process based on options
+     * Get files to process for matching
      */
-    private function getTransactionsToProcess(
+    private function getFilesToProcess(
         ?int $fileId,
         int $limit,
         bool $retryFailed,
-        int $maxAttempts,
-        bool $force
+        bool $force,
+        bool $all
     ) {
-        if ($force) {
-            // Get all transactions regardless of status
-            $query = DectaTransaction::query();
+        if ($fileId) {
+            // Process specific file
+            $file = $this->fileRepository->findById($fileId);
+            return collect($file ? [$file] : []);
+        }
 
-            if ($fileId) {
-                $query->where('decta_file_id', $fileId);
-            }
-
-            return $query->limit($limit)->get();
+        if ($all) {
+            // Get all processed files that have transactions
+            return DectaFile::where('status', DectaFile::STATUS_PROCESSED)
+                ->whereHas('dectaTransactions')
+                ->orderBy('created_at', 'desc')
+                ->take($limit)
+                ->get();
         }
 
         if ($retryFailed) {
-            // Get transactions that need re-matching
-            return $this->transactionRepository->getForReMatching($maxAttempts);
+            // Get files that have failed matching attempts or unmatched transactions
+            return DectaFile::where('status', DectaFile::STATUS_PROCESSED)
+                ->whereHas('dectaTransactions', function($query) {
+                    $query->where('status', DectaTransaction::STATUS_FAILED)
+                        ->orWhere('is_matched', false);
+                })
+                ->orderBy('updated_at', 'desc')
+                ->take($limit)
+                ->get();
         }
 
-        // Get unmatched transactions
-        return $this->transactionRepository->getUnmatched($fileId, $limit);
+        // Default: Get files with unmatched transactions
+        return DectaFile::where('status', DectaFile::STATUS_PROCESSED)
+            ->whereHas('dectaTransactions', function($query) {
+                $query->where('is_matched', false)
+                    ->where('status', '!=', DectaTransaction::STATUS_FAILED);
+            })
+            ->orderBy('created_at', 'desc')
+            ->take($limit)
+            ->get();
     }
 
     /**
-     * Process individual transaction for matching
+     * Handle transaction matching for a file (same logic as ProcessFilesCommand)
      */
-    private function processTransaction(DectaTransaction $transaction, int $maxAttempts): array
+    private function handleMatching(DectaFile $file, bool $forceMatching, int $maxAttempts): array
     {
-        // Check if transaction has exceeded max attempts
-        $attempts = $transaction->matching_attempts ?? [];
+        $this->line("  Matching transactions with payment gateway...");
 
-        if (count($attempts) >= $maxAttempts && !$this->option('force')) {
-            return ['status' => 'skipped', 'reason' => 'max_attempts_reached'];
-        }
-
-        // Mark as processing
-        $transaction->markAsProcessing();
-
-        // Attempt to find matching gateway transaction
-        $gatewayData = $this->findMatchingGatewayTransaction($transaction);
-
-        if ($gatewayData) {
-            // Match found - store all gateway information
-            $transaction->markAsMatched($gatewayData);
-
-            // Display detailed match information
-            $this->line(" ✓ Matched: {$transaction->payment_id}");
-            $this->line("   → Gateway TID: {$gatewayData['trx_id']}");
-            $this->line("   → Account ID: {$gatewayData['account_id']}");
-            $this->line("   → Shop ID: {$gatewayData['shop_id']}");
-
-            if (isset($gatewayData['transaction_date'])) {
-                $this->line("   → Gateway Date: {$gatewayData['transaction_date']}");
-            }
-
-            if (isset($gatewayData['bank_amount']) && isset($gatewayData['bank_currency'])) {
-                $amount = $gatewayData['bank_amount'] / 100; // Convert from cents
-                $this->line("   → Gateway Amount: {$amount} {$gatewayData['bank_currency']}");
-            }
-
-            // Log comprehensive match details
-            Log::info('Transaction matched successfully with full gateway data', [
-                'decta_payment_id' => $transaction->payment_id,
-                'decta_transaction_id' => $transaction->id,
-                'gateway_data_stored' => [
-                    'gateway_transaction_id' => $gatewayData['transaction_id'],
-                    'gateway_account_id' => $gatewayData['account_id'],
-                    'gateway_shop_id' => $gatewayData['shop_id'],
-                    'gateway_trx_id' => $gatewayData['trx_id'],
-                    'gateway_transaction_date' => $gatewayData['transaction_date'] ?? null,
-                    'gateway_bank_response_date' => $gatewayData['bank_response_date'] ?? null,
-                ],
-                'matching_criteria_used' => $this->getSearchCriteria($transaction),
-            ]);
-
-            return ['status' => 'matched', 'gateway_data' => $gatewayData];
-
-        } else {
-            // No match found - add detailed attempt information
-            $searchCriteria = $this->getSearchCriteria($transaction);
-
-            $transaction->addMatchingAttempt([
-                'strategy' => 'comprehensive_search',
-                'search_criteria' => $searchCriteria,
-                'searched_fields' => [
-                    'approval_id' => !empty($searchCriteria['approval_id']),
-                    'ret_ref_nr' => !empty($searchCriteria['ret_ref_nr']),
-                    'amount' => !empty($searchCriteria['amount']),
-                    'currency' => !empty($searchCriteria['currency']),
-                    'date' => !empty($searchCriteria['transaction_date']),
-                ],
-                'result' => 'no_match_found',
-                'attempted_at' => Carbon::now()->toISOString(),
-            ]);
-
-            $currentAttempts = count($transaction->matching_attempts);
-
-            if ($currentAttempts >= $maxAttempts) {
-                $transaction->markAsFailed('No matching gateway transaction found after ' . $maxAttempts . ' attempts');
-                $this->line(" ✗ Failed: {$transaction->payment_id} (max attempts reached)");
-
-                // Show what we searched for
-                $this->line("   → Search criteria used:");
-                if (!empty($searchCriteria['approval_id'])) {
-                    $this->line("     - Approval ID: {$searchCriteria['approval_id']}");
-                }
-                if (!empty($searchCriteria['ret_ref_nr'])) {
-                    $this->line("     - Return Ref: {$searchCriteria['ret_ref_nr']}");
-                }
-                if (!empty($searchCriteria['amount'])) {
-                    $amount = $searchCriteria['amount'] / 100;
-                    $currency = $searchCriteria['currency'] ?? 'N/A';
-                    $this->line("     - Amount: {$amount} {$currency}");
-                }
-                if (!empty($searchCriteria['transaction_date'])) {
-                    $date = Carbon::parse($searchCriteria['transaction_date'])->format('Y-m-d H:i:s');
-                    $this->line("     - Date: {$date}");
-                }
-
-            } else {
-                $this->line(" ! No match: {$transaction->payment_id} (attempt {$currentAttempts}/{$maxAttempts})");
-            }
-
-            return ['status' => 'failed', 'attempts' => $currentAttempts];
-        }
-    }
-    /**
-     * Find matching transaction in payment gateway
-     */
-    private function findMatchingGatewayTransaction(DectaTransaction $transaction): ?array
-    {
         try {
-            $searchCriteria = $this->getSearchCriteria($transaction);
-
-            // Tertiary search: amount + date + currency
-            if (!empty($searchCriteria['amount']) && !empty($searchCriteria['transaction_date'])) {
-                $match = $this->searchByAmountAndDate($searchCriteria);
-                if ($match) {
-                    return $match;
-                }
+            // Check if matching is needed
+            if (!$forceMatching && $this->isMatchingComplete($file)) {
+                $this->info("  All transactions already matched, skipping...");
+                return ['matched' => 0, 'failed' => 0, 'skipped' => true];
             }
 
-            return null;
+            // Reset failed transactions if force matching
+            if ($forceMatching) {
+                $this->resetFailedTransactions($file, $maxAttempts);
+            }
+
+            // Use the transaction service (same as ProcessFilesCommand)
+            return $this->transactionService->matchTransactions($file->id);
 
         } catch (Exception $e) {
-            Log::error('Error in gateway transaction search', [
-                'payment_id' => $transaction->payment_id,
+            $this->warn("  Warning: Matching failed: {$e->getMessage()}");
+            Log::error('Transaction matching failed', [
+                'file_id' => $file->id,
                 'error' => $e->getMessage(),
             ]);
-            return null;
+
+            return ['matched' => 0, 'failed' => 0, 'error' => $e->getMessage()];
         }
     }
 
+    /**
+     * Check if matching is complete for a file (same logic as ProcessFilesCommand)
+     */
+    private function isMatchingComplete(DectaFile $file): bool
+    {
+        $totalTransactions = $file->dectaTransactions()->count();
+        $matchedTransactions = $file->dectaTransactions()->where('is_matched', true)->count();
+        $failedTransactions = $file->dectaTransactions()->where('status', DectaTransaction::STATUS_FAILED)->count();
+
+        // Consider matching complete if all transactions are either matched or permanently failed
+        $processedTransactions = $matchedTransactions + $failedTransactions;
+
+        return $totalTransactions > 0 && $processedTransactions >= $totalTransactions;
+    }
 
     /**
-     * Search by amount and date
+     * Reset failed transactions for retry if force matching
      */
-    private function searchByAmountAndDate(array $criteria): ?array
+    private function resetFailedTransactions(DectaFile $file, int $maxAttempts): void
     {
-        $date = $criteria['transaction_date']->toDateString();
-
-        $query = DB::connection('payment_gateway_mysql')
-            ->table('transactions')
-            ->join('bank_response', 'transactions.tid', '=', 'bank_response.tid')
-            ->where('transactions.bank_amount', $criteria['amount'])
-            ->whereDate('bank_response.added', $date);
-
-        if (!empty($criteria['currency'])) {
-            $query->where('transactions.bank_currency', $criteria['currency']);
-        }
-
-        $results = $query->select([
-            'transactions.id as transaction_id',
-            'transactions.account_id',
-            'transactions.shop_id',
-            'transactions.tid as trx_id',
-            'transactions.bank_amount',
-            'transactions.bank_currency',
-        ])
+        $failedTransactions = $file->dectaTransactions()
+            ->where('status', DectaTransaction::STATUS_FAILED)
             ->get();
 
-        // If multiple results, return the first one (could be improved with better scoring)
-        return $results->count() === 1 ? (array) $results->first() : null;
+        if ($failedTransactions->count() > 0) {
+            $this->line("  Resetting {$failedTransactions->count()} failed transactions for retry...");
+
+            foreach ($failedTransactions as $transaction) {
+                $transaction->update([
+                    'status' => DectaTransaction::STATUS_PENDING,
+                    'error_message' => null,
+                    'matching_attempts' => [], // Reset attempts
+                ]);
+            }
+
+            Log::info('Reset failed transactions for retry', [
+                'file_id' => $file->id,
+                'reset_count' => $failedTransactions->count(),
+            ]);
+        }
     }
 
     /**
-     * Get search criteria from transaction
+     * Get file matching statistics
      */
-    private function getSearchCriteria(DectaTransaction $transaction): array
+    private function getFileMatchingStats(DectaFile $file): array
     {
+        $total = $file->dectaTransactions()->count();
+        $matched = $file->dectaTransactions()->where('is_matched', true)->count();
+        $failed = $file->dectaTransactions()->where('status', DectaTransaction::STATUS_FAILED)->count();
+        $pending = $file->dectaTransactions()->where('status', DectaTransaction::STATUS_PENDING)->count();
+
         return [
-            'payment_id' => $transaction->payment_id,
-            'amount' => $transaction->tr_amount,
-            'currency' => $transaction->tr_ccy,
-            'transaction_date' => $transaction->tr_date_time,
+            'total' => $total,
+            'matched' => $matched,
+            'unmatched' => $total - $matched,
+            'failed' => $failed,
+            'pending' => $pending,
+            'match_rate' => $total > 0 ? ($matched / $total) * 100 : 0,
         ];
     }
 
     /**
-     * Display initial statistics
+     * Display overall statistics
      */
-    private function displayInitialStats(?int $fileId): void
+    private function displayOverallStats(): void
     {
-        $stats = $this->transactionRepository->getStatistics($fileId);
+        $stats = $this->transactionRepository->getStatistics();
 
-        $this->info("Current Statistics:");
-        $this->info(" - Total transactions: {$stats['total']}");
-        $this->info(" - Matched: {$stats['matched']} ({$stats['match_rate']}%)");
-        $this->info(" - Unmatched: {$stats['unmatched']}");
-        $this->info(" - Failed: {$stats['failed']}");
-        $this->info(" - Pending: {$stats['pending']}");
+        $this->info("\nOverall Statistics:");
+        $this->info(" - Total transactions: " . number_format($stats['total']));
+        $this->info(" - Matched: " . number_format($stats['matched']) . " (" . round($stats['match_rate'], 1) . "%)");
+        $this->info(" - Unmatched: " . number_format($stats['unmatched']));
+        $this->info(" - Failed: " . number_format($stats['failed']));
+        $this->info(" - Pending: " . number_format($stats['pending']));
 
         if ($stats['total'] > 0) {
             $this->newLine();
@@ -388,27 +367,41 @@ class DectaMatchTransactionsCommand extends Command
     /**
      * Display final results
      */
-    private function displayResults(int $matched, int $failed, int $skipped, ?int $fileId): void
+    private function displayFinalResults(int $filesProcessed, int $totalMatched, int $totalUnmatched, int $totalErrors): void
     {
-        $this->info("Matching completed:");
-        $this->info(" - Newly matched: {$matched}");
-        $this->info(" - Failed to match: {$failed}");
-        $this->info(" - Skipped: {$skipped}");
+        $this->info("Matching process completed:");
+        $this->info(" - Files processed: {$filesProcessed}");
+        $this->info(" - Total transactions matched: {$totalMatched}");
+        $this->info(" - Total transactions unmatched: {$totalUnmatched}");
+        $this->info(" - Files with errors: {$totalErrors}");
 
-        if ($matched > 0 || $failed > 0) {
-            $this->newLine();
-            $this->displayInitialStats($fileId);
+        if ($totalMatched + $totalUnmatched > 0) {
+            $matchRate = round(($totalMatched / ($totalMatched + $totalUnmatched)) * 100, 2);
+            $this->info(" - Overall match rate: {$matchRate}%");
         }
 
-        if ($failed > 0) {
+        // Display updated overall statistics
+        $this->newLine();
+        $this->displayOverallStats();
+
+        if ($totalUnmatched > 0) {
             $this->warn("\nSome transactions could not be matched. Consider:");
             $this->info(" - Running with --retry-failed to retry failed matches");
+            $this->info(" - Running with --force to retry all transactions");
             $this->info(" - Checking transaction data quality");
-            $this->info(" - Reviewing search criteria logic");
+            $this->info(" - Reviewing gateway database for missing transactions");
         }
 
-        if ($skipped > 0) {
-            $this->info(" - Use --force to retry skipped transactions");
+        if ($totalErrors > 0) {
+            $this->warn("\nSome files had matching errors. Check logs for details.");
+            $this->info("Use --retry-failed option to retry failed matches.");
         }
+
+        // Provide usage examples
+        $this->info("\nUsage examples:");
+        $this->info(" - Match specific file: --file-id=123");
+        $this->info(" - Retry failed matches: --retry-failed");
+        $this->info(" - Force re-match all: --force --all");
+        $this->info(" - Process only recent files: --limit=10");
     }
 }
