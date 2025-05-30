@@ -38,8 +38,13 @@ class NavigationService
                 'children' => [
                     'decta_reports' => [
                         'route' => 'decta.reports.index',
-                        'label' => 'Reports',
+                        'label' => 'Compare Reports',
 //                        'permission' => 'manage-decta',
+                        'permission' => null,
+                    ],
+                    'decta_transactions' => [
+                        'route' => 'decta.transactions.index',
+                        'label' => 'Scheme Reports',
                         'permission' => null,
                     ],
                     'decta_sftp' => [
