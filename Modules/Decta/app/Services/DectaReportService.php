@@ -63,7 +63,7 @@ class DectaReportService
             'match_rate' => $mainStats->total_transactions > 0
                 ? round(($mainStats->matched_transactions / $mainStats->total_transactions) * 100, 2)
                 : 0,
-            'total_amount' => ($mainStats->total_amount ?? 0) / 100, // Convert from cents
+            'total_amount' => ($mainStats->total_amount ?? 0) / 100,
             'matched_amount' => ($mainStats->matched_amount ?? 0) / 100,
             'unique_merchants' => $mainStats->unique_merchants ?? 0,
             'unique_currencies' => $mainStats->unique_currencies ?? 0,
@@ -75,7 +75,6 @@ class DectaReportService
             'period_days' => 30
         ];
     }
-
     /**
      * Generate reports based on type and filters
      */
@@ -92,11 +91,143 @@ class DectaReportService
                 return $this->getDailySummaryReport($filters);
             case 'merchant_breakdown':
                 return $this->getMerchantBreakdownReport($filters);
+            case 'scheme':
+                return $this->getSchemeReport($filters);
             default:
                 throw new \InvalidArgumentException("Unknown report type: {$reportType}");
         }
     }
+    /**
+     * Get scheme report - grouped by card type, transaction type, currency, and merchant
+     * Fixed for PostgreSQL GROUP BY requirements
+     */
+    protected function getSchemeReport(array $filters): array
+    {
+        $whereConditions = ['1=1'];
+        $params = [];
+        $joins = [];
 
+        // Build dynamic WHERE conditions with proper parameter binding
+        if (!empty($filters['date_from'])) {
+            $whereConditions[] = 'dt.tr_date_time >= ?::timestamp';
+            $params[] = $filters['date_from'] . ' 00:00:00';
+        }
+
+        if (!empty($filters['date_to'])) {
+            $whereConditions[] = 'dt.tr_date_time <= ?::timestamp';
+            $params[] = $filters['date_to'] . ' 23:59:59';
+        }
+
+        // Handle merchant filtering
+        if (!empty($filters['merchant_id'])) {
+            $joins[] = 'LEFT JOIN merchants m ON dt.gateway_account_id = m.account_id';
+            $whereConditions[] = 'm.id = ?';
+            $params[] = (int)$filters['merchant_id'];
+        }
+
+        if (!empty($filters['currency'])) {
+            $whereConditions[] = 'dt.tr_ccy = ?';
+            $params[] = $filters['currency'];
+        }
+
+        if (!empty($filters['status'])) {
+            if ($filters['status'] === 'matched') {
+                $whereConditions[] = 'dt.is_matched = true';
+            } elseif ($filters['status'] === 'pending') {
+                $whereConditions[] = 'dt.is_matched = false AND dt.status != \'failed\'';
+            } else {
+                $whereConditions[] = 'dt.status = ?';
+                $params[] = $filters['status'];
+            }
+        }
+
+        if (!empty($filters['amount_min'])) {
+            $whereConditions[] = 'dt.tr_amount >= ?';
+            $params[] = (int)($filters['amount_min'] * 100); // Convert to cents
+        }
+
+        if (!empty($filters['amount_max'])) {
+            $whereConditions[] = 'dt.tr_amount <= ?';
+            $params[] = (int)($filters['amount_max'] * 100); // Convert to cents
+        }
+
+        $whereClause = implode(' AND ', $whereConditions);
+        $joinClause = implode(' ', $joins);
+
+        // Use a CTE (Common Table Expression) for better PostgreSQL compatibility
+        $query = "
+            WITH grouped_data AS (
+                SELECT
+                    COALESCE(dt.card_type_name, 'Unknown') as card_type,
+                    COALESCE(dt.tr_type, 'Unknown') as transaction_type,
+                    COALESCE(dt.tr_ccy, 'Unknown') as currency,
+                    COALESCE(dt.merchant_legal_name, dt.merchant_name, 'Unknown') as merchant_legal_name,
+                    dt.tr_amount
+                FROM decta_transactions dt
+                {$joinClause}
+                WHERE {$whereClause}
+                  AND dt.card_type_name IS NOT NULL
+                  AND dt.tr_type IS NOT NULL
+                  AND dt.tr_ccy IS NOT NULL
+            )
+            SELECT
+                card_type,
+                transaction_type,
+                currency,
+                merchant_legal_name,
+                SUM(tr_amount) as total_amount,
+                COUNT(*) as transaction_count,
+                SUM(CASE
+                    WHEN tr_amount IS NOT NULL THEN
+                        CASE
+                            WHEN card_type = 'VISA' AND transaction_type = '05' THEN tr_amount * 0.025
+                            WHEN card_type = 'MC' AND transaction_type = '05' THEN tr_amount * 0.02
+                            WHEN transaction_type = '06' THEN tr_amount * 0.015
+                            ELSE tr_amount * 0.02
+                        END
+                    ELSE 0
+                END) as total_fees
+            FROM grouped_data
+            GROUP BY
+                card_type,
+                transaction_type,
+                currency,
+                merchant_legal_name
+            ORDER BY
+                merchant_legal_name,
+                card_type,
+                transaction_type,
+                currency
+        ";
+
+        try {
+            $results = DB::select($query, $params);
+
+            return array_map(function($row) {
+                return [
+                    'card_type' => $row->card_type,
+                    'transaction_type' => $row->transaction_type,
+                    'currency' => $row->currency,
+                    'amount' => $row->total_amount ? $row->total_amount / 100 : 0, // Convert from cents
+                    'count' => $row->transaction_count,
+                    'fee' => $row->total_fees ? round($row->total_fees / 100, 2) : 0, // Convert from cents
+                    'merchant_legal_name' => $row->merchant_legal_name
+                ];
+            }, $results);
+
+        } catch (\Exception $e) {
+            // Log the error for debugging
+            \Log::error('Scheme report query failed', [
+                'error' => $e->getMessage(),
+                'query' => $query,
+                'params' => $params,
+                'filters' => $filters
+            ]);
+
+            // Return empty array on error
+            return [];
+        }
+    }
     /**
      * Get detailed transaction report
      */
@@ -104,50 +235,54 @@ class DectaReportService
     {
         $whereConditions = ['1=1'];
         $params = [];
+        $joins = [];
 
         // Build dynamic WHERE conditions
         if (!empty($filters['date_from'])) {
-            $whereConditions[] = 'tr_date_time >= ?';
+            $whereConditions[] = 'dt.tr_date_time >= ?';
             $params[] = $filters['date_from'];
         }
 
         if (!empty($filters['date_to'])) {
-            $whereConditions[] = 'tr_date_time <= ?';
+            $whereConditions[] = 'dt.tr_date_time <= ?';
             $params[] = $filters['date_to'] . ' 23:59:59';
         }
 
+        // Handle merchant filtering - join with merchants table to get proper filtering
         if (!empty($filters['merchant_id'])) {
-            $whereConditions[] = 'gateway_account_id = ?';
+            $joins[] = 'LEFT JOIN merchants m ON dt.gateway_account_id = m.account_id';
+            $whereConditions[] = 'm.id = ?';
             $params[] = $filters['merchant_id'];
         }
 
         if (!empty($filters['currency'])) {
-            $whereConditions[] = 'tr_ccy = ?';
+            $whereConditions[] = 'dt.tr_ccy = ?';
             $params[] = $filters['currency'];
         }
 
         if (!empty($filters['status'])) {
             if ($filters['status'] === 'matched') {
-                $whereConditions[] = 'is_matched = true';
+                $whereConditions[] = 'dt.is_matched = true';
             } elseif ($filters['status'] === 'pending') {
-                $whereConditions[] = 'is_matched = false AND status != \'failed\'';
+                $whereConditions[] = 'dt.is_matched = false AND dt.status != \'failed\'';
             } else {
-                $whereConditions[] = 'status = ?';
+                $whereConditions[] = 'dt.status = ?';
                 $params[] = $filters['status'];
             }
         }
 
         if (!empty($filters['amount_min'])) {
-            $whereConditions[] = 'tr_amount >= ?';
+            $whereConditions[] = 'dt.tr_amount >= ?';
             $params[] = $filters['amount_min'] * 100; // Convert to cents
         }
 
         if (!empty($filters['amount_max'])) {
-            $whereConditions[] = 'tr_amount <= ?';
+            $whereConditions[] = 'dt.tr_amount <= ?';
             $params[] = $filters['amount_max'] * 100; // Convert to cents
         }
 
         $whereClause = implode(' AND ', $whereConditions);
+        $joinClause = implode(' ', $joins);
 
         $query = "
             SELECT
@@ -168,9 +303,13 @@ class DectaReportService
                 dt.gateway_account_id,
                 dt.gateway_shop_id,
                 df.filename,
-                df.processed_at
+                df.processed_at" .
+            (!empty($filters['merchant_id']) ? ',
+                m.name as merchant_db_name,
+                m.legal_name as merchant_legal_name' : '') . "
             FROM decta_transactions dt
             LEFT JOIN decta_files df ON dt.decta_file_id = df.id
+            {$joinClause}
             WHERE {$whereClause}
             ORDER BY dt.tr_date_time DESC
             LIMIT 1000
@@ -186,6 +325,8 @@ class DectaReportService
                 'currency' => $row->tr_ccy,
                 'merchant_name' => $row->merchant_name,
                 'merchant_id' => $row->merchant_id,
+                'merchant_db_name' => $row->merchant_db_name ?? null,
+                'merchant_legal_name' => $row->merchant_legal_name ?? null,
                 'terminal_id' => $row->terminal_id,
                 'card_type' => $row->card_type_name,
                 'transaction_type' => $row->tr_type,
@@ -205,7 +346,6 @@ class DectaReportService
             ];
         }, $results);
     }
-
     /**
      * Get daily summary report
      */
@@ -264,44 +404,55 @@ class DectaReportService
             ];
         }, $results);
     }
-
     /**
      * Get merchant breakdown report
      */
     protected function getMerchantBreakdownReport(array $filters): array
     {
-        $whereConditions = ['merchant_id IS NOT NULL'];
+        $whereConditions = ['dt.merchant_id IS NOT NULL'];
         $params = [];
+        $joins = ['LEFT JOIN merchants m ON dt.gateway_account_id = m.account_id'];
 
         if (!empty($filters['date_from'])) {
-            $whereConditions[] = 'tr_date_time >= ?';
+            $whereConditions[] = 'dt.tr_date_time >= ?';
             $params[] = $filters['date_from'];
         }
 
         if (!empty($filters['date_to'])) {
-            $whereConditions[] = 'tr_date_time <= ?';
+            $whereConditions[] = 'dt.tr_date_time <= ?';
             $params[] = $filters['date_to'] . ' 23:59:59';
         }
 
+        // Filter by specific merchant if provided
+        if (!empty($filters['merchant_id'])) {
+            $whereConditions[] = 'm.id = ?';
+            $params[] = $filters['merchant_id'];
+        }
+
         $whereClause = implode(' AND ', $whereConditions);
+        $joinClause = implode(' ', $joins);
 
         $query = "
             SELECT
-                merchant_id,
-                merchant_name,
+                dt.merchant_id,
+                dt.merchant_name,
+                m.name as merchant_db_name,
+                m.legal_name as merchant_legal_name,
+                m.account_id,
                 COUNT(*) as total_transactions,
-                COUNT(*) FILTER (WHERE is_matched = true) as matched_transactions,
-                COUNT(*) FILTER (WHERE status = 'failed') as failed_transactions,
-                SUM(tr_amount) as total_amount,
-                SUM(tr_amount) FILTER (WHERE is_matched = true) as matched_amount,
-                AVG(tr_amount) as avg_amount,
-                MIN(tr_date_time) as first_transaction,
-                MAX(tr_date_time) as last_transaction,
-                COUNT(DISTINCT tr_ccy) as currencies_used,
-                COUNT(DISTINCT terminal_id) as terminals_used
-            FROM decta_transactions
+                COUNT(*) FILTER (WHERE dt.is_matched = true) as matched_transactions,
+                COUNT(*) FILTER (WHERE dt.status = 'failed') as failed_transactions,
+                SUM(dt.tr_amount) as total_amount,
+                SUM(dt.tr_amount) FILTER (WHERE dt.is_matched = true) as matched_amount,
+                AVG(dt.tr_amount) as avg_amount,
+                MIN(dt.tr_date_time) as first_transaction,
+                MAX(dt.tr_date_time) as last_transaction,
+                COUNT(DISTINCT dt.tr_ccy) as currencies_used,
+                COUNT(DISTINCT dt.terminal_id) as terminals_used
+            FROM decta_transactions dt
+            {$joinClause}
             WHERE {$whereClause}
-            GROUP BY merchant_id, merchant_name
+            GROUP BY dt.merchant_id, dt.merchant_name, m.name, m.legal_name, m.account_id
             ORDER BY total_amount DESC
         ";
 
@@ -312,9 +463,14 @@ class DectaReportService
                 ? ($row->matched_transactions / $row->total_transactions) * 100
                 : 0;
 
+            // Use the most appropriate merchant name
+            $displayName = $row->merchant_db_name ?: $row->merchant_legal_name ?: $row->merchant_name;
+
             return [
                 'merchant_id' => $row->merchant_id,
-                'merchant_name' => $row->merchant_name,
+                'merchant_name' => $displayName,
+                'merchant_account_id' => $row->account_id,
+                'merchant_csv_name' => $row->merchant_name,
                 'total_transactions' => $row->total_transactions,
                 'matched_transactions' => $row->matched_transactions,
                 'failed_transactions' => $row->failed_transactions,
@@ -329,13 +485,11 @@ class DectaReportService
             ];
         }, $results);
     }
-
     /**
      * Get matching report (success/failure analysis)
      */
     protected function getMatchingReport(array $filters): array
     {
-        // Implementation for matching analysis
         $whereConditions = ['1=1'];
         $params = [];
 
@@ -376,13 +530,11 @@ class DectaReportService
             ];
         }, $results);
     }
-
     /**
      * Get settlement report (placeholder)
      */
     protected function getSettlementReport(array $filters): array
     {
-        // This would be implemented based on settlement business rules
         return $this->getDailySummaryReport($filters);
     }
 
@@ -410,7 +562,7 @@ class DectaReportService
 
         $results = DB::select($query, [$limit]);
 
-        return array_map(function($row) {
+        return array_map(function ($row) {
             return [
                 'id' => $row->id,
                 'filename' => $row->filename,
@@ -442,7 +594,7 @@ class DectaReportService
 
         $results = DB::select($query);
 
-        return array_map(function($row) {
+        return array_map(function ($row) {
             return [
                 'status' => $row->status,
                 'count' => $row->count
@@ -469,7 +621,7 @@ class DectaReportService
 
         $results = DB::select($query);
 
-        return array_map(function($row) {
+        return array_map(function ($row) {
             return [
                 'date' => $row->date,
                 'total' => $row->total,
@@ -487,24 +639,31 @@ class DectaReportService
     {
         $query = "
             SELECT
-                merchant_id,
-                merchant_name,
+                dt.merchant_id,
+                dt.merchant_name,
+                m.name as merchant_db_name,
+                m.legal_name as merchant_legal_name,
+                m.account_id,
                 COUNT(*) as transaction_count,
-                SUM(tr_amount) as total_amount
-            FROM decta_transactions
-            WHERE merchant_id IS NOT NULL
-                AND created_at >= CURRENT_DATE - INTERVAL '30 days'
-            GROUP BY merchant_id, merchant_name
+                SUM(dt.tr_amount) as total_amount
+            FROM decta_transactions dt
+            LEFT JOIN merchants m ON dt.gateway_account_id = m.account_id
+            WHERE dt.merchant_id IS NOT NULL
+                AND dt.created_at >= CURRENT_DATE - INTERVAL '30 days'
+            GROUP BY dt.merchant_id, dt.merchant_name, m.name, m.legal_name, m.account_id
             ORDER BY total_amount DESC
             LIMIT ?
         ";
 
         $results = DB::select($query, [$limit]);
 
-        return array_map(function($row) {
+        return array_map(function ($row) {
+            $displayName = $row->merchant_db_name ?: $row->merchant_legal_name ?: $row->merchant_name;
+
             return [
                 'merchant_id' => $row->merchant_id,
-                'merchant_name' => $row->merchant_name,
+                'merchant_name' => $displayName,
+                'merchant_account_id' => $row->account_id,
                 'transaction_count' => $row->transaction_count,
                 'total_amount' => $row->total_amount ? $row->total_amount / 100 : 0
             ];
@@ -531,7 +690,7 @@ class DectaReportService
 
         $results = DB::select($query);
 
-        return array_map(function($row) {
+        return array_map(function ($row) {
             return [
                 'currency' => $row->currency,
                 'transaction_count' => $row->transaction_count,
@@ -668,7 +827,7 @@ class DectaReportService
 
         $results = DB::select($query, $params);
 
-        return array_map(function($row) {
+        return array_map(function ($row) {
             return [
                 'payment_id' => $row->payment_id,
                 'transaction_date' => $row->tr_date_time,
@@ -683,4 +842,20 @@ class DectaReportService
             ];
         }, $results);
     }
+
+//    public
+//    function generateSchemeReports($data)
+//    {
+//        $key1 = BankKey::where("id", $data["key1"])->first()->key1;
+//        $mid = $key1;
+//        $from = $data["from_date"];
+//        $to = $data["to_date"];
+//        $query = "SELECT   card_type_name,    merchant_legal_name,    tr_type,    tr_ccy,
+//         COUNT( tr_amount ) AS count,    SUM( tr_amount ) AS amount,    SUM( user_define_field2 ) fee
+//FROM    scheme_reports  WHERE    merchant_id = '$mid'    AND date(tr_date_time) BETWEEN  '$from' AND '$to'
+//                        GROUP BY    tr_type,    tr_ccy,card_type_name";
+//        $data = DB::select(DB::raw($query));
+//        return $data;
+//    }
 }
+

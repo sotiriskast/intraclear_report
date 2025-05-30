@@ -21,17 +21,15 @@ Route::middleware(['auth', 'verified'])->prefix('decta')->group(function () {
     Route::prefix('reports')->group(function () {
         // Main reports page
         Route::get('/', [DectaReportController::class, 'index'])->name('decta.reports.index');
-
         // Report generation
         Route::post('/generate', [DectaReportController::class, 'generateReport'])->name('decta.reports.generate');
-
         // Dashboard API endpoints
         Route::get('/dashboard-data', [DectaReportController::class, 'getDashboardData'])->name('decta.reports.dashboard');
-
         // Transaction details
         Route::get('/transaction/{paymentId}', [DectaReportController::class, 'getTransactionDetails'])->name('decta.reports.transaction');
-
         // Unmatched transactions for manual review
         Route::get('/unmatched', [DectaReportController::class, 'getUnmatchedTransactions'])->name('decta.reports.unmatched');
+        // Merchants API endpoint
+        Route::get('/merchants', [DectaReportController::class, 'getMerchants'])->name('decta.reports.merchants');
     });
 });
