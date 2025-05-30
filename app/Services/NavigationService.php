@@ -34,30 +34,29 @@ class NavigationService
             ],
             'decta' => [
                 'label' => 'Decta',
-                'icon' => 'credit-card',
+                'icon' => 'decta',
                 'children' => [
                     'decta_reports' => [
                         'route' => 'decta.reports.index',
                         'label' => 'Compare Reports',
-//                        'permission' => 'manage-decta',
-                        'permission' => null,
+                        'permission' => 'manage-decta-reports',
                     ],
                     'decta_transactions' => [
                         'route' => 'decta.transactions.index',
                         'label' => 'Scheme Reports',
-                        'permission' => null,
+                        'permission' => 'manage-decta-reports',
                     ],
                     'decta_sftp' => [
                         'route' => 'decta.sftp.index',
                         'label' => 'SFTP Management',
-                        'permission' => null,
+                        'permission' => 'manage-decta-sftp',
                     ],
                 ],
             ],
 
             'cesop' => [
                 'label' => 'CESOP',
-                'icon' => 'merchant',
+                'icon' => 'cesop',
                 'children' => [
                     'cesop_generate' => [
                         'route' => 'cesop.report.index',
