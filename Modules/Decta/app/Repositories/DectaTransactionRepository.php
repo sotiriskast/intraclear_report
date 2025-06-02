@@ -2,6 +2,7 @@
 
 namespace Modules\Decta\Repositories;
 
+use Illuminate\Support\Facades\DB;
 use Modules\Decta\Models\DectaTransaction;
 use Illuminate\Support\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -275,17 +276,48 @@ class DectaTransactionRepository
     }
 
     /**
-     * Get transactions that need re-matching
+     * Get transactions that need re-matching (fully database agnostic)
      *
      * @param int $maxAttempts Maximum number of matching attempts
      * @return Collection
      */
     public function getForReMatching(int $maxAttempts = 3): Collection
     {
-        return DectaTransaction::where('is_matched', false)
+        // Get all unmatched, non-failed transactions
+        $transactions = DectaTransaction::where('is_matched', false)
             ->where('status', '!=', DectaTransaction::STATUS_FAILED)
-            ->whereRaw('JSON_LENGTH(COALESCE(matching_attempts, "[]")) < ?', [$maxAttempts])
             ->get();
+
+        // Filter in PHP to avoid database-specific JSON functions
+        return $transactions->filter(function ($transaction) use ($maxAttempts) {
+            $attempts = $transaction->matching_attempts;
+
+            // If attempts is null or empty, it qualifies for re-matching
+            if (empty($attempts)) {
+                return true;
+            }
+
+            // If attempts is already an array (Laravel automatically decodes JSON), check the count
+            if (is_array($attempts)) {
+                return count($attempts) < $maxAttempts;
+            }
+
+            // If attempts is a string (raw JSON), try to decode and check
+            if (is_string($attempts)) {
+                $decodedAttempts = json_decode($attempts, true);
+
+                // If it's a valid JSON array, check count
+                if (is_array($decodedAttempts)) {
+                    return count($decodedAttempts) < $maxAttempts;
+                }
+
+                // If it's not a valid array (could be object {} or invalid JSON), allow re-matching
+                return true;
+            }
+
+            // Default to allowing re-matching for any other case
+            return true;
+        });
     }
 
     /**

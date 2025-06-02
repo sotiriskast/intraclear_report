@@ -36,4 +36,51 @@ return [
         'failed_dir' => 'failed', // Subdirectory for failed files
         'delete_remote_after_download' => env('DECTA_DELETE_REMOTE_FILES', false),
     ],
+    /*
+|--------------------------------------------------------------------------
+| Email Notification Settings
+|--------------------------------------------------------------------------
+|
+| Configure email notifications for Decta operations
+|
+*/
+    'notifications' => [
+        // Enable/disable email notifications
+        'enabled' => env('DECTA_NOTIFICATIONS_ENABLED', true),
+
+        // Email addresses to receive notifications
+        'recipients' => array_filter([
+            env('DECTA_NOTIFICATION_EMAIL_1','skastanas@intraclear.com'),
+            env('DECTA_NOTIFICATION_EMAIL_2','l.koniotis@yourcompany.com'),
+            env('DECTA_NOTIFICATION_EMAIL_3','d.slobodchikov@intraclear.com'),
+            // Add more as needed
+        ]),
+
+        // Notification settings for different operations
+        'send_on_success' => env('DECTA_NOTIFY_SUCCESS', true),
+        'send_on_failure' => env('DECTA_NOTIFY_FAILURE', true),
+
+        // Specific operation notifications
+        'download' => [
+            'enabled' => env('DECTA_NOTIFY_DOWNLOAD', true),
+            'send_on_success' => env('DECTA_NOTIFY_DOWNLOAD_SUCCESS', true),
+            'send_on_failure' => env('DECTA_NOTIFY_DOWNLOAD_FAILURE', true),
+        ],
+
+        'processing' => [
+            'enabled' => env('DECTA_NOTIFY_PROCESSING', true),
+            'send_on_success' => env('DECTA_NOTIFY_PROCESSING_SUCCESS', true),
+            'send_on_failure' => env('DECTA_NOTIFY_PROCESSING_FAILURE', true),
+        ],
+
+        'matching' => [
+            'enabled' => env('DECTA_NOTIFY_MATCHING', true),
+            'send_on_success' => env('DECTA_NOTIFY_MATCHING_SUCCESS', true),
+            'send_on_failure' => env('DECTA_NOTIFY_MATCHING_FAILURE', true),
+        ],
+
+        'health_check' => [
+            'enabled' => env('DECTA_NOTIFY_HEALTH_CHECK', true),
+        ],
+    ],
 ];

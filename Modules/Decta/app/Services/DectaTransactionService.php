@@ -67,29 +67,24 @@ class DectaTransactionService
             'total_rows' => 0,
             'processed' => 0,
             'failed' => 0,
+            'skipped_footer_lines' => 0,
             'errors' => [],
         ];
 
         try {
-            Log::info('Starting CSV processing', [
+            Log::info('Starting CSV processing with footer cleanup', [
                 'file_id' => $file->id,
                 'filename' => $file->filename,
                 'content_length' => strlen($content),
                 'content_preview' => substr($content, 0, 500),
             ]);
 
-            // Parse CSV content - try different approaches
+            // Parse CSV content with footer cleanup
             $lines = $this->parseContentToLines($content);
 
             if (empty($lines)) {
                 throw new Exception('CSV file appears to be empty or unreadable');
             }
-
-            Log::info('CSV content parsed', [
-                'file_id' => $file->id,
-                'total_lines' => count($lines),
-                'first_line' => $lines[0] ?? 'N/A',
-            ]);
 
             // Get headers from first line
             $headerLine = array_shift($lines);
@@ -99,20 +94,24 @@ class DectaTransactionService
                 throw new Exception('No headers found in CSV file');
             }
 
-            // Normalize headers (remove BOM, trim whitespace, etc.)
+            // Normalize headers
             $headers = $this->normalizeHeaders($headers);
 
-            Log::info('CSV headers parsed', [
+            Log::info('CSV headers parsed after footer cleanup', [
                 'file_id' => $file->id,
                 'header_count' => count($headers),
                 'headers' => $headers,
+                'data_lines_remaining' => count($lines)
             ]);
 
             $results['total_rows'] = count($lines);
 
             if ($results['total_rows'] === 0) {
-                throw new Exception('CSV file contains headers but no data rows');
+                throw new Exception('CSV file contains headers but no data rows after footer cleanup');
             }
+
+            // Validate that we have the expected Decta columns
+            $this->validateDectaHeaders($headers);
 
             // Process each data row
             foreach ($lines as $index => $line) {
@@ -123,22 +122,21 @@ class DectaTransactionService
                 try {
                     $data = $this->parseCsvLine($line);
 
-                    Log::debug('Processing CSV row', [
-                        'file_id' => $file->id,
-                        'row' => $index + 2,
-                        'data_count' => count($data),
-                        'header_count' => count($headers),
-                        'raw_line' => $line,
-                        'parsed_data' => $data,
-                    ]);
+                    // Final validation - ensure this isn't a stray footer line
+                    if ($this->isFooterLine($line, count($headers), $index + 2)) {
+                        $results['skipped_footer_lines']++;
+                        Log::info('Skipped footer line during processing', [
+                            'line_number' => $index + 2,
+                            'line_content' => substr($line, 0, 100)
+                        ]);
+                        continue;
+                    }
 
+                    // Handle column count mismatch
                     if (count($data) !== count($headers)) {
-                        // Try to handle rows with different column counts
                         if (count($data) < count($headers)) {
-                            // Pad with empty values
                             $data = array_pad($data, count($headers), '');
                         } else {
-                            // Trim extra values
                             $data = array_slice($data, 0, count($headers));
                         }
 
@@ -155,6 +153,11 @@ class DectaTransactionService
 
                     if ($rowData === false) {
                         throw new Exception("Failed to combine headers with data");
+                    }
+
+                    // Validate payment ID exists and is reasonable
+                    if (empty($rowData['PAYMENT_ID']) || strlen(trim($rowData['PAYMENT_ID'])) < 3) {
+                        throw new Exception("Invalid or missing PAYMENT_ID: " . ($rowData['PAYMENT_ID'] ?? 'empty'));
                     }
 
                     // Process and store the transaction
@@ -177,13 +180,13 @@ class DectaTransactionService
                         'file_id' => $file->id,
                         'row' => $index + 2,
                         'error' => $e->getMessage(),
-                        'raw_line' => $line ?? 'empty',
+                        'raw_line' => substr($line ?? '', 0, 200),
                         'trace' => $e->getTraceAsString(),
                     ]);
                 }
             }
 
-            Log::info('Completed processing Decta CSV file', [
+            Log::info('Completed processing Decta CSV file with footer cleanup', [
                 'file_id' => $file->id,
                 'results' => $results,
             ]);
@@ -199,9 +202,8 @@ class DectaTransactionService
 
         return $results;
     }
-
     /**
-     * Parse content into lines, handling different line endings
+     * Parse content into lines, handling different line endings and removing footers
      *
      * @param string $content
      * @return array
@@ -214,14 +216,176 @@ class DectaTransactionService
         // Handle different line endings
         $content = str_replace(["\r\n", "\r"], "\n", $content);
 
-        // Split into lines and filter out empty lines
+        // Split into lines
         $lines = explode("\n", $content);
+
+        // Filter out empty lines first
         $lines = array_filter($lines, fn($line) => !empty(trim($line)));
+
+        // Clean up footer content
+        $lines = $this->removeFooterContent($lines);
 
         return array_values($lines); // Re-index the array
     }
-
     /**
+     * Validate that we have the expected Decta CSV headers
+     *
+     * @param array $headers
+     * @throws Exception
+     */
+    private function validateDectaHeaders(array $headers): void
+    {
+        $requiredHeaders = ['PAYMENT_ID', 'TR_AMOUNT', 'TR_CCY', 'TR_DATE_TIME'];
+        $missingHeaders = [];
+
+        foreach ($requiredHeaders as $required) {
+            if (!in_array($required, $headers)) {
+                $missingHeaders[] = $required;
+            }
+        }
+
+        if (!empty($missingHeaders)) {
+            throw new Exception('Missing required CSV headers: ' . implode(', ', $missingHeaders));
+        }
+
+        Log::info('CSV headers validation passed', [
+            'total_headers' => count($headers),
+            'required_headers_found' => count($requiredHeaders)
+        ]);
+    }
+    /**
+     * Remove footer content from CSV lines
+     *
+     * @param array $lines
+     * @return array
+     */
+    private function removeFooterContent(array $lines): array
+    {
+        if (empty($lines)) {
+            return $lines;
+        }
+
+        // Get the header line to determine expected column count
+        $headerLine = $lines[0];
+        $expectedColumns = count($this->parseCsvLine($headerLine));
+
+        Log::debug('CSV footer cleanup analysis', [
+            'total_lines' => count($lines),
+            'header_columns' => $expectedColumns,
+            'header_line' => $headerLine
+        ]);
+
+        $cleanLines = [$headerLine]; // Keep header
+        $dataLines = array_slice($lines, 1);
+
+        foreach ($dataLines as $index => $line) {
+            $lineNumber = $index + 2; // +2 because we're 1-indexed and skipped header
+
+            // Skip obviously invalid lines
+            if ($this->isFooterLine($line, $expectedColumns, $lineNumber)) {
+                Log::info('Skipping footer/invalid line', [
+                    'line_number' => $lineNumber,
+                    'line_content' => substr($line, 0, 100),
+                    'reason' => 'identified_as_footer'
+                ]);
+                continue;
+            }
+
+            $cleanLines[] = $line;
+        }
+
+        Log::info('CSV footer cleanup completed', [
+            'original_lines' => count($lines),
+            'cleaned_lines' => count($cleanLines),
+            'removed_lines' => count($lines) - count($cleanLines)
+        ]);
+
+        return $cleanLines;
+    }
+    /**
+     * Determine if a line is likely a footer or invalid content
+     *
+     * @param string $line
+     * @param int $expectedColumns
+     * @param int $lineNumber
+     * @return bool
+     */
+    private function isFooterLine(string $line, int $expectedColumns, int $lineNumber): bool
+    {
+        $line = trim($line);
+
+        // Skip completely empty lines
+        if (empty($line)) {
+            return true;
+        }
+
+        // Common footer patterns
+        $footerPatterns = [
+            '/^total/i',
+            '/^sum/i',
+            '/^count/i',
+            '/^report\s+generated/i',
+            '/^end\s+of\s+report/i',
+            '/^page\s+\d+/i',
+            '/^\d+\s+records?\s+processed/i',
+            '/^generated\s+on/i',
+            '/^export\s+completed/i',
+            '/^timestamp/i',
+            '/^---+/',  // Lines of dashes
+            '/^===+/',  // Lines of equals
+            '/^\*\*\*+/', // Lines of asterisks
+        ];
+
+        foreach ($footerPatterns as $pattern) {
+            if (preg_match($pattern, $line)) {
+                return true;
+            }
+        }
+
+        // Check column count - if significantly different from header, likely footer
+        $parsedColumns = $this->parseCsvLine($line);
+        $actualColumns = count($parsedColumns);
+
+        // If column count is drastically different (less than 50% of expected), likely footer
+        if ($actualColumns < ($expectedColumns * 0.5)) {
+            Log::debug('Line marked as footer due to column count', [
+                'line_number' => $lineNumber,
+                'expected_columns' => $expectedColumns,
+                'actual_columns' => $actualColumns,
+                'line_preview' => substr($line, 0, 100)
+            ]);
+            return true;
+        }
+
+        // Check if first column looks like a payment ID (should be alphanumeric)
+        if (!empty($parsedColumns[0])) {
+            $firstColumn = trim($parsedColumns[0]);
+
+            // Payment IDs should be alphanumeric and have reasonable length
+            if (strlen($firstColumn) < 3 || strlen($firstColumn) > 50) {
+                return true;
+            }
+
+            // Should contain some alphanumeric characters
+            if (!preg_match('/[a-zA-Z0-9]/', $firstColumn)) {
+                return true;
+            }
+
+            // Common non-payment-ID values that indicate footer
+            $invalidFirstValues = [
+                'total', 'sum', 'count', 'end', 'report', 'generated',
+                'timestamp', 'page', 'footer', 'exported', 'processed'
+            ];
+
+            foreach ($invalidFirstValues as $invalid) {
+                if (stripos($firstColumn, $invalid) !== false) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }    /**
      * Remove BOM (Byte Order Mark) from content
      *
      * @param string $content
@@ -508,12 +672,6 @@ class DectaTransactionService
         return max(0, count($lines) - 1);
     }
 
-    /**
-     * Get detailed file processing progress with better accuracy
-     *
-     * @param DectaFile $file
-     * @return array
-     */
     public function getFileProgress(DectaFile $file): array
     {
         try {
@@ -671,13 +829,13 @@ class DectaTransactionService
                 'Y-m-d\TH:i:s\Z',
                 'd.m.Y H:i:s',
                 'd.m.Y',
-                'Y.m.d H:i:s',  // Fixed: was 'YYYY.mm.dd H:i:s'
-                'Y.m.d',        // Fixed: was 'YYYY.mm.dd'
+                'Y.m.d H:i:s',
+                'Y.m.d',
                 'Y/m/d H:i:s',
                 'Y/m/d',
-                'j/n/Y H:i:s',  // Single digit day/month
+                'j/n/Y H:i:s',
                 'j/n/Y',
-                'n/j/Y H:i:s',  // US format with single digits
+                'n/j/Y H:i:s',
                 'n/j/Y',
                 'j.n.Y H:i:s',
                 'j.n.Y',

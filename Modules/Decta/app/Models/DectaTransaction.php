@@ -151,6 +151,7 @@ class DectaTransaction extends Model
             'gateway_account_id' => $gatewayData['account_id'] ?? null,
             'gateway_shop_id' => $gatewayData['shop_id'] ?? null,
             'gateway_trx_id' => $gatewayData['trx_id'] ?? null,
+            'gateway_transaction_status' => $gatewayData['transaction_status'] ?? null,
 
             // Gateway transaction dates
             'gateway_transaction_date' => $gatewayData['transaction_date'] ?? null,
