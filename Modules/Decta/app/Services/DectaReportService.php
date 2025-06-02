@@ -2,6 +2,7 @@
 
 namespace Modules\Decta\Services;
 
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -19,73 +20,75 @@ class DectaReportService
 
         // Main statistics using PostgreSQL
         $stats = DB::select("
-            SELECT
-                COUNT(*) as total_transactions,
-                COUNT(*) FILTER (WHERE is_matched = true) as matched_transactions,
-                COUNT(*) FILTER (WHERE is_matched = false) as unmatched_transactions,
-                COUNT(*) FILTER (WHERE status = 'failed') as failed_transactions,
-                COUNT(*) FILTER (WHERE gateway_transaction_status = 'approved' OR gateway_transaction_status = 'APPROVED') as approved_transactions,
-                COUNT(*) FILTER (WHERE gateway_transaction_status = 'declined' OR gateway_transaction_status = 'DECLINED') as declined_transactions,
-                COUNT(DISTINCT merchant_id) FILTER (WHERE merchant_id IS NOT NULL) as unique_merchants,
-                COUNT(DISTINCT tr_ccy) FILTER (WHERE tr_ccy IS NOT NULL) as unique_currencies
-            FROM decta_transactions
-            WHERE created_at >= ?
-        ", [$lastMonth]);
+        SELECT
+            COUNT(*) as total_transactions,
+            COUNT(*) FILTER (WHERE is_matched = true) as matched_transactions,
+            COUNT(*) FILTER (WHERE is_matched = false) as unmatched_transactions,
+            COUNT(*) FILTER (WHERE status = 'failed') as failed_transactions,
+            COUNT(*) FILTER (WHERE gateway_transaction_status = 'approved' OR gateway_transaction_status = 'APPROVED') as approved_transactions,
+            COUNT(*) FILTER (WHERE gateway_transaction_status = 'declined' OR gateway_transaction_status = 'DECLINED') as declined_transactions,
+            COUNT(DISTINCT merchant_id) FILTER (WHERE merchant_id IS NOT NULL) as unique_merchants,
+            COUNT(DISTINCT tr_ccy) FILTER (WHERE tr_ccy IS NOT NULL) as unique_currencies
+        FROM decta_transactions
+        WHERE created_at >= ?
+    ", [$lastMonth]);
 
-        // Get currency breakdown for amounts
-        $currencyAmounts = DB::select("
-            SELECT
-                tr_ccy as currency,
-                SUM(tr_amount) FILTER (WHERE tr_amount IS NOT NULL) as total_amount,
-                SUM(tr_amount) FILTER (WHERE is_matched = true AND tr_amount IS NOT NULL) as matched_amount,
-                SUM(tr_amount) FILTER (WHERE (gateway_transaction_status = 'approved' OR gateway_transaction_status = 'APPROVED') AND tr_amount IS NOT NULL) as approved_amount,
-                SUM(tr_amount) FILTER (WHERE (gateway_transaction_status = 'declined' OR gateway_transaction_status = 'DECLINED') AND tr_amount IS NOT NULL) as declined_amount
-            FROM decta_transactions
-            WHERE created_at >= ? AND tr_ccy IS NOT NULL
-            GROUP BY tr_ccy
-            ORDER BY total_amount DESC
-        ", [$lastMonth]);
-
-        // Today's activity
+        // Today's and yesterday's activity
         $todayStats = DB::select("
-            SELECT
-                COUNT(*) as today_transactions,
-                COUNT(*) FILTER (WHERE is_matched = true) as today_matched,
-                COUNT(*) FILTER (WHERE gateway_transaction_status = 'approved' OR gateway_transaction_status = 'APPROVED') as today_approved,
-                COUNT(*) FILTER (WHERE gateway_transaction_status = 'declined' OR gateway_transaction_status = 'DECLINED') as today_declined
-            FROM decta_transactions
-            WHERE DATE(created_at) = ?
-        ", [$today->toDateString()]);
+        SELECT
+            COUNT(*) as today_transactions,
+            COUNT(*) FILTER (WHERE is_matched = true) as today_matched,
+            COUNT(*) FILTER (WHERE gateway_transaction_status = 'approved' OR gateway_transaction_status = 'APPROVED') as today_approved,
+            COUNT(*) FILTER (WHERE gateway_transaction_status = 'declined' OR gateway_transaction_status = 'DECLINED') as today_declined
+        FROM decta_transactions
+        WHERE DATE(created_at) = ?
+    ", [$today->toDateString()]);
 
-        // Yesterday's comparison
         $yesterdayStats = DB::select("
-            SELECT
-                COUNT(*) as yesterday_transactions,
-                COUNT(*) FILTER (WHERE gateway_transaction_status = 'approved' OR gateway_transaction_status = 'APPROVED') as yesterday_approved,
-                COUNT(*) FILTER (WHERE gateway_transaction_status = 'declined' OR gateway_transaction_status = 'DECLINED') as yesterday_declined
-            FROM decta_transactions
-            WHERE DATE(created_at) = ?
-        ", [$yesterday->toDateString()]);
+        SELECT
+            COUNT(*) as yesterday_transactions,
+            COUNT(*) FILTER (WHERE gateway_transaction_status = 'approved' OR gateway_transaction_status = 'APPROVED') as yesterday_approved,
+            COUNT(*) FILTER (WHERE gateway_transaction_status = 'declined' OR gateway_transaction_status = 'DECLINED') as yesterday_declined
+        FROM decta_transactions
+        WHERE DATE(created_at) = ?
+    ", [$yesterday->toDateString()]);
 
-        // Today's amount by currency
-        $todayAmountStats = DB::select("
-            SELECT
-                tr_ccy as currency,
-                SUM(tr_amount) as today_amount
-            FROM decta_transactions
-            WHERE DATE(created_at) = ? AND tr_ccy IS NOT NULL
-            GROUP BY tr_ccy
-        ", [$today->toDateString()]);
+        // Get amounts by currency for detailed breakdown
+        $currencyBreakdown = DB::select("
+        SELECT
+            tr_ccy as currency,
+            SUM(tr_amount) as total_amount,
+            SUM(tr_amount) FILTER (WHERE is_matched = true) as matched_amount,
+            SUM(tr_amount) FILTER (WHERE gateway_transaction_status = 'approved' OR gateway_transaction_status = 'APPROVED') as approved_amount,
+            SUM(tr_amount) FILTER (WHERE gateway_transaction_status = 'declined' OR gateway_transaction_status = 'DECLINED') as declined_amount,
+            COUNT(*) as transaction_count
+        FROM decta_transactions
+        WHERE created_at >= ?
+            AND tr_ccy IS NOT NULL
+        GROUP BY tr_ccy
+        ORDER BY transaction_count DESC
+    ", [$lastMonth]);
 
-        // Yesterday's amount by currency
-        $yesterdayAmountStats = DB::select("
-            SELECT
-                tr_ccy as currency,
-                SUM(tr_amount) as yesterday_amount
-            FROM decta_transactions
-            WHERE DATE(created_at) = ? AND tr_ccy IS NOT NULL
-            GROUP BY tr_ccy
-        ", [$yesterday->toDateString()]);
+        // Get today's and yesterday's amounts by currency
+        $todayCurrencyAmounts = DB::select("
+        SELECT
+            tr_ccy as currency,
+            SUM(tr_amount) as total_amount
+        FROM decta_transactions
+        WHERE DATE(created_at) = ?
+            AND tr_ccy IS NOT NULL
+        GROUP BY tr_ccy
+    ", [$today->toDateString()]);
+
+        $yesterdayCurrencyAmounts = DB::select("
+        SELECT
+            tr_ccy as currency,
+            SUM(tr_amount) as total_amount
+        FROM decta_transactions
+        WHERE DATE(created_at) = ?
+            AND tr_ccy IS NOT NULL
+        GROUP BY tr_ccy
+    ", [$yesterday->toDateString()]);
 
         $mainStats = $stats[0] ?? (object)[];
         $todayData = $todayStats[0] ?? (object)[];
@@ -97,29 +100,33 @@ class DectaReportService
             ? round((($mainStats->approved_transactions ?? 0) / $totalWithStatus) * 100, 2)
             : 0;
 
-        // Format currency amounts for display
-        $formattedCurrencyAmounts = [];
-        foreach ($currencyAmounts as $currencyAmount) {
-            $formattedCurrencyAmounts[] = [
-                'currency' => $currencyAmount->currency,
-                'total_amount' => ($currencyAmount->total_amount ?? 0) / 100,
-                'matched_amount' => ($currencyAmount->matched_amount ?? 0) / 100,
-                'approved_amount' => ($currencyAmount->approved_amount ?? 0) / 100,
-                'declined_amount' => ($currencyAmount->declined_amount ?? 0) / 100
+        // Format currency breakdown
+        $amountsByCurrency = array_map(function ($row) {
+            return [
+                'currency' => $row->currency,
+                'total_amount' => ($row->total_amount ?? 0) / 100,
+                'matched_amount' => ($row->matched_amount ?? 0) / 100,
+                'approved_amount' => ($row->approved_amount ?? 0) / 100,
+                'declined_amount' => ($row->declined_amount ?? 0) / 100,
+                'transaction_count' => $row->transaction_count
             ];
-        }
+        }, $currencyBreakdown);
 
-        // Format today's amounts by currency
+        // Format today's currency amounts
         $todayAmountsByCurrency = [];
-        foreach ($todayAmountStats as $todayAmount) {
-            $todayAmountsByCurrency[$todayAmount->currency] = ($todayAmount->today_amount ?? 0) / 100;
+        foreach ($todayCurrencyAmounts as $row) {
+            $todayAmountsByCurrency[$row->currency] = ($row->total_amount ?? 0) / 100;
         }
 
-        // Format yesterday's amounts by currency
+        // Format yesterday's currency amounts
         $yesterdayAmountsByCurrency = [];
-        foreach ($yesterdayAmountStats as $yesterdayAmount) {
-            $yesterdayAmountsByCurrency[$yesterdayAmount->currency] = ($yesterdayAmount->yesterday_amount ?? 0) / 100;
+        foreach ($yesterdayCurrencyAmounts as $row) {
+            $yesterdayAmountsByCurrency[$row->currency] = ($row->total_amount ?? 0) / 100;
         }
+
+        // Determine primary currency (most transactions)
+        $primaryCurrency = !empty($amountsByCurrency) ? $amountsByCurrency[0]['currency'] : 'EUR';
+        $primaryCurrencyData = !empty($amountsByCurrency) ? $amountsByCurrency[0] : null;
 
         return [
             'total_transactions' => $mainStats->total_transactions ?? 0,
@@ -132,8 +139,36 @@ class DectaReportService
             'match_rate' => $mainStats->total_transactions > 0
                 ? round(($mainStats->matched_transactions / $mainStats->total_transactions) * 100, 2)
                 : 0,
-            'unique_merchants' => $mainStats->unique_merchants ?? 0,
+
+            // Currency information
             'unique_currencies' => $mainStats->unique_currencies ?? 0,
+            'is_multi_currency' => ($mainStats->unique_currencies ?? 0) > 1,
+            'primary_currency' => $primaryCurrency,
+
+            // Primary currency amounts (for main display)
+            'primary_currency_amount' => $primaryCurrencyData ? [
+                'currency' => $primaryCurrency,
+                'amount' => $primaryCurrencyData['total_amount']
+            ] : null,
+
+            // All currency breakdown
+            'amounts_by_currency' => $amountsByCurrency,
+
+            // Today's amounts by currency
+            'today_amounts_by_currency' => $todayAmountsByCurrency,
+            'today_primary_amount' => [
+                'currency' => $primaryCurrency,
+                'amount' => $todayAmountsByCurrency[$primaryCurrency] ?? 0
+            ],
+
+            // Yesterday's amounts by currency
+            'yesterday_amounts_by_currency' => $yesterdayAmountsByCurrency,
+            'yesterday_primary_amount' => [
+                'currency' => $primaryCurrency,
+                'amount' => $yesterdayAmountsByCurrency[$primaryCurrency] ?? 0
+            ],
+
+            'unique_merchants' => $mainStats->unique_merchants ?? 0,
             'today_transactions' => $todayData->today_transactions ?? 0,
             'today_matched' => $todayData->today_matched ?? 0,
             'today_approved' => $todayData->today_approved ?? 0,
@@ -141,53 +176,11 @@ class DectaReportService
             'yesterday_transactions' => $yesterdayData->yesterday_transactions ?? 0,
             'yesterday_approved' => $yesterdayData->yesterday_approved ?? 0,
             'yesterday_declined' => $yesterdayData->yesterday_declined ?? 0,
-            'period_days' => 30,
-            // Currency-specific amounts
-            'amounts_by_currency' => $formattedCurrencyAmounts,
-            'today_amounts_by_currency' => $todayAmountsByCurrency,
-            'yesterday_amounts_by_currency' => $yesterdayAmountsByCurrency,
-            // Primary currency amount (assume EUR is primary, fallback to largest)
-            'primary_currency_amount' => $this->getPrimaryCurrencyAmount($formattedCurrencyAmounts),
-            'today_primary_amount' => $this->getPrimaryCurrencyAmount($todayAmountsByCurrency, 'amount'),
-            'yesterday_primary_amount' => $this->getPrimaryCurrencyAmount($yesterdayAmountsByCurrency, 'amount')
+            'period_days' => 30
         ];
     }
-    /**
-     * Get primary currency amount (EUR if available, otherwise largest amount)
-     */
-    private function getPrimaryCurrencyAmount($currencyData, $field = 'total_amount'): array
-    {
-        if (empty($currencyData)) {
-            return ['amount' => 0, 'currency' => 'EUR'];
-        }
 
-        // If it's a simple array (currency => amount)
-        if (is_array($currencyData) && !isset($currencyData[0])) {
-            if (isset($currencyData['EUR'])) {
-                return ['amount' => $currencyData['EUR'], 'currency' => 'EUR'];
-            }
 
-            // Find largest amount
-            $largest = array_keys($currencyData, max($currencyData))[0];
-            return ['amount' => $currencyData[$largest], 'currency' => $largest];
-        }
-
-        // If it's an array of objects/arrays
-        $eurData = collect($currencyData)->firstWhere('currency', 'EUR');
-        if ($eurData) {
-            return [
-                'amount' => is_array($eurData) ? $eurData[$field] : $eurData->$field,
-                'currency' => 'EUR'
-            ];
-        }
-
-        // Find largest amount
-        $largest = collect($currencyData)->sortByDesc($field)->first();
-        return [
-            'amount' => is_array($largest) ? $largest[$field] : $largest->$field,
-            'currency' => is_array($largest) ? $largest['currency'] : $largest->currency
-        ];
-    }
     /**
      * Get declined transactions with filters
      */
@@ -277,6 +270,7 @@ class DectaReportService
             ];
         }, $results);
     }
+
     /**
      * Get approval/decline trends for the last N days
      */
@@ -309,6 +303,7 @@ class DectaReportService
             ];
         }, $results);
     }
+
     /**
      * Get decline reasons summary
      */
@@ -339,6 +334,7 @@ class DectaReportService
             ];
         }, $results);
     }
+
     /**
      * Generate reports based on type and filters
      */
@@ -365,6 +361,7 @@ class DectaReportService
                 throw new \InvalidArgumentException("Unknown report type: {$reportType}");
         }
     }
+
     /**
      * Get declined transactions report
      */
@@ -541,7 +538,7 @@ class DectaReportService
         try {
             $results = DB::select($query, $params);
 
-            return array_map(function($row) {
+            return array_map(function ($row) {
                 return [
                     'card_type' => $row->card_type,
                     'transaction_type' => $row->transaction_type,
@@ -566,6 +563,7 @@ class DectaReportService
             return [];
         }
     }
+
     /**
      * Get detailed transaction report
      */
@@ -655,7 +653,7 @@ class DectaReportService
 
         $results = DB::select($query, $params);
 
-        return array_map(function($row) {
+        return array_map(function ($row) {
             return [
                 'payment_id' => $row->payment_id,
                 'transaction_date' => $row->tr_date_time,
@@ -684,6 +682,7 @@ class DectaReportService
             ];
         }, $results);
     }
+
     /**
      * Get daily summary report
      */
@@ -723,7 +722,7 @@ class DectaReportService
 
         $results = DB::select($query, $params);
 
-        return array_map(function($row) {
+        return array_map(function ($row) {
             $matchRate = $row->total_transactions > 0
                 ? ($row->matched_count / $row->total_transactions) * 100
                 : 0;
@@ -742,6 +741,7 @@ class DectaReportService
             ];
         }, $results);
     }
+
     /**
      * Get merchant breakdown report
      */
@@ -796,7 +796,7 @@ class DectaReportService
 
         $results = DB::select($query, $params);
 
-        return array_map(function($row) {
+        return array_map(function ($row) {
             $matchRate = $row->total_transactions > 0
                 ? ($row->matched_transactions / $row->total_transactions) * 100
                 : 0;
@@ -823,6 +823,7 @@ class DectaReportService
             ];
         }, $results);
     }
+
     /**
      * Get matching report (success/failure analysis)
      */
@@ -858,7 +859,7 @@ class DectaReportService
 
         $results = DB::select($query, $params);
 
-        return array_map(function($row) {
+        return array_map(function ($row) {
             return [
                 'status' => $row->status,
                 'is_matched' => $row->is_matched,
@@ -868,6 +869,7 @@ class DectaReportService
             ];
         }, $results);
     }
+
     /**
      * Get settlement report (placeholder)
      */
@@ -975,39 +977,275 @@ class DectaReportService
      */
     public function getTopMerchants(int $limit = 5): array
     {
+        // Enhanced query that properly groups merchants by normalizing merchant identification
         $query = "
+        WITH merchant_normalization AS (
             SELECT
                 dt.merchant_id,
                 dt.merchant_name,
                 m.name as merchant_db_name,
                 m.legal_name as merchant_legal_name,
                 m.account_id,
+                dt.tr_ccy as currency,
+
+                -- Create a normalized merchant key for grouping
+                COALESCE(
+                    LOWER(TRIM(m.name)),
+                    LOWER(TRIM(m.legal_name)),
+                    LOWER(TRIM(dt.merchant_name)),
+                    dt.merchant_id::text
+                ) as merchant_key,
+
+                -- Choose the best display name
+                COALESCE(
+                    m.name,
+                    m.legal_name,
+                    dt.merchant_name,
+                    'Merchant ' || dt.merchant_id
+                ) as display_name,
+
                 COUNT(*) as transaction_count,
                 SUM(dt.tr_amount) as total_amount
             FROM decta_transactions dt
             LEFT JOIN merchants m ON dt.gateway_account_id = m.account_id
             WHERE dt.merchant_id IS NOT NULL
                 AND dt.created_at >= CURRENT_DATE - INTERVAL '30 days'
-            GROUP BY dt.merchant_id, dt.merchant_name, m.name, m.legal_name, m.account_id
-            ORDER BY total_amount DESC
-            LIMIT ?
-        ";
+                AND dt.tr_ccy IS NOT NULL
+            GROUP BY
+                dt.merchant_id, dt.merchant_name, m.name, m.legal_name,
+                m.account_id, dt.tr_ccy, merchant_key, display_name
+        ),
+        merchant_aggregated AS (
+            SELECT
+                merchant_key,
+                -- Take the most complete merchant info
+                (array_agg(merchant_id ORDER BY
+                    CASE WHEN merchant_db_name IS NOT NULL THEN 1 ELSE 2 END,
+                    transaction_count DESC
+                ))[1] as primary_merchant_id,
+                (array_agg(display_name ORDER BY
+                    CASE WHEN merchant_db_name IS NOT NULL THEN 1 ELSE 2 END,
+                    transaction_count DESC
+                ))[1] as merchant_name,
+                (array_agg(merchant_db_name ORDER BY transaction_count DESC))[1] as merchant_db_name,
+                (array_agg(merchant_legal_name ORDER BY transaction_count DESC))[1] as merchant_legal_name,
+                (array_agg(account_id ORDER BY transaction_count DESC))[1] as account_id,
 
-        $results = DB::select($query, [$limit]);
+                SUM(transaction_count) as total_transactions,
+                COUNT(DISTINCT currency) as currency_count,
 
-        return array_map(function ($row) {
-            $displayName = $row->merchant_db_name ?: $row->merchant_legal_name ?: $row->merchant_name;
+                json_agg(
+                    json_build_object(
+                        'currency', currency,
+                        'transaction_count', transaction_count,
+                        'total_amount', total_amount
+                    ) ORDER BY transaction_count DESC
+                ) as currency_breakdown
+            FROM merchant_normalization
+            GROUP BY merchant_key
+        )
+        SELECT *
+        FROM merchant_aggregated
+        ORDER BY total_transactions DESC
+        LIMIT ?
+    ";
+
+        try {
+            $results = DB::select($query, [$limit]);
+
+            return array_map(function ($row) {
+                $displayName = $row->merchant_db_name ?: $row->merchant_legal_name ?: $row->merchant_name;
+                $currencyBreakdown = json_decode($row->currency_breakdown, true);
+
+                // Calculate percentages and format amounts
+                $totalTransactions = $row->total_transactions;
+                $currencySummary = array_map(function ($curr) use ($totalTransactions) {
+                    return [
+                        'currency' => $curr['currency'],
+                        'transaction_count' => $curr['transaction_count'],
+                        'total_amount' => $curr['total_amount'] / 100, // Convert from cents
+                        'percentage' => round(($curr['transaction_count'] / $totalTransactions) * 100, 1)
+                    ];
+                }, $currencyBreakdown);
+
+                // Get dominant currency (most transactions)
+                $dominantCurrency = $currencySummary[0] ?? null;
+
+                return [
+                    'merchant_id' => $row->primary_merchant_id,
+                    'merchant_name' => $displayName,
+                    'merchant_account_id' => $row->account_id,
+                    'total_transactions' => $row->total_transactions,
+                    'currency_count' => $row->currency_count,
+                    'is_multi_currency' => $row->currency_count > 1,
+
+                    // Dominant currency info for main display
+                    'dominant_currency' => $dominantCurrency['currency'] ?? 'N/A',
+                    'dominant_currency_amount' => $dominantCurrency['total_amount'] ?? 0,
+                    'dominant_currency_transactions' => $dominantCurrency['transaction_count'] ?? 0,
+
+                    // Full breakdown for detailed view
+                    'currency_breakdown' => $currencySummary,
+
+                    // Display summary for the UI
+                    'display_summary' => $this->formatCurrencyDisplaySummary($currencySummary, $row->currency_count)
+                ];
+            }, $results);
+
+        } catch (\Exception $e) {
+            \Log::error('Top merchants query failed, falling back to simple method', [
+                'error' => $e->getMessage(),
+                'query' => $query
+            ]);
+
+            // Fallback to the simple method if the advanced query fails
+            return $this->getTopMerchantsSimple($limit);
+        }
+    }    /**
+     * Alternative simpler approach if the above is still complex
+     */
+    public function getTopMerchantsSimple(int $limit = 5): array
+    {
+        // First get top merchants with normalized grouping
+        $topMerchantsQuery = "
+        WITH merchant_groups AS (
+            SELECT
+                -- Create a normalized merchant key for grouping similar merchants
+                COALESCE(
+                    LOWER(TRIM(m.name)),
+                    LOWER(TRIM(m.legal_name)),
+                    LOWER(TRIM(dt.merchant_name)),
+                    dt.merchant_id::text
+                ) as merchant_key,
+
+                -- Choose the best merchant identifiers
+                (array_agg(dt.merchant_id ORDER BY
+                    CASE WHEN m.name IS NOT NULL THEN 1 ELSE 2 END,
+                    COUNT(*) DESC
+                ))[1] as merchant_id,
+
+                (array_agg(COALESCE(m.name, m.legal_name, dt.merchant_name, 'Merchant ' || dt.merchant_id) ORDER BY
+                    CASE WHEN m.name IS NOT NULL THEN 1 ELSE 2 END,
+                    COUNT(*) DESC
+                ))[1] as merchant_name,
+
+                (array_agg(m.name ORDER BY COUNT(*) DESC))[1] as merchant_db_name,
+                (array_agg(m.legal_name ORDER BY COUNT(*) DESC))[1] as merchant_legal_name,
+                (array_agg(m.account_id ORDER BY COUNT(*) DESC))[1] as account_id,
+
+                SUM(1) as total_transactions,
+                COUNT(DISTINCT dt.tr_ccy) as currency_count
+            FROM decta_transactions dt
+            LEFT JOIN merchants m ON dt.gateway_account_id = m.account_id
+            WHERE dt.merchant_id IS NOT NULL
+                AND dt.created_at >= CURRENT_DATE - INTERVAL '30 days'
+                AND dt.tr_ccy IS NOT NULL
+            GROUP BY merchant_key
+        )
+        SELECT *
+        FROM merchant_groups
+        ORDER BY total_transactions DESC
+        LIMIT ?
+    ";
+
+        $topMerchants = DB::select($topMerchantsQuery, [$limit]);
+
+        if (empty($topMerchants)) {
+            return [];
+        }
+
+        // Get currency breakdown for these merchants
+        $merchantIds = array_map(function ($merchant) {
+            return $merchant->merchant_id;
+        }, $topMerchants);
+
+        $currencyBreakdownQuery = "
+        SELECT
+            dt.merchant_id,
+            dt.tr_ccy as currency,
+            COUNT(*) as transaction_count,
+            SUM(dt.tr_amount) as total_amount
+        FROM decta_transactions dt
+        WHERE dt.merchant_id = ANY(?)
+            AND dt.created_at >= CURRENT_DATE - INTERVAL '30 days'
+            AND dt.tr_ccy IS NOT NULL
+        GROUP BY dt.merchant_id, dt.tr_ccy
+        ORDER BY dt.merchant_id, transaction_count DESC
+    ";
+
+        $currencyBreakdowns = DB::select($currencyBreakdownQuery, ['{' . implode(',', $merchantIds) . '}']);
+
+        // Group currency breakdowns by merchant
+        $currencyByMerchant = [];
+        foreach ($currencyBreakdowns as $breakdown) {
+            $merchantId = $breakdown->merchant_id;
+            if (!isset($currencyByMerchant[$merchantId])) {
+                $currencyByMerchant[$merchantId] = [];
+            }
+            $currencyByMerchant[$merchantId][] = [
+                'currency' => $breakdown->currency,
+                'transaction_count' => $breakdown->transaction_count,
+                'total_amount' => $breakdown->total_amount / 100
+            ];
+        }
+
+        // Combine the data
+        return array_map(function ($merchant) use ($currencyByMerchant) {
+            $displayName = $merchant->merchant_db_name ?: $merchant->merchant_legal_name ?: $merchant->merchant_name;
+            $currencyBreakdown = $currencyByMerchant[$merchant->merchant_id] ?? [];
+
+            // Calculate percentages
+            foreach ($currencyBreakdown as &$currency) {
+                $currency['percentage'] = round(($currency['transaction_count'] / $merchant->total_transactions) * 100, 1);
+            }
+
+            $dominantCurrency = $currencyBreakdown[0] ?? null;
 
             return [
-                'merchant_id' => $row->merchant_id,
+                'merchant_id' => $merchant->merchant_id,
                 'merchant_name' => $displayName,
-                'merchant_account_id' => $row->account_id,
-                'transaction_count' => $row->transaction_count,
-                'total_amount' => $row->total_amount ? $row->total_amount / 100 : 0
-            ];
-        }, $results);
-    }
+                'merchant_account_id' => $merchant->account_id,
+                'total_transactions' => $merchant->total_transactions,
+                'currency_count' => $merchant->currency_count,
+                'is_multi_currency' => $merchant->currency_count > 1,
 
+                // Dominant currency info for main display
+                'dominant_currency' => $dominantCurrency['currency'] ?? 'N/A',
+                'dominant_currency_amount' => $dominantCurrency['total_amount'] ?? 0,
+                'dominant_currency_transactions' => $dominantCurrency['transaction_count'] ?? 0,
+
+                // Full breakdown for detailed view
+                'currency_breakdown' => $currencyBreakdown,
+
+                // Display summary
+                'display_summary' => $this->formatCurrencyDisplaySummary($currencyBreakdown, $merchant->currency_count)
+            ];
+        }, $topMerchants);
+    }
+    private function formatCurrencyDisplaySummary(array $currencies, int $currencyCount): string
+    {
+        if (empty($currencies)) {
+            return 'No data';
+        }
+
+        if ($currencyCount === 1) {
+            $curr = $currencies[0];
+            return number_format($curr['total_amount'], 2) . ' ' . $curr['currency'];
+        }
+
+        // Multi-currency: show top 2 currencies
+        $summary = [];
+        for ($i = 0; $i < min(2, count($currencies)); $i++) {
+            $curr = $currencies[$i];
+            $summary[] = number_format($curr['total_amount'], 0) . ' ' . $curr['currency'];
+        }
+
+        if ($currencyCount > 2) {
+            $summary[] = '+' . ($currencyCount - 2) . ' more';
+        }
+
+        return implode(', ', $summary);
+    }
     /**
      * Get currency breakdown
      */
@@ -1180,20 +1418,5 @@ class DectaReportService
             ];
         }, $results);
     }
-
-//    public
-//    function generateSchemeReports($data)
-//    {
-//        $key1 = BankKey::where("id", $data["key1"])->first()->key1;
-//        $mid = $key1;
-//        $from = $data["from_date"];
-//        $to = $data["to_date"];
-//        $query = "SELECT   card_type_name,    merchant_legal_name,    tr_type,    tr_ccy,
-//         COUNT( tr_amount ) AS count,    SUM( tr_amount ) AS amount,    SUM( user_define_field2 ) fee
-//FROM    scheme_reports  WHERE    merchant_id = '$mid'    AND date(tr_date_time) BETWEEN  '$from' AND '$to'
-//                        GROUP BY    tr_type,    tr_ccy,card_type_name";
-//        $data = DB::select(DB::raw($query));
-//        return $data;
-//    }
 }
 

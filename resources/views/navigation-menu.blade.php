@@ -74,7 +74,7 @@
                                     href="{{ route($child['route']) }}"
                                     :active="request()->routeIs($child['route'])"
                                     class="block px-3 py-2 rounded-md text-sm font-medium transition-colors"
-                                    wire:navigate.hover
+{{--                                    wire:navigate.hover--}}
                                 >
                                     <span>{{ __($child['label']) }}</span>
                                 </x-nav-link>

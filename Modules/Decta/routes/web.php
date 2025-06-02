@@ -17,12 +17,14 @@ Route::middleware(['auth', 'verified'])->prefix('decta')->group(function () {
         Route::post('/process', [DectaSftpViewController::class, 'process'])->name('decta.sftp.process');
         Route::get('/download-file', [DectaSftpViewController::class, 'downloadFile'])->name('decta.sftp.download-file');
     });
+
     Route::prefix('transactions')->group(function () {
         Route::get('/', [DectaTransactionController::class, 'index'])->name('decta.transactions.index');
         Route::get('/search', [DectaTransactionController::class, 'search'])->name('decta.transactions.search');
         Route::post('/export', [DectaTransactionController::class, 'export'])->name('decta.transactions.export');
         Route::get('/{id}', [DectaTransactionController::class, 'show'])->name('decta.transactions.show');
     });
+
     // Reports Routes
     Route::prefix('reports')->group(function () {
         // Main reports page
@@ -41,6 +43,31 @@ Route::middleware(['auth', 'verified'])->prefix('decta')->group(function () {
         Route::get('/decline-analysis', [DectaReportController::class, 'getDeclineAnalysis'])->name('decta.reports.decline-analysis');
         Route::post('/compare-decline-rates', [DectaReportController::class, 'compareDeclineRates'])->name('decta.reports.compare-decline-rates');
 
+        // Debug routes
+        Route::get('/debug-dashboard-data', [DectaReportController::class, 'debugDashboardData'])->name('decta.reports.debug-dashboard');
+        Route::get('/debug-merchants', [DectaReportController::class, 'debugMerchantData'])->name('decta.reports.debug-merchants');
+        Route::get('/test-merchant-grouping', [DectaReportController::class, 'testMerchantGrouping'])->name('decta.reports.test-merchant-grouping');
+
+        // Test individual methods
+        Route::get('/test-summary', function() {
+            $service = app(\Modules\Decta\Services\DectaReportService::class);
+            try {
+                $result = $service->getSummaryStats();
+                return response()->json(['success' => true, 'data' => $result]);
+            } catch (\Exception $e) {
+                return response()->json(['success' => false, 'error' => $e->getMessage()]);
+            }
+        });
+
+        Route::get('/test-merchants', function() {
+            $service = app(\Modules\Decta\Services\DectaReportService::class);
+            try {
+                $result = $service->getTopMerchantsSimple(5);
+                return response()->json(['success' => true, 'data' => $result]);
+            } catch (\Exception $e) {
+                return response()->json(['success' => false, 'error' => $e->getMessage()]);
+            }
+        });
 
         // Merchants API endpoint
         Route::get('/merchants', [DectaReportController::class, 'getMerchants'])->name('decta.reports.merchants');
