@@ -4,6 +4,7 @@ namespace Modules\Decta\Console;
 
 use Illuminate\Console\Command;
 use Modules\Decta\Services\DectaSftpService;
+use Modules\Decta\Services\DectaNotificationService;
 use Modules\Decta\Repositories\DectaFileRepository;
 use Modules\Decta\Models\DectaFile;
 use Illuminate\Support\Facades\Storage;
@@ -22,7 +23,8 @@ class DectaDownloadFilesCommand extends Command
                             {--date= : Specific date to download (YYYY-MM-DD format, defaults to yesterday)}
                             {--force : Force download even if files were already processed}
                             {--days-back=7 : Number of days to look back for files}
-                            {--debug : Enable debug output}';
+                            {--debug : Enable debug output}
+                            {--no-email : Disable email notifications for this run}';
 
     /**
      * The console command description.
@@ -42,6 +44,11 @@ class DectaDownloadFilesCommand extends Command
     protected $fileRepository;
 
     /**
+     * @var DectaNotificationService
+     */
+    protected $notificationService;
+
+    /**
      * The disk to use for file operations
      *
      * @var string
@@ -51,11 +58,15 @@ class DectaDownloadFilesCommand extends Command
     /**
      * Create a new command instance.
      */
-    public function __construct(DectaSftpService $sftpService, DectaFileRepository $fileRepository)
-    {
+    public function __construct(
+        DectaSftpService $sftpService,
+        DectaFileRepository $fileRepository,
+        DectaNotificationService $notificationService
+    ) {
         parent::__construct();
         $this->sftpService = $sftpService;
         $this->fileRepository = $fileRepository;
+        $this->notificationService = $notificationService;
     }
 
     /**
@@ -65,10 +76,25 @@ class DectaDownloadFilesCommand extends Command
     {
         $this->info('Starting Decta transaction file download process...');
 
+        $startTime = now();
+        $downloadedFiles = [];
+        $errorMessages = [];
+        $targetDate = null;
+
         try {
             // Check if server is running and accessible
             if (!$this->checkServerStatus()) {
-                $this->error('Server connection failed. Aborting download to prevent incomplete imports.');
+                $error = 'Server connection failed. Aborting download to prevent incomplete imports.';
+                $this->error($error);
+
+                $this->sendNotificationIfEnabled([
+                    'downloaded' => 0,
+                    'skipped' => 0,
+                    'errors' => 1,
+                    'error_messages' => [$error],
+                    'duration' => $startTime->diffInMinutes(now()),
+                ], false);
+
                 return 1;
             }
 
@@ -85,7 +111,18 @@ class DectaDownloadFilesCommand extends Command
                 try {
                     $targetDate = Carbon::createFromFormat('Y-m-d', $date);
                 } catch (Exception $e) {
-                    $this->error("Invalid date format. Use YYYY-MM-DD format.");
+                    $error = "Invalid date format. Use YYYY-MM-DD format.";
+                    $this->error($error);
+
+                    $this->sendNotificationIfEnabled([
+                        'downloaded' => 0,
+                        'skipped' => 0,
+                        'errors' => 1,
+                        'error_messages' => [$error],
+                        'target_date' => $date,
+                        'duration' => $startTime->diffInMinutes(now()),
+                    ], false);
+
                     return 1;
                 }
             }
@@ -104,7 +141,19 @@ class DectaDownloadFilesCommand extends Command
                     $this->info("Found latest file: {$latestFile['path']} ({$latestFile['formatted_date']})");
                     $filesToDownload = [$latestFile];
                 } else {
-                    $this->error("No files found within the specified date range.");
+                    $error = "No files found within the specified date range.";
+                    $this->error($error);
+
+                    $this->sendNotificationIfEnabled([
+                        'downloaded' => 0,
+                        'skipped' => 0,
+                        'errors' => 1,
+                        'error_messages' => [$error],
+                        'target_date' => $targetDate->toDateString(),
+                        'days_back' => $daysBack,
+                        'duration' => $startTime->diffInMinutes(now()),
+                    ], false);
+
                     return 1;
                 }
             }
@@ -211,6 +260,7 @@ class DectaDownloadFilesCommand extends Command
                         }
 
                         $downloadedCount++;
+                        $downloadedFiles[] = $filename . ' (' . $this->formatBytes($fileSize) . ')';
 
                         $this->line(" - Downloaded: {$filename} ({$this->formatBytes($fileSize)})");
 
@@ -225,7 +275,9 @@ class DectaDownloadFilesCommand extends Command
 
                     } else {
                         $errorCount++;
-                        $this->error(" - Failed to download file: {$filename}");
+                        $error = "Failed to download file: {$filename}";
+                        $this->error(" - {$error}");
+                        $errorMessages[] = $error;
 
                         // Log additional debug info
                         Log::error('File download failed', [
@@ -238,6 +290,8 @@ class DectaDownloadFilesCommand extends Command
                     }
                 } catch (Exception $e) {
                     $errorCount++;
+                    $error = "Error downloading file: {$filename} - {$e->getMessage()}";
+                    $errorMessages[] = $error;
 
                     // Enhanced error logging
                     $errorContext = [
@@ -262,8 +316,7 @@ class DectaDownloadFilesCommand extends Command
                     }
 
                     Log::error('Error downloading Decta file', $errorContext);
-
-                    $this->error(" - Error downloading file: {$filename} - {$e->getMessage()}");
+                    $this->error(" - {$error}");
 
                     if ($debug) {
                         $this->error("  Debug context: " . json_encode($errorContext, JSON_PRETTY_PRINT));
@@ -285,6 +338,22 @@ class DectaDownloadFilesCommand extends Command
                 $this->info("Files are ready for processing. Run 'php artisan decta:process-files' to process them.");
             }
 
+            // Prepare notification data
+            $notificationData = [
+                'downloaded' => $downloadedCount,
+                'skipped' => $skippedCount,
+                'errors' => $errorCount,
+                'target_date' => $targetDate->toDateString(),
+                'days_back' => $daysBack,
+                'files' => $downloadedFiles,
+                'error_messages' => $errorMessages,
+                'duration' => $startTime->diffInMinutes(now()),
+            ];
+
+            // Send notification
+            $success = $errorCount === 0;
+            $this->sendNotificationIfEnabled($notificationData, $success);
+
             if ($errorCount > 0) {
                 $this->warn("Some files failed to download. Check the logs for details.");
                 if (!$debug) {
@@ -294,13 +363,64 @@ class DectaDownloadFilesCommand extends Command
             }
 
             return 0;
+
         } catch (Exception $e) {
-            $this->error("Failed to download files: {$e->getMessage()}");
+            $error = "Failed to download files: {$e->getMessage()}";
+            $this->error($error);
+
             Log::error('Failed to download Decta files', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
+
+            // Send failure notification
+            $this->sendNotificationIfEnabled([
+                'downloaded' => 0,
+                'skipped' => 0,
+                'errors' => 1,
+                'error_messages' => [$error],
+                'target_date' => $targetDate ? $targetDate->toDateString() : 'Unknown',
+                'duration' => $startTime->diffInMinutes(now()),
+            ], false);
+
             return 1;
+        }
+    }
+
+    /**
+     * Send notification if enabled and not disabled by --no-email option
+     */
+    private function sendNotificationIfEnabled(array $results, bool $success): void
+    {
+        // Skip if --no-email option is used
+        if ($this->option('no-email')) {
+            return;
+        }
+
+        // Check if download notifications are enabled
+        if (!config('decta.notifications.download.enabled', true)) {
+            return;
+        }
+
+        // Check specific success/failure settings
+        if ($success && !config('decta.notifications.download.send_on_success', true)) {
+            return;
+        }
+
+        if (!$success && !config('decta.notifications.download.send_on_failure', true)) {
+            return;
+        }
+
+        try {
+            $this->notificationService->sendDownloadNotification($results, $success);
+            $this->line($success ? '📧 Success notification sent' : '📧 Failure notification sent');
+        } catch (Exception $e) {
+            $this->warn("Failed to send email notification: {$e->getMessage()}");
+            Log::warning('Failed to send download notification', [
+                'error' => $e->getMessage(),
+                'results' => $results,
+                'success' => $success,
+            ]);
         }
     }
 

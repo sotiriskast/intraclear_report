@@ -16,20 +16,52 @@ class NavigationService
                 'icon' => 'dashboard',
                 'permission' => null, // Always visible
             ],
-            'reports' => [
-                'label' => 'Reports',
+            'settlement' => [
+                'label' => 'Settlement',
                 'icon' => 'settlement',
                 'children' => [
+                    'settlement_archive' => [
+                        'route' => 'settlements.archives',
+                        'label' => 'Archive Reports',
+                        'permission' => 'manage-settlements',
+                    ],
                     'settlement_report' => [
                         'route' => 'settlements.index',
-                        'label' => 'Settlements',
+                        'label' => 'Merchants Reports',
                         'permission' => 'manage-settlements',
                     ],
                 ],
             ],
+            'decta' => [
+                'label' => 'Decta',
+                'icon' => 'decta',
+                'children' => [
+                    'decta_dashboard' => [
+                        'route' => 'decta.index',
+                        'label' => 'Dashboard',
+                        'permission' => 'manage-decta-dashboard',
+                    ],
+                    'decta_reports' => [
+                        'route' => 'decta.reports.index',
+                        'label' => 'Compare Reports',
+                        'permission' => 'manage-decta-reports',
+                    ],
+                    'decta_transactions' => [
+                        'route' => 'decta.transactions.index',
+                        'label' => 'Scheme Reports',
+                        'permission' => 'manage-decta-reports',
+                    ],
+                    'decta_sftp' => [
+                        'route' => 'decta.sftp.index',
+                        'label' => 'SFTP Management',
+                        'permission' => 'manage-decta-sftp',
+                    ],
+                ],
+            ],
+
             'cesop' => [
                 'label' => 'CESOP',
-                'icon' => 'merchant',
+                'icon' => 'cesop',
                 'children' => [
                     'cesop_generate' => [
                         'route' => 'cesop.report.index',

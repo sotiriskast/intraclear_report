@@ -372,6 +372,7 @@ class DectaSftpService
 
     /**
      * Move a local file to the processed directory with smart path handling
+     * Also prevents nested directories
      *
      * @param string $localPath Local file path
      * @return bool Whether the move was successful
@@ -380,12 +381,22 @@ class DectaSftpService
     {
         try {
             $filename = basename($localPath);
+
+            // Check if file is already in processed directory
+            if ($this->isFileInProcessedDirectory($localPath)) {
+                Log::info('File already in processed directory, not moving', [
+                    'current_path' => $localPath,
+                    'filename' => $filename
+                ]);
+                return true; // Consider this "successful" since file is where it should be
+            }
+
             $processedPath = $this->getSmartProcessedPath($localPath);
 
             // Create processed directory if it doesn't exist
             $processedDir = dirname($processedPath);
             if (!Storage::disk($this->diskName)->exists($processedDir)) {
-                Storage::disk($this->diskName)->makeDirectory($processedDir);
+                Storage::disk($this->diskName)->makeDirectory($processedDir, 0755, true);
             }
 
             // Only move if not already in the right place
@@ -397,7 +408,7 @@ class DectaSftpService
                     'to' => $processedPath
                 ]);
             } else {
-                Log::info('File already in processed directory', [
+                Log::info('File already in correct processed location', [
                     'path' => $processedPath
                 ]);
             }
@@ -411,9 +422,25 @@ class DectaSftpService
             return false;
         }
     }
+    /**
+     * Check if file is already in processed directory
+     *
+     * @param string $filePath
+     * @return bool
+     */
+    private function isFileInProcessedDirectory(string $filePath): bool
+    {
+        $processedDir = config('decta.files.processed_dir', 'processed');
+        $pathParts = explode('/', $filePath);
+
+        // Check if 'processed' is in the path (but not as the filename)
+        $directoryParts = array_slice($pathParts, 0, -1); // Remove filename
+        return in_array($processedDir, $directoryParts);
+    }
 
     /**
      * Move a local file to the failed directory with smart path handling
+     * Prevents creating nested failed directories
      *
      * @param string $localPath Local file path
      * @return bool Whether the move was successful
@@ -422,12 +449,22 @@ class DectaSftpService
     {
         try {
             $filename = basename($localPath);
+
+            // Check if file is already in failed directory
+            if ($this->isFileInFailedDirectory($localPath)) {
+                Log::info('File already in failed directory, not moving', [
+                    'current_path' => $localPath,
+                    'filename' => $filename
+                ]);
+                return true; // Consider this "successful" since file is where it should be
+            }
+
             $failedPath = $this->getSmartFailedPath($localPath);
 
             // Create failed directory if it doesn't exist
             $failedDir = dirname($failedPath);
             if (!Storage::disk($this->diskName)->exists($failedDir)) {
-                Storage::disk($this->diskName)->makeDirectory($failedDir);
+                Storage::disk($this->diskName)->makeDirectory($failedDir, 0755, true);
             }
 
             // Only move if not already in the right place
@@ -439,7 +476,7 @@ class DectaSftpService
                     'to' => $failedPath
                 ]);
             } else {
-                Log::info('File already in failed directory', [
+                Log::info('File already in correct failed location', [
                     'path' => $failedPath
                 ]);
             }
@@ -453,6 +490,21 @@ class DectaSftpService
             return false;
         }
     }
+    /**
+     * Check if file is already in failed directory
+     *
+     * @param string $filePath
+     * @return bool
+     */
+    private function isFileInFailedDirectory(string $filePath): bool
+    {
+        $failedDir = config('decta.files.failed_dir', 'failed');
+        $pathParts = explode('/', $filePath);
+
+        // Check if 'failed' is in the path (but not as the filename)
+        $directoryParts = array_slice($pathParts, 0, -1); // Remove filename
+        return in_array($failedDir, $directoryParts);
+    }
 
     /**
      * Get smart processed path that prevents nested directories
@@ -464,7 +516,11 @@ class DectaSftpService
     {
         $filename = basename($currentPath);
         $processedDir = config('decta.files.processed_dir', 'processed');
-        $failedDir = config('decta.files.failed_dir', 'failed');
+
+        // If file is already in processed directory, return current path
+        if ($this->isFileInProcessedDirectory($currentPath)) {
+            return $currentPath;
+        }
 
         // Get the base directory structure (e.g., "files/2025/05/26")
         $baseDir = $this->getBaseDirectory($currentPath);
@@ -483,6 +539,11 @@ class DectaSftpService
     {
         $filename = basename($currentPath);
         $failedDir = config('decta.files.failed_dir', 'failed');
+
+        // If file is already in failed directory, return current path
+        if ($this->isFileInFailedDirectory($currentPath)) {
+            return $currentPath;
+        }
 
         // Get the base directory structure (e.g., "files/2025/05/26")
         $baseDir = $this->getBaseDirectory($currentPath);
@@ -504,8 +565,9 @@ class DectaSftpService
         $failedDir = config('decta.files.failed_dir', 'failed');
 
         // Remove trailing /failed or /processed from the directory
-        $directory = preg_replace('/\/' . preg_quote($failedDir, '/') . '$/', '', $directory);
-        $directory = preg_replace('/\/' . preg_quote($processedDir, '/') . '$/', '', $directory);
+        // Use word boundaries to prevent partial matches
+        $directory = preg_replace('/\/\b' . preg_quote($failedDir, '/') . '\b$/', '', $directory);
+        $directory = preg_replace('/\/\b' . preg_quote($processedDir, '/') . '\b$/', '', $directory);
 
         return $directory;
     }
