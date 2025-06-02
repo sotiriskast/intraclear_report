@@ -36,6 +36,11 @@ class NavigationService
                 'label' => 'Decta',
                 'icon' => 'decta',
                 'children' => [
+                    'decta_dashboard' => [
+                        'route' => 'decta.index',
+                        'label' => 'Dashboard',
+                        'permission' => 'manage-decta-reports',
+                    ],
                     'decta_reports' => [
                         'route' => 'decta.reports.index',
                         'label' => 'Compare Reports',
