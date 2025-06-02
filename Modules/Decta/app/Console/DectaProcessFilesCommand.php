@@ -4,6 +4,7 @@ namespace Modules\Decta\Console;
 
 use Illuminate\Console\Command;
 use Modules\Decta\Repositories\DectaFileRepository;
+use Modules\Decta\Services\DectaNotificationService;
 use Modules\Decta\Services\DectaSftpService;
 use Modules\Decta\Services\DectaTransactionService;
 use Modules\Decta\Models\DectaFile;
@@ -25,7 +26,8 @@ class DectaProcessFilesCommand extends Command
                             {--skip-matching : Skip transaction matching process}
                             {--retry-failed : Retry processing failed files}
                             {--force-reprocess : Force reprocessing of already processed files}
-                            {--force-matching : Force re-matching even for already matched transactions}';
+                            {--force-matching : Force re-matching even for already matched transactions}
+                            {--no-email : Disable email notifications for this run}';
 
     /**
      * The console command description.
@@ -48,6 +50,10 @@ class DectaProcessFilesCommand extends Command
      * @var DectaTransactionService
      */
     protected $transactionService;
+    /**
+     * @var DectaNotificationService
+     */
+    protected $notificationService;
 
     /**
      * The disk to use for file operations
@@ -60,14 +66,19 @@ class DectaProcessFilesCommand extends Command
      * Create a new command instance.
      */
     public function __construct(
-        DectaFileRepository $fileRepository,
-        DectaSftpService $sftpService,
-        DectaTransactionService $transactionService
-    ) {
+        DectaFileRepository     $fileRepository,
+        DectaSftpService        $sftpService,
+        DectaTransactionService $transactionService,
+                DectaNotificationService $notificationService
+
+    )
+    {
         parent::__construct();
         $this->fileRepository = $fileRepository;
         $this->sftpService = $sftpService;
         $this->transactionService = $transactionService;
+        $this->notificationService = $notificationService;
+
     }
 
     /**
@@ -77,10 +88,25 @@ class DectaProcessFilesCommand extends Command
     {
         $this->info('Starting Enhanced Decta transaction file processing...');
 
+        $startTime = now();
+        $errorMessages = [];
+
         try {
             // Check server status first
             if (!$this->checkSystemHealth()) {
-                $this->error('System health check failed. Aborting to prevent data corruption.');
+                $error = 'System health check failed. Aborting to prevent data corruption.';
+                $this->error($error);
+
+                $this->sendNotificationIfEnabled([
+                    'processed' => 0,
+                    'skipped' => 0,
+                    'failed' => 1,
+                    'total_matched' => 0,
+                    'total_unmatched' => 0,
+                    'error_messages' => [$error],
+                    'duration' => $startTime->diffInMinutes(now()),
+                ], false);
+
                 return 1;
             }
 
@@ -96,6 +122,17 @@ class DectaProcessFilesCommand extends Command
 
             if ($files->isEmpty()) {
                 $this->info('No files to process.');
+
+                $this->sendNotificationIfEnabled([
+                    'processed' => 0,
+                    'skipped' => 0,
+                    'failed' => 0,
+                    'total_matched' => 0,
+                    'total_unmatched' => 0,
+                    'message' => 'No files found to process',
+                    'duration' => $startTime->diffInMinutes(now()),
+                ], true);
+
                 return 0;
             }
 
@@ -191,6 +228,7 @@ class DectaProcessFilesCommand extends Command
                     // Enhanced error handling
                     $this->handleProcessingError($file, $e);
                     $failedCount++;
+                    $errorMessages[] = "Failed to process {$file->filename}: {$e->getMessage()}";
 
                     $this->error("  Failed to process {$file->filename}: {$e->getMessage()}");
 
@@ -211,21 +249,87 @@ class DectaProcessFilesCommand extends Command
             // Display final summary
             $this->displayProcessingSummary($processedCount, $skippedCount, $failedCount, $totalMatched, $totalUnmatched, $skipMatching);
 
+            // Prepare notification data
+            $notificationData = [
+                'processed' => $processedCount,
+                'skipped' => $skippedCount,
+                'failed' => $failedCount,
+                'total_matched' => $totalMatched,
+                'total_unmatched' => $totalUnmatched,
+                'skip_matching' => $skipMatching,
+                'error_messages' => $errorMessages,
+                'duration' => $startTime->diffInMinutes(now()),
+            ];
+
+            // Send notification
+            $success = $failedCount === 0;
+            $this->sendNotificationIfEnabled($notificationData, $success);
+
             if ($failedCount > 0) {
                 return 1;
             }
 
             return 0;
+
         } catch (Exception $e) {
-            $this->error("Failed to process files: {$e->getMessage()}");
+            $error = "Failed to process files: {$e->getMessage()}";
+            $this->error($error);
+
             Log::error('Failed to process Decta files', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
+
+            // Send failure notification
+            $this->sendNotificationIfEnabled([
+                'processed' => 0,
+                'skipped' => 0,
+                'failed' => 1,
+                'total_matched' => 0,
+                'total_unmatched' => 0,
+                'error_messages' => [$error],
+                'duration' => $startTime->diffInMinutes(now()),
+            ], false);
+
             return 1;
         }
     }
+    /**
+     * Send notification if enabled and not disabled by --no-email option
+     */
+    private function sendNotificationIfEnabled(array $results, bool $success): void
+    {
+        // Skip if --no-email option is used
+        if ($this->option('no-email')) {
+            return;
+        }
 
+        // Check if processing notifications are enabled
+        if (!config('decta.notifications.processing.enabled', true)) {
+            return;
+        }
+
+        // Check specific success/failure settings
+        if ($success && !config('decta.notifications.processing.send_on_success', true)) {
+            return;
+        }
+
+        if (!$success && !config('decta.notifications.processing.send_on_failure', true)) {
+            return;
+        }
+
+        try {
+            $this->notificationService->sendProcessingNotification($results, $success);
+            $this->line($success ? '📧 Success notification sent' : '📧 Failure notification sent');
+        } catch (Exception $e) {
+            $this->warn("Failed to send email notification: {$e->getMessage()}");
+            Log::warning('Failed to send processing notification', [
+                'error' => $e->getMessage(),
+                'results' => $results,
+                'success' => $success,
+            ]);
+        }
+    }
     /**
      * Check if file is already fully processed and has all transactions
      */
@@ -442,7 +546,7 @@ class DectaProcessFilesCommand extends Command
     {
         if ($fileId) {
             // Process specific file
-            $file = $this->fileRepository->findById((int) $fileId);
+            $file = $this->fileRepository->findById((int)$fileId);
             if ($file) {
                 // Reset processing status for specific file if it's stuck or failed (or if forced)
                 if ($forceReprocess || in_array($file->status, [DectaFile::STATUS_FAILED, DectaFile::STATUS_PROCESSING])) {
@@ -732,13 +836,14 @@ class DectaProcessFilesCommand extends Command
      * Display processing summary
      */
     private function displayProcessingSummary(
-        int $processedCount,
-        int $skippedCount,
-        int $failedCount,
-        int $totalMatched,
-        int $totalUnmatched,
+        int  $processedCount,
+        int  $skippedCount,
+        int  $failedCount,
+        int  $totalMatched,
+        int  $totalUnmatched,
         bool $skipMatching
-    ): void {
+    ): void
+    {
         $this->info("Processing completed:");
         $this->info(" - Files processed: {$processedCount}");
         $this->info(" - Files skipped (already processed): {$skippedCount}");

@@ -4,6 +4,7 @@ namespace Modules\Decta\Console;
 
 use Illuminate\Console\Command;
 use Modules\Decta\Services\DectaTransactionService;
+use Modules\Decta\Services\DectaNotificationService;
 use Modules\Decta\Repositories\DectaTransactionRepository;
 use Modules\Decta\Repositories\DectaFileRepository;
 use Modules\Decta\Models\DectaTransaction;
@@ -25,7 +26,8 @@ class DectaMatchTransactionsCommand extends Command
                             {--retry-failed : Retry previously failed matches}
                             {--max-attempts=3 : Maximum matching attempts per transaction}
                             {--force : Force re-matching of already matched transactions}
-                            {--all : Process all files with unmatched transactions}';
+                            {--all : Process all files with unmatched transactions}
+                            {--no-email : Disable email notifications for this run}';
 
     /**
      * The console command description.
@@ -50,17 +52,24 @@ class DectaMatchTransactionsCommand extends Command
     protected $fileRepository;
 
     /**
+     * @var DectaNotificationService
+     */
+    protected $notificationService;
+
+    /**
      * Create a new command instance.
      */
     public function __construct(
         DectaTransactionService $transactionService,
         DectaTransactionRepository $transactionRepository,
-        DectaFileRepository $fileRepository
+        DectaFileRepository $fileRepository,
+        DectaNotificationService $notificationService
     ) {
         parent::__construct();
         $this->transactionService = $transactionService;
         $this->transactionRepository = $transactionRepository;
         $this->fileRepository = $fileRepository;
+        $this->notificationService = $notificationService;
     }
 
     /**
@@ -70,10 +79,24 @@ class DectaMatchTransactionsCommand extends Command
     {
         $this->info('Starting Decta transaction matching process...');
 
+        $startTime = now();
+        $errorMessages = [];
+
         try {
             // Check system health
             if (!$this->checkSystemHealth()) {
-                $this->error('System health check failed. Aborting matching process.');
+                $error = 'System health check failed. Aborting matching process.';
+                $this->error($error);
+
+                $this->sendNotificationIfEnabled([
+                    'files_processed' => 0,
+                    'total_matched' => 0,
+                    'total_unmatched' => 0,
+                    'total_errors' => 1,
+                    'error_messages' => [$error],
+                    'duration' => $startTime->diffInMinutes(now()),
+                ], false);
+
                 return 1;
             }
 
@@ -89,6 +112,16 @@ class DectaMatchTransactionsCommand extends Command
 
             if ($filesToProcess->isEmpty()) {
                 $this->info('No files found with transactions to match.');
+
+                $this->sendNotificationIfEnabled([
+                    'files_processed' => 0,
+                    'total_matched' => 0,
+                    'total_unmatched' => 0,
+                    'total_errors' => 0,
+                    'message' => 'No files found with transactions to match',
+                    'duration' => $startTime->diffInMinutes(now()),
+                ], true);
+
                 return 0;
             }
 
@@ -128,6 +161,7 @@ class DectaMatchTransactionsCommand extends Command
 
                     if (isset($matchingResults['error'])) {
                         $totalErrors++;
+                        $errorMessages[] = "File {$file->filename}: {$matchingResults['error']}";
                     }
 
                     $filesProcessed++;
@@ -150,7 +184,9 @@ class DectaMatchTransactionsCommand extends Command
 
                 } catch (Exception $e) {
                     $totalErrors++;
-                    $this->error("  Failed to match transactions for {$file->filename}: {$e->getMessage()}");
+                    $error = "Failed to match transactions for {$file->filename}: {$e->getMessage()}";
+                    $errorMessages[] = $error;
+                    $this->error("  {$error}");
 
                     Log::error('Error matching transactions for file', [
                         'file_id' => $file->id,
@@ -169,15 +205,79 @@ class DectaMatchTransactionsCommand extends Command
             // Display final results
             $this->displayFinalResults($filesProcessed, $totalMatched, $totalUnmatched, $totalErrors);
 
+            // Prepare notification data
+            $notificationData = [
+                'files_processed' => $filesProcessed,
+                'total_matched' => $totalMatched,
+                'total_unmatched' => $totalUnmatched,
+                'total_errors' => $totalErrors,
+                'error_messages' => $errorMessages,
+                'duration' => $startTime->diffInMinutes(now()),
+            ];
+
+            // Send notification
+            $success = $totalErrors === 0;
+            $this->sendNotificationIfEnabled($notificationData, $success);
+
             return $totalErrors > 0 ? 1 : 0;
 
         } catch (Exception $e) {
-            $this->error("Matching process failed: {$e->getMessage()}");
+            $error = "Matching process failed: {$e->getMessage()}";
+            $this->error($error);
+
             Log::error('Decta transaction matching failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
+
+            // Send failure notification
+            $this->sendNotificationIfEnabled([
+                'files_processed' => 0,
+                'total_matched' => 0,
+                'total_unmatched' => 0,
+                'total_errors' => 1,
+                'error_messages' => [$error],
+                'duration' => $startTime->diffInMinutes(now()),
+            ], false);
+
             return 1;
+        }
+    }
+
+    /**
+     * Send notification if enabled and not disabled by --no-email option
+     */
+    private function sendNotificationIfEnabled(array $results, bool $success): void
+    {
+        // Skip if --no-email option is used
+        if ($this->option('no-email')) {
+            return;
+        }
+
+        // Check if matching notifications are enabled
+        if (!config('decta.notifications.matching.enabled', true)) {
+            return;
+        }
+
+        // Check specific success/failure settings
+        if ($success && !config('decta.notifications.matching.send_on_success', true)) {
+            return;
+        }
+
+        if (!$success && !config('decta.notifications.matching.send_on_failure', true)) {
+            return;
+        }
+
+        try {
+            $this->notificationService->sendMatchingNotification($results, $success);
+            $this->line($success ? '📧 Success notification sent' : '📧 Failure notification sent');
+        } catch (Exception $e) {
+            $this->warn("Failed to send email notification: {$e->getMessage()}");
+            Log::warning('Failed to send matching notification', [
+                'error' => $e->getMessage(),
+                'results' => $results,
+                'success' => $success,
+            ]);
         }
     }
 
