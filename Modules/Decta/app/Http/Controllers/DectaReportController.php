@@ -29,8 +29,9 @@ class DectaReportController extends Controller
 
         // Get active merchants for the dropdown
         $merchants = $this->getActiveMerchants();
+        $currency = $this->getCurrency();
 
-        return view('decta::reports.index', compact('summary', 'merchants'));
+        return view('decta::reports.index', compact('summary', 'merchants', 'currency'));
     }
 
     /**
@@ -189,6 +190,17 @@ class DectaReportController extends Controller
             });
     }
 
+    private function getCurrency()
+    {
+        return DB::table('decta_transactions')
+            ->select([
+                'tr_ccy'
+            ])
+            ->distinct()
+            ->orderBy('tr_ccy')
+            ->pluck('tr_ccy');
+    }
+
     /**
      * Format merchant display name for dropdown
      */
@@ -341,7 +353,7 @@ class DectaReportController extends Controller
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
 
-        $callback = function() use ($data, $reportType) {
+        $callback = function () use ($data, $reportType) {
             $file = fopen('php://output', 'w');
 
             // Add headers based on report type

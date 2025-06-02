@@ -21,7 +21,7 @@
                                 <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
                                     <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
                                         <path
-                                            d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"></path>
+                                                d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"></path>
                                     </svg>
                                 </div>
                             </div>
@@ -68,7 +68,7 @@
                                 <div class="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center">
                                     <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
                                         <path
-                                            d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"></path>
+                                                d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"></path>
                                         <path fill-rule="evenodd"
                                               d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z"
                                               clip-rule="evenodd"></path>
@@ -94,7 +94,7 @@
                                 <div class="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center">
                                     <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
                                         <path
-                                            d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z"></path>
+                                                d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z"></path>
                                     </svg>
                                 </div>
                             </div>
@@ -124,6 +124,26 @@
                 </div>
 
                 <div class="p-6">
+                    <!-- Validation Error Container -->
+                    <div id="validationErrors" class="hidden mb-4 bg-red-50 border border-red-200 rounded-md p-4">
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd"
+                                          d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                                          clip-rule="evenodd"></path>
+                                </svg>
+                            </div>
+                            <div class="ml-3">
+                                <h3 class="text-sm font-medium text-red-800">Please fix the following errors:</h3>
+                                <div class="mt-2 text-sm text-red-700">
+                                    <ul class="list-disc pl-5 space-y-1" id="validationErrorList">
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <form id="reportForm" class="space-y-6">
                         @csrf
 
@@ -131,54 +151,27 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label for="date_from" class="block text-sm font-medium text-gray-700 mb-2">
-                                    From Date
+                                    From Date <span class="text-red-500">*</span>
                                 </label>
                                 <input type="text"
                                        id="date_from"
                                        name="date_from"
                                        class="flatpickr mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
                                        placeholder="Select start date">
+                                <div id="date_from_error" class="hidden mt-1 text-sm text-red-600"></div>
                             </div>
                             <div>
                                 <label for="date_to" class="block text-sm font-medium text-gray-700 mb-2">
-                                    To Date
+                                    To Date <span class="text-red-500">*</span>
                                 </label>
                                 <input type="text"
                                        id="date_to"
                                        name="date_to"
                                        class="flatpickr mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
                                        placeholder="Select end date">
+                                <div id="date_to_error" class="hidden mt-1 text-sm text-red-600"></div>
                             </div>
                         </div>
-
-                        <!-- Quick Date Presets -->
-                        <div class="flex flex-wrap gap-2">
-                            <button type="button"
-                                    class="date-preset px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
-                                    data-days="1">Today
-                            </button>
-                            <button type="button"
-                                    class="date-preset px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
-                                    data-days="7">Last 7 Days
-                            </button>
-                            <button type="button"
-                                    class="date-preset px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
-                                    data-days="30">Last 30 Days
-                            </button>
-                            <button type="button"
-                                    class="date-preset px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
-                                    data-days="90">Last 90 Days
-                            </button>
-                            <button type="button"
-                                    class="date-preset px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
-                                    data-type="this_month">This Month
-                            </button>
-                            <button type="button"
-                                    class="date-preset px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
-                                    data-type="last_month">Last Month
-                            </button>
-                        </div>
-
                         <!-- Report Type and Filters -->
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             <div>
@@ -233,10 +226,11 @@
                                         name="currency"
                                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
                                     <option value="">All Currencies</option>
-                                    <option value="EUR">EUR</option>
-                                    <option value="USD">USD</option>
-                                    <option value="GBP">GBP</option>
-                                    <option value="CHF">CHF</option>
+                                    @if(isset($currency)&&count($currency))
+                                        @foreach($currency as $value)
+                                            <option value="{{mb_strtoupper($value)}}">{{mb_strtoupper($value)}}</option>
+                                        @endforeach
+                                    @endif
                                 </select>
                             </div>
                         </div>
@@ -376,6 +370,7 @@
                 onChange: function (selectedDates) {
                     if (selectedDates.length > 0) {
                         dateToPicker.set('minDate', selectedDates[0]);
+                        clearFieldError('date_from');
                     }
                 }
             });
@@ -384,7 +379,12 @@
                 altInput: true,
                 altFormat: "F j, Y",
                 dateFormat: "Y-m-d",
-                maxDate: "today"
+                maxDate: "today",
+                onChange: function (selectedDates) {
+                    if (selectedDates.length > 0) {
+                        clearFieldError('date_to');
+                    }
+                }
             });
 
             // Date preset handlers
@@ -411,6 +411,7 @@
                     if (fromDate && toDate) {
                         dateFromPicker.setDate(fromDate);
                         dateToPicker.setDate(toDate);
+                        clearValidationErrors();
                     }
 
                     // Highlight active preset
@@ -419,11 +420,98 @@
                 });
             });
 
-            // Form submission
+            // Form submission with validation
             document.getElementById('reportForm').addEventListener('submit', function (e) {
                 e.preventDefault();
-                generateReport();
+
+                // Clear previous errors
+                clearValidationErrors();
+
+                // Validate form
+                if (validateForm()) {
+                    generateReport();
+                }
             });
+
+            function validateForm() {
+                const errors = [];
+                const dateFrom = document.getElementById('date_from').value;
+                const dateTo = document.getElementById('date_to').value;
+
+                // Check if from date is selected
+                if (!dateFrom || dateFrom.trim() === '') {
+                    errors.push('From Date is required');
+                    showFieldError('date_from', 'Please select a start date');
+                }
+
+                // Check if to date is selected
+                if (!dateTo || dateTo.trim() === '') {
+                    errors.push('To Date is required');
+                    showFieldError('date_to', 'Please select an end date');
+                }
+
+                // Check if from date is not later than to date
+                if (dateFrom && dateTo) {
+                    const fromDateObj = new Date(dateFrom);
+                    const toDateObj = new Date(dateTo);
+
+                    if (fromDateObj > toDateObj) {
+                        errors.push('From Date cannot be later than To Date');
+                        showFieldError('date_from', 'Start date cannot be after end date');
+                        showFieldError('date_to', 'End date cannot be before start date');
+                    }
+                }
+
+                // Show validation errors if any
+                if (errors.length > 0) {
+                    showValidationErrors(errors);
+                    return false;
+                }
+
+                return true;
+            }
+
+            function showValidationErrors(errors) {
+                const errorContainer = document.getElementById('validationErrors');
+                const errorList = document.getElementById('validationErrorList');
+
+                errorList.innerHTML = errors.map(error => `<li>${error}</li>`).join('');
+                errorContainer.classList.remove('hidden');
+
+                // Scroll to errors
+                errorContainer.scrollIntoView({behavior: 'smooth', block: 'center'});
+            }
+
+            function clearValidationErrors() {
+                document.getElementById('validationErrors').classList.add('hidden');
+                clearFieldError('date_from');
+                clearFieldError('date_to');
+            }
+
+            function showFieldError(fieldId, message) {
+                const field = document.getElementById(fieldId);
+                const errorDiv = document.getElementById(fieldId + '_error');
+
+                // Add error styling to field
+                field.classList.add('border-red-300', 'focus:border-red-500', 'focus:ring-red-500');
+                field.classList.remove('border-gray-300', 'focus:border-indigo-300', 'focus:ring-indigo-200');
+
+                // Show error message
+                errorDiv.textContent = message;
+                errorDiv.classList.remove('hidden');
+            }
+
+            function clearFieldError(fieldId) {
+                const field = document.getElementById(fieldId);
+                const errorDiv = document.getElementById(fieldId + '_error');
+
+                // Remove error styling from field
+                field.classList.remove('border-red-300', 'focus:border-red-500', 'focus:ring-red-500');
+                field.classList.add('border-gray-300', 'focus:border-indigo-300', 'focus:ring-indigo-200');
+
+                // Hide error message
+                errorDiv.classList.add('hidden');
+            }
 
             function generateReport() {
                 const form = document.getElementById('reportForm');
@@ -574,6 +662,18 @@
                             `${row.match_rate}%`
                         ];
                         break;
+                    case 'scheme':
+                        headers = ['Card Type', 'Tr Type', 'Tr Ccy', 'Amount', 'Count', 'Fee', 'Merchant Legal Name'];
+                        rowFormatter = (row) => [
+                            row.card_type || '-',
+                            row.transaction_type || '-',
+                            row.currency || '-',
+                            row.amount ? row.amount.toLocaleString() : '0',
+                            row.count ? row.count.toLocaleString() : '0',
+                            row.fee ? (row.fee >= 0 ? row.fee.toLocaleString() : `(${Math.abs(row.fee).toLocaleString()})`) : '0',
+                            row.merchant_legal_name || '-'
+                        ];
+                        break;
                     default:
                         // Generic table for other report types
                         headers = Object.keys(data[0]);
@@ -605,96 +705,6 @@
                         </table>
                     </div>
                 `;
-
-                if (data.length > 100) {
-                    tableHTML += `<p class="text-sm text-gray-500 mt-4 text-center">Showing first 100 results of ${data.length} total. Export to see all data.</p>`;
-                }
-
-                return tableHTML;
-            }
-
-            function generateTableHTML(data, reportType) {
-                if (data.length === 0) return '';
-
-                let headers = [];
-                let rowFormatter = null;
-
-                switch (reportType) {
-                    case 'transactions':
-                        headers = ['Payment ID', 'Date', 'Amount', 'Currency', 'Merchant', 'Status', 'Matched'];
-                        rowFormatter = (row) => [
-                            row.payment_id,
-                            new Date(row.transaction_date).toLocaleDateString(),
-                            `€${row.amount.toFixed(2)}`,
-                            row.currency,
-                            row.merchant_name || '-',
-                            `<span class="px-2 py-1 text-xs rounded-full ${getStatusColor(row.status)}">${row.status}</span>`,
-                            row.is_matched ? '<span class="text-green-600">✓</span>' : '<span class="text-red-600">✗</span>'
-                        ];
-                        break;
-                    case 'daily_summary':
-                        headers = ['Date', 'Transactions', 'Amount', 'Matched', 'Match Rate'];
-                        rowFormatter = (row) => [
-                            new Date(row.date).toLocaleDateString(),
-                            row.total_transactions.toLocaleString(),
-                            `€${row.total_amount.toFixed(2)}`,
-                            row.matched_count.toLocaleString(),
-                            `${row.match_rate}%`
-                        ];
-                        break;
-                    case 'merchant_breakdown':
-                        headers = ['Merchant ID', 'Name', 'Transactions', 'Amount', 'Match Rate'];
-                        rowFormatter = (row) => [
-                            row.merchant_id,
-                            row.merchant_name || '-',
-                            row.total_transactions.toLocaleString(),
-                            `€${row.total_amount.toFixed(2)}`,
-                            `${row.match_rate}%`
-                        ];
-                        break;
-                    case 'scheme':
-                        headers = ['Card Type', 'Tr Type', 'Tr Ccy', 'Amount', 'Count', 'Fee', 'Merchant Legal Name'];
-                        rowFormatter = (row) => [
-                            row.card_type || '-',
-                            row.transaction_type || '-',
-                            row.currency || '-',
-                            row.amount ? row.amount.toLocaleString() : '0',
-                            row.count ? row.count.toLocaleString() : '0',
-                            row.fee ? (row.fee >= 0 ? row.fee.toLocaleString() : `(${Math.abs(row.fee).toLocaleString()})`) : '0',
-                            row.merchant_legal_name || '-'
-                        ];
-                        break;
-                    default:
-                        // Generic table for other report types
-                        headers = Object.keys(data[0]);
-                        rowFormatter = (row) => Object.values(row);
-                }
-
-                let tableHTML = `
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        ${headers.map(header => `<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${header}</th>`).join('')}
-                    </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
-    `;
-
-                data.slice(0, 100).forEach((row, index) => { // Limit to 100 rows for performance
-                    const cells = rowFormatter(row);
-                    tableHTML += `<tr class="${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}">`;
-                    cells.forEach(cell => {
-                        tableHTML += `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${cell}</td>`;
-                    });
-                    tableHTML += '</tr>';
-                });
-
-                tableHTML += `
-                </tbody>
-            </table>
-        </div>
-    `;
 
                 if (data.length > 100) {
                     tableHTML += `<p class="text-sm text-gray-500 mt-4 text-center">Showing first 100 results of ${data.length} total. Export to see all data.</p>`;
@@ -752,57 +762,57 @@
 
             function getSchemeSummaryHTML(summary) {
                 return `
-        <div class="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div class="bg-blue-50 rounded-lg p-4">
-                <div class="text-2xl font-bold text-blue-900">${summary.totalTransactions.toLocaleString()}</div>
-                <div class="text-sm text-blue-600">Total Transactions</div>
-            </div>
-            <div class="bg-green-50 rounded-lg p-4">
-                <div class="text-2xl font-bold text-green-900">${summary.totalAmount.toLocaleString()}</div>
-                <div class="text-sm text-green-600">Total Amount</div>
-            </div>
-            <div class="bg-yellow-50 rounded-lg p-4">
-                <div class="text-2xl font-bold text-yellow-900">${summary.totalFees >= 0 ? summary.totalFees.toLocaleString() : `(${Math.abs(summary.totalFees).toLocaleString()})`}</div>
-                <div class="text-sm text-yellow-600">Total Fees</div>
-            </div>
-            <div class="bg-purple-50 rounded-lg p-4">
-                <div class="text-2xl font-bold text-purple-900">${summary.uniqueMerchants.size}</div>
-                <div class="text-sm text-purple-600">Unique Merchants</div>
-            </div>
-        </div>
+                    <div class="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="bg-blue-50 rounded-lg p-4">
+                            <div class="text-2xl font-bold text-blue-900">${summary.totalTransactions.toLocaleString()}</div>
+                            <div class="text-sm text-blue-600">Total Transactions</div>
+                        </div>
+                        <div class="bg-green-50 rounded-lg p-4">
+                            <div class="text-2xl font-bold text-green-900">${summary.totalAmount.toLocaleString()}</div>
+                            <div class="text-sm text-green-600">Total Amount</div>
+                        </div>
+                        <div class="bg-yellow-50 rounded-lg p-4">
+                            <div class="text-2xl font-bold text-yellow-900">${summary.totalFees >= 0 ? summary.totalFees.toLocaleString() : `(${Math.abs(summary.totalFees).toLocaleString()})`}</div>
+                            <div class="text-sm text-yellow-600">Total Fees</div>
+                        </div>
+                        <div class="bg-purple-50 rounded-lg p-4">
+                            <div class="text-2xl font-bold text-purple-900">${summary.uniqueMerchants.size}</div>
+                            <div class="text-sm text-purple-600">Unique Merchants</div>
+                        </div>
+                    </div>
 
-        <div class="mb-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="bg-white rounded-lg border p-4">
-                <h4 class="font-semibold text-gray-900 mb-3">By Card Type</h4>
-                <div class="space-y-2">
-                    ${Object.entries(summary.byCardType).map(([cardType, data]) => `
-                        <div class="flex justify-between items-center">
-                            <span class="text-sm font-medium text-gray-700">${cardType}</span>
-                            <div class="text-right">
-                                <div class="text-sm font-semibold">${data.count.toLocaleString()} txns</div>
-                                <div class="text-xs text-gray-500">${data.amount.toLocaleString()} amount</div>
+                    <div class="mb-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="bg-white rounded-lg border p-4">
+                            <h4 class="font-semibold text-gray-900 mb-3">By Card Type</h4>
+                            <div class="space-y-2">
+                                ${Object.entries(summary.byCardType).map(([cardType, data]) => `
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-sm font-medium text-gray-700">${cardType}</span>
+                                        <div class="text-right">
+                                            <div class="text-sm font-semibold">${data.count.toLocaleString()} txns</div>
+                                            <div class="text-xs text-gray-500">${data.amount.toLocaleString()} amount</div>
+                                        </div>
+                                    </div>
+                                `).join('')}
                             </div>
                         </div>
-                    `).join('')}
-                </div>
-            </div>
 
-            <div class="bg-white rounded-lg border p-4">
-                <h4 class="font-semibold text-gray-900 mb-3">By Currency</h4>
-                <div class="space-y-2">
-                    ${Object.entries(summary.byCurrency).map(([currency, data]) => `
-                        <div class="flex justify-between items-center">
-                            <span class="text-sm font-medium text-gray-700">${currency}</span>
-                            <div class="text-right">
-                                <div class="text-sm font-semibold">${data.count.toLocaleString()} txns</div>
-                                <div class="text-xs text-gray-500">${data.amount.toLocaleString()} amount</div>
+                        <div class="bg-white rounded-lg border p-4">
+                            <h4 class="font-semibold text-gray-900 mb-3">By Currency</h4>
+                            <div class="space-y-2">
+                                ${Object.entries(summary.byCurrency).map(([currency, data]) => `
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-sm font-medium text-gray-700">${currency}</span>
+                                        <div class="text-right">
+                                            <div class="text-sm font-semibold">${data.count.toLocaleString()} txns</div>
+                                            <div class="text-xs text-gray-500">${data.amount.toLocaleString()} amount</div>
+                                        </div>
+                                    </div>
+                                `).join('')}
                             </div>
                         </div>
-                    `).join('')}
-                </div>
-            </div>
-        </div>
-    `;
+                    </div>
+                `;
             }
 
             function getStatusColor(status) {
@@ -839,6 +849,7 @@
                     })
                     .catch(error => console.error('Dashboard update error:', error));
             }
+
             document.getElementById('report_type').addEventListener('change', function() {
                 const helpTexts = {
                     'scheme': 'Scheme Report groups transactions by card type, transaction type, currency, and merchant to provide an overview of transaction patterns and fee calculations.',
