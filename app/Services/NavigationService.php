@@ -39,7 +39,7 @@ class NavigationService
                     'decta_dashboard' => [
                         'route' => 'decta.index',
                         'label' => 'Dashboard',
-                        'permission' => 'manage-decta-reports',
+                        'permission' => 'manage-decta-dashboard',
                     ],
                     'decta_reports' => [
                         'route' => 'decta.reports.index',
