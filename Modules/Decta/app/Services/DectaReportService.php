@@ -26,14 +26,24 @@ class DectaReportService
                 COUNT(*) FILTER (WHERE status = 'failed') as failed_transactions,
                 COUNT(*) FILTER (WHERE gateway_transaction_status = 'approved' OR gateway_transaction_status = 'APPROVED') as approved_transactions,
                 COUNT(*) FILTER (WHERE gateway_transaction_status = 'declined' OR gateway_transaction_status = 'DECLINED') as declined_transactions,
-                SUM(tr_amount) FILTER (WHERE tr_amount IS NOT NULL) as total_amount,
-                SUM(tr_amount) FILTER (WHERE is_matched = true AND tr_amount IS NOT NULL) as matched_amount,
-                SUM(tr_amount) FILTER (WHERE (gateway_transaction_status = 'approved' OR gateway_transaction_status = 'APPROVED') AND tr_amount IS NOT NULL) as approved_amount,
-                SUM(tr_amount) FILTER (WHERE (gateway_transaction_status = 'declined' OR gateway_transaction_status = 'DECLINED') AND tr_amount IS NOT NULL) as declined_amount,
                 COUNT(DISTINCT merchant_id) FILTER (WHERE merchant_id IS NOT NULL) as unique_merchants,
                 COUNT(DISTINCT tr_ccy) FILTER (WHERE tr_ccy IS NOT NULL) as unique_currencies
             FROM decta_transactions
             WHERE created_at >= ?
+        ", [$lastMonth]);
+
+        // Get currency breakdown for amounts
+        $currencyAmounts = DB::select("
+            SELECT
+                tr_ccy as currency,
+                SUM(tr_amount) FILTER (WHERE tr_amount IS NOT NULL) as total_amount,
+                SUM(tr_amount) FILTER (WHERE is_matched = true AND tr_amount IS NOT NULL) as matched_amount,
+                SUM(tr_amount) FILTER (WHERE (gateway_transaction_status = 'approved' OR gateway_transaction_status = 'APPROVED') AND tr_amount IS NOT NULL) as approved_amount,
+                SUM(tr_amount) FILTER (WHERE (gateway_transaction_status = 'declined' OR gateway_transaction_status = 'DECLINED') AND tr_amount IS NOT NULL) as declined_amount
+            FROM decta_transactions
+            WHERE created_at >= ? AND tr_ccy IS NOT NULL
+            GROUP BY tr_ccy
+            ORDER BY total_amount DESC
         ", [$lastMonth]);
 
         // Today's activity
@@ -42,8 +52,7 @@ class DectaReportService
                 COUNT(*) as today_transactions,
                 COUNT(*) FILTER (WHERE is_matched = true) as today_matched,
                 COUNT(*) FILTER (WHERE gateway_transaction_status = 'approved' OR gateway_transaction_status = 'APPROVED') as today_approved,
-                COUNT(*) FILTER (WHERE gateway_transaction_status = 'declined' OR gateway_transaction_status = 'DECLINED') as today_declined,
-                SUM(tr_amount) as today_amount
+                COUNT(*) FILTER (WHERE gateway_transaction_status = 'declined' OR gateway_transaction_status = 'DECLINED') as today_declined
             FROM decta_transactions
             WHERE DATE(created_at) = ?
         ", [$today->toDateString()]);
@@ -53,10 +62,29 @@ class DectaReportService
             SELECT
                 COUNT(*) as yesterday_transactions,
                 COUNT(*) FILTER (WHERE gateway_transaction_status = 'approved' OR gateway_transaction_status = 'APPROVED') as yesterday_approved,
-                COUNT(*) FILTER (WHERE gateway_transaction_status = 'declined' OR gateway_transaction_status = 'DECLINED') as yesterday_declined,
-                SUM(tr_amount) as yesterday_amount
+                COUNT(*) FILTER (WHERE gateway_transaction_status = 'declined' OR gateway_transaction_status = 'DECLINED') as yesterday_declined
             FROM decta_transactions
             WHERE DATE(created_at) = ?
+        ", [$yesterday->toDateString()]);
+
+        // Today's amount by currency
+        $todayAmountStats = DB::select("
+            SELECT
+                tr_ccy as currency,
+                SUM(tr_amount) as today_amount
+            FROM decta_transactions
+            WHERE DATE(created_at) = ? AND tr_ccy IS NOT NULL
+            GROUP BY tr_ccy
+        ", [$today->toDateString()]);
+
+        // Yesterday's amount by currency
+        $yesterdayAmountStats = DB::select("
+            SELECT
+                tr_ccy as currency,
+                SUM(tr_amount) as yesterday_amount
+            FROM decta_transactions
+            WHERE DATE(created_at) = ? AND tr_ccy IS NOT NULL
+            GROUP BY tr_ccy
         ", [$yesterday->toDateString()]);
 
         $mainStats = $stats[0] ?? (object)[];
@@ -69,6 +97,30 @@ class DectaReportService
             ? round((($mainStats->approved_transactions ?? 0) / $totalWithStatus) * 100, 2)
             : 0;
 
+        // Format currency amounts for display
+        $formattedCurrencyAmounts = [];
+        foreach ($currencyAmounts as $currencyAmount) {
+            $formattedCurrencyAmounts[] = [
+                'currency' => $currencyAmount->currency,
+                'total_amount' => ($currencyAmount->total_amount ?? 0) / 100,
+                'matched_amount' => ($currencyAmount->matched_amount ?? 0) / 100,
+                'approved_amount' => ($currencyAmount->approved_amount ?? 0) / 100,
+                'declined_amount' => ($currencyAmount->declined_amount ?? 0) / 100
+            ];
+        }
+
+        // Format today's amounts by currency
+        $todayAmountsByCurrency = [];
+        foreach ($todayAmountStats as $todayAmount) {
+            $todayAmountsByCurrency[$todayAmount->currency] = ($todayAmount->today_amount ?? 0) / 100;
+        }
+
+        // Format yesterday's amounts by currency
+        $yesterdayAmountsByCurrency = [];
+        foreach ($yesterdayAmountStats as $yesterdayAmount) {
+            $yesterdayAmountsByCurrency[$yesterdayAmount->currency] = ($yesterdayAmount->yesterday_amount ?? 0) / 100;
+        }
+
         return [
             'total_transactions' => $mainStats->total_transactions ?? 0,
             'matched_transactions' => $mainStats->matched_transactions ?? 0,
@@ -80,24 +132,63 @@ class DectaReportService
             'match_rate' => $mainStats->total_transactions > 0
                 ? round(($mainStats->matched_transactions / $mainStats->total_transactions) * 100, 2)
                 : 0,
-            'total_amount' => ($mainStats->total_amount ?? 0) / 100,
-            'matched_amount' => ($mainStats->matched_amount ?? 0) / 100,
-            'approved_amount' => ($mainStats->approved_amount ?? 0) / 100,
-            'declined_amount' => ($mainStats->declined_amount ?? 0) / 100,
             'unique_merchants' => $mainStats->unique_merchants ?? 0,
             'unique_currencies' => $mainStats->unique_currencies ?? 0,
             'today_transactions' => $todayData->today_transactions ?? 0,
             'today_matched' => $todayData->today_matched ?? 0,
             'today_approved' => $todayData->today_approved ?? 0,
             'today_declined' => $todayData->today_declined ?? 0,
-            'today_amount' => ($todayData->today_amount ?? 0) / 100,
             'yesterday_transactions' => $yesterdayData->yesterday_transactions ?? 0,
             'yesterday_approved' => $yesterdayData->yesterday_approved ?? 0,
             'yesterday_declined' => $yesterdayData->yesterday_declined ?? 0,
-            'yesterday_amount' => ($yesterdayData->yesterday_amount ?? 0) / 100,
-            'period_days' => 30
+            'period_days' => 30,
+            // Currency-specific amounts
+            'amounts_by_currency' => $formattedCurrencyAmounts,
+            'today_amounts_by_currency' => $todayAmountsByCurrency,
+            'yesterday_amounts_by_currency' => $yesterdayAmountsByCurrency,
+            // Primary currency amount (assume EUR is primary, fallback to largest)
+            'primary_currency_amount' => $this->getPrimaryCurrencyAmount($formattedCurrencyAmounts),
+            'today_primary_amount' => $this->getPrimaryCurrencyAmount($todayAmountsByCurrency, 'amount'),
+            'yesterday_primary_amount' => $this->getPrimaryCurrencyAmount($yesterdayAmountsByCurrency, 'amount')
         ];
-    }    /**
+    }
+    /**
+     * Get primary currency amount (EUR if available, otherwise largest amount)
+     */
+    private function getPrimaryCurrencyAmount($currencyData, $field = 'total_amount'): array
+    {
+        if (empty($currencyData)) {
+            return ['amount' => 0, 'currency' => 'EUR'];
+        }
+
+        // If it's a simple array (currency => amount)
+        if (is_array($currencyData) && !isset($currencyData[0])) {
+            if (isset($currencyData['EUR'])) {
+                return ['amount' => $currencyData['EUR'], 'currency' => 'EUR'];
+            }
+
+            // Find largest amount
+            $largest = array_keys($currencyData, max($currencyData))[0];
+            return ['amount' => $currencyData[$largest], 'currency' => $largest];
+        }
+
+        // If it's an array of objects/arrays
+        $eurData = collect($currencyData)->firstWhere('currency', 'EUR');
+        if ($eurData) {
+            return [
+                'amount' => is_array($eurData) ? $eurData[$field] : $eurData->$field,
+                'currency' => 'EUR'
+            ];
+        }
+
+        // Find largest amount
+        $largest = collect($currencyData)->sortByDesc($field)->first();
+        return [
+            'amount' => is_array($largest) ? $largest[$field] : $largest->$field,
+            'currency' => is_array($largest) ? $largest['currency'] : $largest->currency
+        ];
+    }
+    /**
      * Get declined transactions with filters
      */
     public function getDeclinedTransactions(array $filters = [], int $limit = 50, int $offset = 0): array
@@ -143,6 +234,7 @@ class DectaReportService
 
         $query = "
             SELECT
+                id,
                 payment_id,
                 tr_date_time,
                 tr_amount,
@@ -153,6 +245,7 @@ class DectaReportService
                 tr_ret_ref_nr,
                 gateway_transaction_status,
                 gateway_transaction_id,
+                gateway_trx_id,
                 gateway_account_id,
                 error_message,
                 created_at
@@ -166,6 +259,7 @@ class DectaReportService
 
         return array_map(function ($row) {
             return [
+                'id' => $row->id,
                 'payment_id' => $row->payment_id,
                 'transaction_date' => $row->tr_date_time,
                 'amount' => $row->tr_amount ? $row->tr_amount / 100 : 0,
@@ -176,6 +270,7 @@ class DectaReportService
                 'return_reference' => $row->tr_ret_ref_nr,
                 'gateway_status' => $row->gateway_transaction_status,
                 'gateway_transaction_id' => $row->gateway_transaction_id,
+                'gateway_trx_id' => $row->gateway_trx_id,
                 'gateway_account_id' => $row->gateway_account_id,
                 'error_message' => $row->error_message,
                 'created_at' => $row->created_at

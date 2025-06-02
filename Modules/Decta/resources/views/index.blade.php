@@ -178,12 +178,17 @@
                             </div>
                             <div class="ml-5 w-0 flex-1">
                                 <dl>
-                                    <dt class="text-sm font-medium text-gray-500 truncate">Total Amount</dt>
+                                    <dt class="text-sm font-medium text-gray-500 truncate">Primary Amount</dt>
                                     <dd class="flex items-baseline">
-                                        <div id="totalAmount" class="text-2xl font-semibold text-gray-900">€-</div>
+                                        <div id="totalAmount" class="text-2xl font-semibold text-gray-900">-</div>
                                         <div id="totalAmountChange" class="ml-2 flex items-baseline text-sm font-semibold">
                                             <!-- Change indicator will be populated -->
                                         </div>
+                                    </dd>
+                                    <dd class="mt-1">
+                                        <button onclick="showCurrencyBreakdown()" class="text-xs text-blue-600 hover:text-blue-500" id="currencyBreakdownBtn">
+                                            View by currency →
+                                        </button>
                                     </dd>
                                 </dl>
                             </div>
@@ -192,9 +197,46 @@
                 </div>
             </div>
 
+            <!-- Currency Breakdown Modal -->
+            <div id="currencyModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+                <div class="relative top-20 mx-auto p-5 border w-11/12 max-w-4xl shadow-lg rounded-md bg-white">
+                    <div class="mt-3">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-medium text-gray-900">Amount by Currency</h3>
+                            <button onclick="closeCurrencyModal()" class="text-gray-400 hover:text-gray-600">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Currency</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Amount</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Matched Amount</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Approved Amount</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Declined Amount</th>
+                                </tr>
+                                </thead>
+                                <tbody id="currencyBreakdownTableBody" class="bg-white divide-y divide-gray-200">
+                                <!-- Will be populated by JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="mt-4 flex justify-end">
+                            <button onclick="closeCurrencyModal()" class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Declined Transactions Modal -->
             <div id="declinedModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-                <div class="relative top-20 mx-auto p-5 border w-11/12 max-w-6xl shadow-lg rounded-md bg-white">
+                <div class="relative top-20 mx-auto p-5 border w-11/12 max-w-7xl shadow-lg rounded-md bg-white">
                     <div class="mt-3">
                         <div class="flex items-center justify-between mb-4">
                             <h3 class="text-lg font-medium text-gray-900">Declined Transactions</h3>
@@ -208,11 +250,13 @@
                             <table class="min-w-full divide-y divide-gray-200">
                                 <thead class="bg-gray-50">
                                 <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment ID</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Merchant</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
+                                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment ID</th>
+                                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gateway TRX ID</th>
+                                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Merchant</th>
+                                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
                                 </tr>
                                 </thead>
                                 <tbody id="declinedTransactionsTableBody" class="bg-white divide-y divide-gray-200">
@@ -229,7 +273,6 @@
                 </div>
             </div>
 
-            <!-- Continue with rest of the dashboard charts, etc. -->
             <!-- Charts Row -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
@@ -264,7 +307,6 @@
                 </div>
             </div>
 
-            <!-- Continue with rest of dashboard content... -->
             <!-- Additional Analytics Row -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -317,7 +359,6 @@
                 </div>
             </div>
 
-            <!-- Recent Files Table and other dashboard content continues... -->
             <!-- Recent Files Table -->
             <div class="bg-white overflow-hidden shadow-xl sm:rounded-lg">
                 <div class="bg-gradient-to-r from-gray-500 to-gray-600 text-white px-6 py-4">
@@ -376,6 +417,7 @@
     <script>
         let charts = {};
         let refreshInterval;
+        let dashboardData = null;
 
         document.addEventListener('DOMContentLoaded', function() {
             loadDashboardData();
@@ -412,6 +454,7 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
+                        dashboardData = data.data;
                         updateKPIs(data.data.summary);
                         updateCharts(data.data);
                         updateRecentFiles(data.data.recent_files);
@@ -432,33 +475,177 @@
             document.getElementById('declinedTransactions').textContent = summary.declined_transactions.toLocaleString();
             document.getElementById('matchRate').textContent = summary.match_rate.toFixed(1) + '%';
             document.getElementById('approvalRate').textContent = summary.approval_rate.toFixed(1) + '%';
-            document.getElementById('totalAmount').textContent = '€' + summary.total_amount.toLocaleString('en-US', {minimumFractionDigits: 2});
+
+            // Handle multi-currency amounts
+            if (summary.primary_currency_amount) {
+                const primaryAmount = summary.primary_currency_amount;
+                document.getElementById('totalAmount').textContent =
+                    primaryAmount.amount.toLocaleString('en-US', {
+                        style: 'currency',
+                        currency: primaryAmount.currency,
+                        minimumFractionDigits: 2
+                    });
+            } else {
+                document.getElementById('totalAmount').textContent = 'Multi-currency';
+            }
 
             // Update change indicators
             updateChangeIndicator('totalTransactionsChange', summary.today_transactions - summary.yesterday_transactions);
             updateChangeIndicator('approvedTransactionsChange', summary.today_approved - summary.yesterday_approved);
-            updateChangeIndicator('totalAmountChange', summary.today_amount - summary.yesterday_amount);
+
+            // Handle amount change for primary currency
+            if (summary.today_primary_amount && summary.yesterday_primary_amount) {
+                const todayAmount = summary.today_primary_amount.amount || 0;
+                const yesterdayAmount = summary.yesterday_primary_amount.amount || 0;
+                updateChangeIndicator('totalAmountChange', todayAmount - yesterdayAmount, summary.primary_currency_amount?.currency);
+            } else {
+                document.getElementById('totalAmountChange').innerHTML = '<span class="text-gray-500">-</span>';
+            }
         }
 
-        function updateChangeIndicator(elementId, change) {
+        function updateChangeIndicator(elementId, change, currency = null) {
             const element = document.getElementById(elementId);
+            const formatValue = currency ?
+                (val) => val.toLocaleString('en-US', {style: 'currency', currency: currency}) :
+                (val) => Math.abs(val).toLocaleString();
+
             if (change > 0) {
                 element.innerHTML = `
                     <svg class="self-center flex-shrink-0 h-5 w-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
                         <path fill-rule="evenodd" d="M5.293 7.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L10 4.414 6.707 7.707a1 1 0 01-1.414 0z" clip-rule="evenodd"></path>
                     </svg>
-                    <span class="text-green-600">+${Math.abs(change).toLocaleString()}</span>
+                    <span class="text-green-600">+${formatValue(change)}</span>
                 `;
             } else if (change < 0) {
                 element.innerHTML = `
                     <svg class="self-center flex-shrink-0 h-5 w-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
                         <path fill-rule="evenodd" d="M14.707 12.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L10 15.586l3.293-3.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
                     </svg>
-                    <span class="text-red-600">-${Math.abs(change).toLocaleString()}</span>
+                    <span class="text-red-600">-${formatValue(change)}</span>
                 `;
             } else {
                 element.innerHTML = '<span class="text-gray-500">No change</span>';
             }
+        }
+
+        // Currency breakdown modal functions
+        function showCurrencyBreakdown() {
+            if (!dashboardData || !dashboardData.summary.amounts_by_currency) {
+                alert('Currency data not available');
+                return;
+            }
+
+            document.getElementById('currencyModal').classList.remove('hidden');
+            updateCurrencyBreakdownTable(dashboardData.summary.amounts_by_currency);
+        }
+
+        function closeCurrencyModal() {
+            document.getElementById('currencyModal').classList.add('hidden');
+        }
+
+        function updateCurrencyBreakdownTable(currencyData) {
+            const tbody = document.getElementById('currencyBreakdownTableBody');
+
+            if (!currencyData || currencyData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-4 text-center text-gray-500">No currency data available</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = currencyData.map(currency => `
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        ${currency.currency}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${currency.total_amount.toLocaleString('en-US', {
+                style: 'currency',
+                currency: currency.currency,
+                minimumFractionDigits: 2
+            })}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${currency.matched_amount.toLocaleString('en-US', {
+                style: 'currency',
+                currency: currency.currency,
+                minimumFractionDigits: 2
+            })}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${currency.approved_amount.toLocaleString('en-US', {
+                style: 'currency',
+                currency: currency.currency,
+                minimumFractionDigits: 2
+            })}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${currency.declined_amount.toLocaleString('en-US', {
+                style: 'currency',
+                currency: currency.currency,
+                minimumFractionDigits: 2
+            })}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Declined transactions modal functions
+        function showDeclinedTransactions() {
+            document.getElementById('declinedModal').classList.remove('hidden');
+            loadDeclinedTransactions();
+        }
+
+        function closeDeclinedModal() {
+            document.getElementById('declinedModal').classList.add('hidden');
+        }
+
+        function loadDeclinedTransactions() {
+            fetch('/decta/reports/declined-transactions?limit=50')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        updateDeclinedTransactionsTable(data.data);
+                    } else {
+                        console.error('Failed to load declined transactions:', data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading declined transactions:', error);
+                });
+        }
+
+        function updateDeclinedTransactionsTable(transactions) {
+            const tbody = document.getElementById('declinedTransactionsTableBody');
+
+            if (!transactions || transactions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="px-6 py-4 text-center text-gray-500">No declined transactions found</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = transactions.map(transaction => `
+                <tr class="hover:bg-gray-50">
+                    <td class="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        ${transaction.id}
+                    </td>
+                    <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${transaction.payment_id}
+                    </td>
+                    <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${transaction.gateway_trx_id || '-'}
+                    </td>
+                    <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${new Date(transaction.transaction_date).toLocaleDateString()}
+                    </td>
+                    <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${transaction.amount.toFixed(2)} ${transaction.currency}
+                    </td>
+                    <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${transaction.merchant_name || transaction.merchant_id || '-'}
+                    </td>
+                    <td class="px-3 py-4 text-sm text-gray-900">
+                        ${transaction.error_message || 'No reason provided'}
+                    </td>
+                </tr>
+            `).join('');
         }
 
         function updateCharts(data) {
@@ -751,60 +938,6 @@
                     </div>
                 `;
             }
-        }
-
-        // Declined transactions modal functions
-        function showDeclinedTransactions() {
-            document.getElementById('declinedModal').classList.remove('hidden');
-            loadDeclinedTransactions();
-        }
-
-        function closeDeclinedModal() {
-            document.getElementById('declinedModal').classList.add('hidden');
-        }
-
-        function loadDeclinedTransactions() {
-            fetch('/decta/reports/declined-transactions?limit=50')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        updateDeclinedTransactionsTable(data.data);
-                    } else {
-                        console.error('Failed to load declined transactions:', data.message);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error loading declined transactions:', error);
-                });
-        }
-
-        function updateDeclinedTransactionsTable(transactions) {
-            const tbody = document.getElementById('declinedTransactionsTableBody');
-
-            if (!transactions || transactions.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-4 text-center text-gray-500">No declined transactions found</td></tr>';
-                return;
-            }
-
-            tbody.innerHTML = transactions.map(transaction => `
-                <tr class="hover:bg-gray-50">
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        ${transaction.payment_id}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        ${new Date(transaction.transaction_date).toLocaleDateString()}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        €${transaction.amount.toFixed(2)} ${transaction.currency}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        ${transaction.merchant_name || transaction.merchant_id || '-'}
-                    </td>
-                    <td class="px-6 py-4 text-sm text-gray-900">
-                        ${transaction.error_message || 'No reason provided'}
-                    </td>
-                </tr>
-            `).join('');
         }
 
         function getStatusColor(status) {
