@@ -253,7 +253,7 @@ Mock test:
   $DPFX exec front bash -c "git clone https://oauth2:$GIT_TOKEN@$GIT_PROJECT_URL"
   $DPFX exec front bash -c "mv ./financial_report ./app"
   $DPFX cp $TAXISNET_PUB_KEY front:/var/www/app/storage/app/private/taxisnet_public_key.asc
-  $DPFX -u 851 cp $DECTA_RSA_KEY front:/var/www/app/storage/app/private/decta_rsa && chmod 600 /var/www/app/storage/app/private/decta_rsa
+  $DPFX cp -a $DECTA_RSA_KEY front:/var/www/app/storage/app/private/decta_rsa && chmod 600 /var/www/app/storage/app/private/decta_rsa
   $DPFX cp $(eval "echo \$ENV_$ENVIRONMENT") front:/var/www/app/.env
   $DPFX exec front bash -c "cd ./app && git checkout $BRANCH"
   if [[ "$BRANCH" == "staging" || "$BRANCH" == "master" ]]; then
