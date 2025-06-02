@@ -4,6 +4,15 @@
             <h2 class="font-semibold text-xl text-gray-800 leading-tight">
                 {{ __('Decta Dashboard') }}
             </h2>
+        </div>
+    </x-slot>
+
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.3/index.min.js"></script>
+
+    <div class="py-12">
+        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
             <div class="flex space-x-3">
                 <button id="refreshBtn"
                         class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 transition ease-in-out duration-150">
@@ -20,18 +29,9 @@
                     Reports
                 </a>
             </div>
-        </div>
-    </x-slot>
-
-    <!-- Chart.js CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.3/index.min.js"></script>
-
-    <div class="py-12">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
 
             <!-- Key Performance Indicators -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <!-- Total Transactions -->
                 <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
                     <div class="p-6">
@@ -58,7 +58,7 @@
                     </div>
                 </div>
 
-                <!-- Match Rate -->
+                <!-- Approved Transactions -->
                 <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
                     <div class="p-6">
                         <div class="flex items-center">
@@ -71,10 +71,90 @@
                             </div>
                             <div class="ml-5 w-0 flex-1">
                                 <dl>
+                                    <dt class="text-sm font-medium text-gray-500 truncate">Approved</dt>
+                                    <dd class="flex items-baseline">
+                                        <div id="approvedTransactions" class="text-2xl font-semibold text-gray-900">-</div>
+                                        <div id="approvedTransactionsChange" class="ml-2 flex items-baseline text-sm font-semibold">
+                                            <!-- Change indicator will be populated -->
+                                        </div>
+                                    </dd>
+                                </dl>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Declined Transactions -->
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                    <div class="p-6">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0">
+                                <div class="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center">
+                                    <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="ml-5 w-0 flex-1">
+                                <dl>
+                                    <dt class="text-sm font-medium text-gray-500 truncate">Declined</dt>
+                                    <dd class="flex items-baseline">
+                                        <div id="declinedTransactions" class="text-2xl font-semibold text-gray-900">-</div>
+                                        <div class="ml-2">
+                                            <button onclick="showDeclinedTransactions()" class="text-sm text-red-600 hover:text-red-500">
+                                                View →
+                                            </button>
+                                        </div>
+                                    </dd>
+                                </dl>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Match Rate -->
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                    <div class="p-6">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0">
+                                <div class="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center">
+                                    <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="ml-5 w-0 flex-1">
+                                <dl>
                                     <dt class="text-sm font-medium text-gray-500 truncate">Match Rate</dt>
                                     <dd class="flex items-baseline">
                                         <div id="matchRate" class="text-2xl font-semibold text-gray-900">-%</div>
                                         <div id="matchRateChange" class="ml-2 flex items-baseline text-sm font-semibold">
+                                            <!-- Change indicator will be populated -->
+                                        </div>
+                                    </dd>
+                                </dl>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Approval Rate -->
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                    <div class="p-6">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0">
+                                <div class="w-8 h-8 bg-indigo-500 rounded-full flex items-center justify-center">
+                                    <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="ml-5 w-0 flex-1">
+                                <dl>
+                                    <dt class="text-sm font-medium text-gray-500 truncate">Approval Rate</dt>
+                                    <dd class="flex items-baseline">
+                                        <div id="approvalRate" class="text-2xl font-semibold text-gray-900">-%</div>
+                                        <div id="approvalRateChange" class="ml-2 flex items-baseline text-sm font-semibold">
                                             <!-- Change indicator will be populated -->
                                         </div>
                                     </dd>
@@ -110,36 +190,46 @@
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <!-- Unmatched Transactions -->
-                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-                    <div class="p-6">
-                        <div class="flex items-center">
-                            <div class="flex-shrink-0">
-                                <div class="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center">
-                                    <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
-                                    </svg>
-                                </div>
-                            </div>
-                            <div class="ml-5 w-0 flex-1">
-                                <dl>
-                                    <dt class="text-sm font-medium text-gray-500 truncate">Unmatched</dt>
-                                    <dd class="flex items-baseline">
-                                        <div id="unmatchedTransactions" class="text-2xl font-semibold text-gray-900">-</div>
-                                        <div class="ml-2">
-                                            <a href="/decta/reports/unmatched" class="text-sm text-indigo-600 hover:text-indigo-500">
-                                                View →
-                                            </a>
-                                        </div>
-                                    </dd>
-                                </dl>
-                            </div>
+            <!-- Declined Transactions Modal -->
+            <div id="declinedModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+                <div class="relative top-20 mx-auto p-5 border w-11/12 max-w-6xl shadow-lg rounded-md bg-white">
+                    <div class="mt-3">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-medium text-gray-900">Declined Transactions</h3>
+                            <button onclick="closeDeclinedModal()" class="text-gray-400 hover:text-gray-600">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment ID</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Merchant</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
+                                </tr>
+                                </thead>
+                                <tbody id="declinedTransactionsTableBody" class="bg-white divide-y divide-gray-200">
+                                <!-- Will be populated by JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="mt-4 flex justify-end">
+                            <button onclick="closeDeclinedModal()" class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
+                                Close
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
 
+            <!-- Continue with rest of the dashboard charts, etc. -->
             <!-- Charts Row -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
@@ -158,22 +248,23 @@
                     </div>
                 </div>
 
-                <!-- Match Rate Trends Chart -->
+                <!-- Approval Rate Trends Chart -->
                 <div class="bg-white overflow-hidden shadow-xl sm:rounded-lg">
                     <div class="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-4">
                         <h3 class="text-lg font-medium flex items-center">
                             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
                             </svg>
-                            Match Rate Trends (7 Days)
+                            Approval Rate Trends (7 Days)
                         </h3>
                     </div>
                     <div class="p-6">
-                        <canvas id="matchRateTrendsChart" width="400" height="200"></canvas>
+                        <canvas id="approvalRateTrendsChart" width="400" height="200"></canvas>
                     </div>
                 </div>
             </div>
 
+            <!-- Continue with rest of dashboard content... -->
             <!-- Additional Analytics Row -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -226,6 +317,7 @@
                 </div>
             </div>
 
+            <!-- Recent Files Table and other dashboard content continues... -->
             <!-- Recent Files Table -->
             <div class="bg-white overflow-hidden shadow-xl sm:rounded-lg">
                 <div class="bg-gradient-to-r from-gray-500 to-gray-600 text-white px-6 py-4">
@@ -336,12 +428,15 @@
         function updateKPIs(summary) {
             // Update main KPIs
             document.getElementById('totalTransactions').textContent = summary.total_transactions.toLocaleString();
+            document.getElementById('approvedTransactions').textContent = summary.approved_transactions.toLocaleString();
+            document.getElementById('declinedTransactions').textContent = summary.declined_transactions.toLocaleString();
             document.getElementById('matchRate').textContent = summary.match_rate.toFixed(1) + '%';
+            document.getElementById('approvalRate').textContent = summary.approval_rate.toFixed(1) + '%';
             document.getElementById('totalAmount').textContent = '€' + summary.total_amount.toLocaleString('en-US', {minimumFractionDigits: 2});
-            document.getElementById('unmatchedTransactions').textContent = summary.unmatched_transactions.toLocaleString();
 
-            // Update change indicators (simplified - you can enhance this with actual comparison logic)
+            // Update change indicators
             updateChangeIndicator('totalTransactionsChange', summary.today_transactions - summary.yesterday_transactions);
+            updateChangeIndicator('approvedTransactionsChange', summary.today_approved - summary.yesterday_approved);
             updateChangeIndicator('totalAmountChange', summary.today_amount - summary.yesterday_amount);
         }
 
@@ -368,7 +463,7 @@
 
         function updateCharts(data) {
             updateTransactionTrendsChart(data.matching_trends);
-            updateMatchRateTrendsChart(data.matching_trends);
+            updateApprovalRateTrendsChart(data.approval_trends);
             updateCurrencyChart(data.currency_breakdown);
             updateTopMerchants(data.top_merchants);
             updateProcessingStatusChart(data.processing_status);
@@ -420,27 +515,33 @@
             });
         }
 
-        function updateMatchRateTrendsChart(trendsData) {
-            const ctx = document.getElementById('matchRateTrendsChart').getContext('2d');
+        function updateApprovalRateTrendsChart(approvalData) {
+            const ctx = document.getElementById('approvalRateTrendsChart').getContext('2d');
 
-            if (charts.matchRateTrends) {
-                charts.matchRateTrends.destroy();
+            if (charts.approvalRateTrends) {
+                charts.approvalRateTrends.destroy();
             }
 
-            const labels = trendsData?.map(item => new Date(item.date).toLocaleDateString()) || [];
-            const matchRateData = trendsData?.map(item => item.match_rate) || [];
+            const labels = approvalData?.map(item => new Date(item.date).toLocaleDateString()) || [];
+            const approvedData = approvalData?.map(item => item.approved) || [];
+            const declinedData = approvalData?.map(item => item.declined) || [];
 
-            charts.matchRateTrends = new Chart(ctx, {
-                type: 'line',
+            charts.approvalRateTrends = new Chart(ctx, {
+                type: 'bar',
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: 'Match Rate (%)',
-                        data: matchRateData,
+                        label: 'Approved',
+                        data: approvedData,
+                        backgroundColor: 'rgba(34, 197, 94, 0.8)',
                         borderColor: 'rgb(34, 197, 94)',
-                        backgroundColor: 'rgba(34, 197, 94, 0.2)',
-                        fill: true,
-                        tension: 0.4
+                        borderWidth: 1
+                    }, {
+                        label: 'Declined',
+                        data: declinedData,
+                        backgroundColor: 'rgba(239, 68, 68, 0.8)',
+                        borderColor: 'rgb(239, 68, 68)',
+                        borderWidth: 1
                     }]
                 },
                 options: {
@@ -448,13 +549,7 @@
                     maintainAspectRatio: false,
                     scales: {
                         y: {
-                            beginAtZero: true,
-                            max: 100,
-                            ticks: {
-                                callback: function(value) {
-                                    return value + '%';
-                                }
-                            }
+                            beginAtZero: true
                         }
                     },
                     plugins: {
@@ -656,6 +751,60 @@
                     </div>
                 `;
             }
+        }
+
+        // Declined transactions modal functions
+        function showDeclinedTransactions() {
+            document.getElementById('declinedModal').classList.remove('hidden');
+            loadDeclinedTransactions();
+        }
+
+        function closeDeclinedModal() {
+            document.getElementById('declinedModal').classList.add('hidden');
+        }
+
+        function loadDeclinedTransactions() {
+            fetch('/decta/reports/declined-transactions?limit=50')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        updateDeclinedTransactionsTable(data.data);
+                    } else {
+                        console.error('Failed to load declined transactions:', data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading declined transactions:', error);
+                });
+        }
+
+        function updateDeclinedTransactionsTable(transactions) {
+            const tbody = document.getElementById('declinedTransactionsTableBody');
+
+            if (!transactions || transactions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-4 text-center text-gray-500">No declined transactions found</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = transactions.map(transaction => `
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        ${transaction.payment_id}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${new Date(transaction.transaction_date).toLocaleDateString()}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        €${transaction.amount.toFixed(2)} ${transaction.currency}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${transaction.merchant_name || transaction.merchant_id || '-'}
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-900">
+                        ${transaction.error_message || 'No reason provided'}
+                    </td>
+                </tr>
+            `).join('');
         }
 
         function getStatusColor(status) {

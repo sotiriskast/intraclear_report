@@ -24,8 +24,12 @@ class DectaReportService
                 COUNT(*) FILTER (WHERE is_matched = true) as matched_transactions,
                 COUNT(*) FILTER (WHERE is_matched = false) as unmatched_transactions,
                 COUNT(*) FILTER (WHERE status = 'failed') as failed_transactions,
+                COUNT(*) FILTER (WHERE gateway_transaction_status = 'approved' OR gateway_transaction_status = 'APPROVED') as approved_transactions,
+                COUNT(*) FILTER (WHERE gateway_transaction_status = 'declined' OR gateway_transaction_status = 'DECLINED') as declined_transactions,
                 SUM(tr_amount) FILTER (WHERE tr_amount IS NOT NULL) as total_amount,
                 SUM(tr_amount) FILTER (WHERE is_matched = true AND tr_amount IS NOT NULL) as matched_amount,
+                SUM(tr_amount) FILTER (WHERE (gateway_transaction_status = 'approved' OR gateway_transaction_status = 'APPROVED') AND tr_amount IS NOT NULL) as approved_amount,
+                SUM(tr_amount) FILTER (WHERE (gateway_transaction_status = 'declined' OR gateway_transaction_status = 'DECLINED') AND tr_amount IS NOT NULL) as declined_amount,
                 COUNT(DISTINCT merchant_id) FILTER (WHERE merchant_id IS NOT NULL) as unique_merchants,
                 COUNT(DISTINCT tr_ccy) FILTER (WHERE tr_ccy IS NOT NULL) as unique_currencies
             FROM decta_transactions
@@ -37,6 +41,8 @@ class DectaReportService
             SELECT
                 COUNT(*) as today_transactions,
                 COUNT(*) FILTER (WHERE is_matched = true) as today_matched,
+                COUNT(*) FILTER (WHERE gateway_transaction_status = 'approved' OR gateway_transaction_status = 'APPROVED') as today_approved,
+                COUNT(*) FILTER (WHERE gateway_transaction_status = 'declined' OR gateway_transaction_status = 'DECLINED') as today_declined,
                 SUM(tr_amount) as today_amount
             FROM decta_transactions
             WHERE DATE(created_at) = ?
@@ -46,6 +52,8 @@ class DectaReportService
         $yesterdayStats = DB::select("
             SELECT
                 COUNT(*) as yesterday_transactions,
+                COUNT(*) FILTER (WHERE gateway_transaction_status = 'approved' OR gateway_transaction_status = 'APPROVED') as yesterday_approved,
+                COUNT(*) FILTER (WHERE gateway_transaction_status = 'declined' OR gateway_transaction_status = 'DECLINED') as yesterday_declined,
                 SUM(tr_amount) as yesterday_amount
             FROM decta_transactions
             WHERE DATE(created_at) = ?
@@ -55,25 +63,186 @@ class DectaReportService
         $todayData = $todayStats[0] ?? (object)[];
         $yesterdayData = $yesterdayStats[0] ?? (object)[];
 
+        // Calculate approval rate
+        $totalWithStatus = ($mainStats->approved_transactions ?? 0) + ($mainStats->declined_transactions ?? 0);
+        $approvalRate = $totalWithStatus > 0
+            ? round((($mainStats->approved_transactions ?? 0) / $totalWithStatus) * 100, 2)
+            : 0;
+
         return [
             'total_transactions' => $mainStats->total_transactions ?? 0,
             'matched_transactions' => $mainStats->matched_transactions ?? 0,
             'unmatched_transactions' => $mainStats->unmatched_transactions ?? 0,
             'failed_transactions' => $mainStats->failed_transactions ?? 0,
+            'approved_transactions' => $mainStats->approved_transactions ?? 0,
+            'declined_transactions' => $mainStats->declined_transactions ?? 0,
+            'approval_rate' => $approvalRate,
             'match_rate' => $mainStats->total_transactions > 0
                 ? round(($mainStats->matched_transactions / $mainStats->total_transactions) * 100, 2)
                 : 0,
             'total_amount' => ($mainStats->total_amount ?? 0) / 100,
             'matched_amount' => ($mainStats->matched_amount ?? 0) / 100,
+            'approved_amount' => ($mainStats->approved_amount ?? 0) / 100,
+            'declined_amount' => ($mainStats->declined_amount ?? 0) / 100,
             'unique_merchants' => $mainStats->unique_merchants ?? 0,
             'unique_currencies' => $mainStats->unique_currencies ?? 0,
             'today_transactions' => $todayData->today_transactions ?? 0,
             'today_matched' => $todayData->today_matched ?? 0,
+            'today_approved' => $todayData->today_approved ?? 0,
+            'today_declined' => $todayData->today_declined ?? 0,
             'today_amount' => ($todayData->today_amount ?? 0) / 100,
             'yesterday_transactions' => $yesterdayData->yesterday_transactions ?? 0,
+            'yesterday_approved' => $yesterdayData->yesterday_approved ?? 0,
+            'yesterday_declined' => $yesterdayData->yesterday_declined ?? 0,
             'yesterday_amount' => ($yesterdayData->yesterday_amount ?? 0) / 100,
             'period_days' => 30
         ];
+    }    /**
+     * Get declined transactions with filters
+     */
+    public function getDeclinedTransactions(array $filters = [], int $limit = 50, int $offset = 0): array
+    {
+        $whereConditions = [
+            "(gateway_transaction_status = 'declined' OR gateway_transaction_status = 'DECLINED')"
+        ];
+        $params = [];
+
+        if (!empty($filters['merchant_id'])) {
+            $whereConditions[] = 'merchant_id = ?';
+            $params[] = $filters['merchant_id'];
+        }
+
+        if (!empty($filters['currency'])) {
+            $whereConditions[] = 'tr_ccy = ?';
+            $params[] = $filters['currency'];
+        }
+
+        if (!empty($filters['date_from'])) {
+            $whereConditions[] = 'tr_date_time >= ?';
+            $params[] = $filters['date_from'];
+        }
+
+        if (!empty($filters['date_to'])) {
+            $whereConditions[] = 'tr_date_time <= ?';
+            $params[] = $filters['date_to'] . ' 23:59:59';
+        }
+
+        if (!empty($filters['amount_min'])) {
+            $whereConditions[] = 'tr_amount >= ?';
+            $params[] = $filters['amount_min'] * 100; // Convert to cents
+        }
+
+        if (!empty($filters['amount_max'])) {
+            $whereConditions[] = 'tr_amount <= ?';
+            $params[] = $filters['amount_max'] * 100; // Convert to cents
+        }
+
+        $whereClause = implode(' AND ', $whereConditions);
+        $params[] = $limit;
+        $params[] = $offset;
+
+        $query = "
+            SELECT
+                payment_id,
+                tr_date_time,
+                tr_amount,
+                tr_ccy,
+                merchant_name,
+                merchant_id,
+                tr_approval_id,
+                tr_ret_ref_nr,
+                gateway_transaction_status,
+                gateway_transaction_id,
+                gateway_account_id,
+                error_message,
+                created_at
+            FROM decta_transactions
+            WHERE {$whereClause}
+            ORDER BY tr_date_time DESC
+            LIMIT ? OFFSET ?
+        ";
+
+        $results = DB::select($query, $params);
+
+        return array_map(function ($row) {
+            return [
+                'payment_id' => $row->payment_id,
+                'transaction_date' => $row->tr_date_time,
+                'amount' => $row->tr_amount ? $row->tr_amount / 100 : 0,
+                'currency' => $row->tr_ccy,
+                'merchant_name' => $row->merchant_name,
+                'merchant_id' => $row->merchant_id,
+                'approval_id' => $row->tr_approval_id,
+                'return_reference' => $row->tr_ret_ref_nr,
+                'gateway_status' => $row->gateway_transaction_status,
+                'gateway_transaction_id' => $row->gateway_transaction_id,
+                'gateway_account_id' => $row->gateway_account_id,
+                'error_message' => $row->error_message,
+                'created_at' => $row->created_at
+            ];
+        }, $results);
+    }
+    /**
+     * Get approval/decline trends for the last N days
+     */
+    public function getApprovalTrends(int $days = 7): array
+    {
+        $query = "
+            SELECT
+                DATE(tr_date_time) as date,
+                COUNT(*) FILTER (WHERE gateway_transaction_status = 'approved' OR gateway_transaction_status = 'APPROVED') as approved,
+                COUNT(*) FILTER (WHERE gateway_transaction_status = 'declined' OR gateway_transaction_status = 'DECLINED') as declined,
+                COUNT(*) FILTER (WHERE gateway_transaction_status IS NOT NULL AND gateway_transaction_status != '') as total_with_status
+            FROM decta_transactions
+            WHERE tr_date_time >= CURRENT_DATE - INTERVAL '{$days} days'
+            GROUP BY DATE(tr_date_time)
+            ORDER BY date
+        ";
+
+        $results = DB::select($query);
+
+        return array_map(function ($row) {
+            $totalWithStatus = $row->total_with_status;
+            $approvalRate = $totalWithStatus > 0 ? round(($row->approved / $totalWithStatus) * 100, 2) : 0;
+
+            return [
+                'date' => $row->date,
+                'approved' => $row->approved,
+                'declined' => $row->declined,
+                'total_with_status' => $totalWithStatus,
+                'approval_rate' => $approvalRate
+            ];
+        }, $results);
+    }
+    /**
+     * Get decline reasons summary
+     */
+    public function getDeclineReasons(int $days = 30): array
+    {
+        $query = "
+            SELECT
+                error_message,
+                COUNT(*) as count,
+                SUM(tr_amount) as total_amount
+            FROM decta_transactions
+            WHERE (gateway_transaction_status = 'declined' OR gateway_transaction_status = 'DECLINED')
+                AND tr_date_time >= CURRENT_DATE - INTERVAL '{$days} days'
+                AND error_message IS NOT NULL
+                AND error_message != ''
+            GROUP BY error_message
+            ORDER BY count DESC
+            LIMIT 10
+        ";
+
+        $results = DB::select($query);
+
+        return array_map(function ($row) {
+            return [
+                'reason' => $row->error_message,
+                'count' => $row->count,
+                'total_amount' => $row->total_amount ? $row->total_amount / 100 : 0
+            ];
+        }, $results);
     }
     /**
      * Generate reports based on type and filters
@@ -93,10 +262,84 @@ class DectaReportService
                 return $this->getMerchantBreakdownReport($filters);
             case 'scheme':
                 return $this->getSchemeReport($filters);
+            case 'declined_transactions':
+                return $this->getDeclinedTransactionsReport($filters);
+            case 'approval_analysis':
+                return $this->getApprovalAnalysisReport($filters);
             default:
                 throw new \InvalidArgumentException("Unknown report type: {$reportType}");
         }
     }
+    /**
+     * Get declined transactions report
+     */
+    protected function getDeclinedTransactionsReport(array $filters): array
+    {
+        return $this->getDeclinedTransactions($filters, 1000, 0);
+    }
+
+    /**
+     * Get approval analysis report
+     */
+    protected function getApprovalAnalysisReport(array $filters): array
+    {
+        $whereConditions = ['1=1'];
+        $params = [];
+
+        if (!empty($filters['date_from'])) {
+            $whereConditions[] = 'tr_date_time >= ?';
+            $params[] = $filters['date_from'];
+        }
+
+        if (!empty($filters['date_to'])) {
+            $whereConditions[] = 'tr_date_time <= ?';
+            $params[] = $filters['date_to'] . ' 23:59:59';
+        }
+
+        if (!empty($filters['merchant_id'])) {
+            $whereConditions[] = 'gateway_account_id = (SELECT account_id FROM merchants WHERE id = ?)';
+            $params[] = $filters['merchant_id'];
+        }
+
+        $whereClause = implode(' AND ', $whereConditions);
+
+        $query = "
+            SELECT
+                merchant_name,
+                merchant_id,
+                COUNT(*) FILTER (WHERE gateway_transaction_status = 'approved' OR gateway_transaction_status = 'APPROVED') as approved_count,
+                COUNT(*) FILTER (WHERE gateway_transaction_status = 'declined' OR gateway_transaction_status = 'DECLINED') as declined_count,
+                SUM(tr_amount) FILTER (WHERE gateway_transaction_status = 'approved' OR gateway_transaction_status = 'APPROVED') as approved_amount,
+                SUM(tr_amount) FILTER (WHERE gateway_transaction_status = 'declined' OR gateway_transaction_status = 'DECLINED') as declined_amount,
+                COUNT(*) FILTER (WHERE gateway_transaction_status IS NOT NULL AND gateway_transaction_status != '') as total_with_status
+            FROM decta_transactions
+            WHERE {$whereClause}
+                AND merchant_id IS NOT NULL
+            GROUP BY merchant_id, merchant_name
+            ORDER BY total_with_status DESC
+        ";
+
+        $results = DB::select($query, $params);
+
+        return array_map(function ($row) {
+            $totalWithStatus = $row->total_with_status;
+            $approvalRate = $totalWithStatus > 0
+                ? round(($row->approved_count / $totalWithStatus) * 100, 2)
+                : 0;
+
+            return [
+                'merchant_id' => $row->merchant_id,
+                'merchant_name' => $row->merchant_name,
+                'approved_count' => $row->approved_count,
+                'declined_count' => $row->declined_count,
+                'approved_amount' => $row->approved_amount ? $row->approved_amount / 100 : 0,
+                'declined_amount' => $row->declined_amount ? $row->declined_amount / 100 : 0,
+                'total_with_status' => $totalWithStatus,
+                'approval_rate' => $approvalRate
+            ];
+        }, $results);
+    }
+
     /**
      * Get scheme report - grouped by card type, transaction type, currency, and merchant
      * Fixed for PostgreSQL GROUP BY requirements

@@ -35,6 +35,13 @@ Route::middleware(['auth', 'verified'])->prefix('decta')->group(function () {
         Route::get('/transaction/{paymentId}', [DectaReportController::class, 'getTransactionDetails'])->name('decta.reports.transaction');
         // Unmatched transactions for manual review
         Route::get('/unmatched', [DectaReportController::class, 'getUnmatchedTransactions'])->name('decta.reports.unmatched');
+        // Declined transactions endpoints
+        Route::get('/declined-transactions', [DectaReportController::class, 'getDeclinedTransactions'])->name('decta.reports.declined');
+        Route::get('/decline-reasons', [DectaReportController::class, 'getDeclineReasons'])->name('decta.reports.decline-reasons');
+        Route::get('/decline-analysis', [DectaReportController::class, 'getDeclineAnalysis'])->name('decta.reports.decline-analysis');
+        Route::post('/compare-decline-rates', [DectaReportController::class, 'compareDeclineRates'])->name('decta.reports.compare-decline-rates');
+
+
         // Merchants API endpoint
         Route::get('/merchants', [DectaReportController::class, 'getMerchants'])->name('decta.reports.merchants');
     });

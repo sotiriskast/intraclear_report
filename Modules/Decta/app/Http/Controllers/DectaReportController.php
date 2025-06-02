@@ -42,10 +42,10 @@ class DectaReportController extends Controller
         $validator = Validator::make($request->all(), [
             'date_from' => 'required|date',
             'date_to' => 'required|date|after_or_equal:date_from',
-            'report_type' => 'required|in:transactions,settlements,matching,daily_summary,merchant_breakdown,scheme',
+            'report_type' => 'required|in:transactions,settlements,matching,daily_summary,merchant_breakdown,scheme,declined_transactions,approval_analysis',
             'merchant_id' => 'nullable|integer|exists:merchants,id',
             'currency' => 'nullable|string|size:3',
-            'status' => 'nullable|in:pending,matched,failed',
+            'status' => 'nullable|in:pending,matched,failed,approved,declined',
             'amount_min' => 'nullable|numeric|min:0',
             'amount_max' => 'nullable|numeric|min:0',
             'export_format' => 'nullable|in:json,csv,excel'
@@ -91,6 +91,203 @@ class DectaReportController extends Controller
     }
 
     /**
+     * Get declined transactions (API endpoint for modal)
+     */
+    public function getDeclinedTransactions(Request $request): JsonResponse
+    {
+        try {
+            $limit = $request->input('limit', 50);
+            $offset = $request->input('offset', 0);
+            $filters = $request->only(['merchant_id', 'currency', 'date_from', 'date_to', 'amount_min', 'amount_max']);
+
+            $data = $this->reportService->getDeclinedTransactions($filters, $limit, $offset);
+
+            return response()->json([
+                'success' => true,
+                'data' => $data
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to get declined transactions: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get decline reasons summary
+     */
+    public function getDeclineReasons(Request $request): JsonResponse
+    {
+        try {
+            $days = $request->input('days', 30);
+            $data = $this->reportService->getDeclineReasons($days);
+
+            return response()->json([
+                'success' => true,
+                'data' => $data
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to get decline reasons: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get detailed decline analysis
+     */
+    public function getDeclineAnalysis(Request $request): JsonResponse
+    {
+        try {
+            $analyticsService = app(\Modules\Decta\Services\DectaAnalyticsService::class);
+
+            $filters = $request->only(['date_from', 'date_to', 'merchant_id']);
+            $data = $analyticsService->analyzeDeclinePatterns($filters);
+
+            return response()->json([
+                'success' => true,
+                'data' => $data
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to get decline analysis: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Compare decline rates between two periods
+     */
+    public function compareDeclineRates(Request $request): JsonResponse
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'period1_start' => 'required|date',
+                'period1_end' => 'required|date|after_or_equal:period1_start',
+                'period2_start' => 'required|date',
+                'period2_end' => 'required|date|after_or_equal:period2_start',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $analyticsService = app(\Modules\Decta\Services\DectaAnalyticsService::class);
+
+            $data = $analyticsService->getDeclineRateComparison(
+                $request->input('period1_start'),
+                $request->input('period1_end'),
+                $request->input('period2_start'),
+                $request->input('period2_end')
+            );
+
+            return response()->json([
+                'success' => true,
+                'data' => $data
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to compare decline rates: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get real-time dashboard data
+     */
+    public function getDashboardData(): JsonResponse
+    {
+        try {
+            $data = [
+                'summary' => $this->reportService->getSummaryStats(),
+                'recent_files' => $this->reportService->getRecentFiles(10),
+                'processing_status' => $this->reportService->getProcessingStatus(),
+                'matching_trends' => $this->reportService->getMatchingTrends(7),
+                'approval_trends' => $this->reportService->getApprovalTrends(7),
+                'top_merchants' => $this->reportService->getTopMerchants(5),
+                'currency_breakdown' => $this->reportService->getCurrencyBreakdown(),
+                'decline_reasons' => $this->reportService->getDeclineReasons(7)
+            ];
+
+            return response()->json([
+                'success' => true,
+                'data' => $data,
+                'timestamp' => Carbon::now()->toISOString()
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load dashboard data: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get transaction details for a specific payment ID
+     */
+    public function getTransactionDetails($paymentId): JsonResponse
+    {
+        try {
+            $transaction = $this->reportService->getTransactionDetails($paymentId);
+
+            if (!$transaction) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Transaction not found'
+                ], 404);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $transaction
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to get transaction details: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get unmatched transactions for manual review
+     */
+    public function getUnmatchedTransactions(Request $request): JsonResponse
+    {
+        try {
+            $limit = $request->input('limit', 50);
+            $offset = $request->input('offset', 0);
+            $filters = $request->only(['merchant_id', 'currency', 'date_from', 'date_to']);
+
+            $data = $this->reportService->getUnmatchedTransactions($filters, $limit, $offset);
+
+            return response()->json([
+                'success' => true,
+                'data' => $data
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to get unmatched transactions: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Get CSV headers for different report types
      */
     protected function getCsvHeaders($reportType): array
@@ -98,9 +295,16 @@ class DectaReportController extends Controller
         switch ($reportType) {
             case 'transactions':
                 return [
-                    'Payment ID', 'Transaction Date', 'Amount', 'Currency',
-                    'Merchant Name', 'Merchant ID', 'Status', 'Gateway Match',
-                    'Processing Date', 'Error Message'
+                    'Payment ID', 'Date', 'Amount', 'Currency', 'Merchant', 'Status', 'Gateway Status', 'Matched'
+                ];
+            case 'declined_transactions':
+                return [
+                    'Payment ID', 'Date', 'Amount', 'Currency', 'Merchant', 'Gateway Status', 'Reason'
+                ];
+            case 'approval_analysis':
+                return [
+                    'Merchant ID', 'Merchant Name', 'Approved Count', 'Declined Count',
+                    'Approved Amount', 'Declined Amount', 'Total with Status', 'Approval Rate %'
                 ];
             case 'settlements':
                 return [
@@ -109,8 +313,8 @@ class DectaReportController extends Controller
                 ];
             case 'daily_summary':
                 return [
-                    'Date', 'Total Transactions', 'Total Amount', 'Matched Count',
-                    'Unmatched Count', 'Failed Count', 'Match Rate %'
+                    'Date', 'Total Transactions', 'Total Amount', 'Matched', 'Match Rate',
+                    'Approved', 'Declined', 'Approval Rate'
                 ];
             case 'scheme':
                 return [
@@ -132,14 +336,33 @@ class DectaReportController extends Controller
                 return [
                     $row['payment_id'] ?? '',
                     $row['tr_date_time'] ?? '',
-                    ($row['tr_amount'] ?? 0) / 100, // Convert from cents
+                    ($row['tr_amount'] ?? 0) / 100,
                     $row['tr_ccy'] ?? '',
                     $row['merchant_name'] ?? '',
-                    $row['merchant_id'] ?? '',
                     $row['status'] ?? '',
-                    $row['is_matched'] ? 'Yes' : 'No',
-                    $row['matched_at'] ?? '',
+                    $row['gateway_transaction_status'] ?? '',
+                    $row['is_matched'] ? 'Yes' : 'No'
+                ];
+            case 'declined_transactions':
+                return [
+                    $row['payment_id'] ?? '',
+                    $row['transaction_date'] ?? '',
+                    $row['amount'] ?? 0,
+                    $row['currency'] ?? '',
+                    $row['merchant_name'] ?? '',
+                    $row['gateway_status'] ?? '',
                     $row['error_message'] ?? ''
+                ];
+            case 'approval_analysis':
+                return [
+                    $row['merchant_id'] ?? '',
+                    $row['merchant_name'] ?? '',
+                    $row['approved_count'] ?? 0,
+                    $row['declined_count'] ?? 0,
+                    $row['approved_amount'] ?? 0,
+                    $row['declined_amount'] ?? 0,
+                    $row['total_with_status'] ?? 0,
+                    round($row['approval_rate'] ?? 0, 2)
                 ];
             case 'daily_summary':
                 return [
@@ -147,9 +370,10 @@ class DectaReportController extends Controller
                     $row['total_transactions'] ?? 0,
                     $row['total_amount'] ?? 0,
                     $row['matched_count'] ?? 0,
-                    $row['unmatched_count'] ?? 0,
-                    $row['failed_count'] ?? 0,
-                    round($row['match_rate'] ?? 0, 2)
+                    round($row['match_rate'] ?? 0, 2),
+                    $row['approved_count'] ?? 0,
+                    $row['declined_count'] ?? 0,
+                    round($row['approval_rate'] ?? 0, 2)
                 ];
             case 'scheme':
                 return [
@@ -256,88 +480,6 @@ class DectaReportController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to load merchants: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Get real-time dashboard data
-     */
-    public function getDashboardData(): JsonResponse
-    {
-        try {
-            $data = [
-                'summary' => $this->reportService->getSummaryStats(),
-                'recent_files' => $this->reportService->getRecentFiles(10),
-                'processing_status' => $this->reportService->getProcessingStatus(),
-                'matching_trends' => $this->reportService->getMatchingTrends(7),
-                'top_merchants' => $this->reportService->getTopMerchants(5),
-                'currency_breakdown' => $this->reportService->getCurrencyBreakdown()
-            ];
-
-            return response()->json([
-                'success' => true,
-                'data' => $data,
-                'timestamp' => Carbon::now()->toISOString()
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to load dashboard data: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Get transaction details for a specific payment ID
-     */
-    public function getTransactionDetails($paymentId): JsonResponse
-    {
-        try {
-            $transaction = $this->reportService->getTransactionDetails($paymentId);
-
-            if (!$transaction) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Transaction not found'
-                ], 404);
-            }
-
-            return response()->json([
-                'success' => true,
-                'data' => $transaction
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to get transaction details: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Get unmatched transactions for manual review
-     */
-    public function getUnmatchedTransactions(Request $request): JsonResponse
-    {
-        try {
-            $limit = $request->input('limit', 50);
-            $offset = $request->input('offset', 0);
-            $filters = $request->only(['merchant_id', 'currency', 'date_from', 'date_to']);
-
-            $data = $this->reportService->getUnmatchedTransactions($filters, $limit, $offset);
-
-            return response()->json([
-                'success' => true,
-                'data' => $data
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to get unmatched transactions: ' . $e->getMessage()
             ], 500);
         }
     }
