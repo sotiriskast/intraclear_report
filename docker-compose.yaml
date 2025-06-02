@@ -10,7 +10,7 @@ services:
 
   # ---
   front:
-    image: hub.intraclear.com/cds-runtime-nginx:0.0.2-beta4
+    image: hub.intraclear.com/cds-runtime-nginx:0.0.2-beta5
     # build:
     #   context: ./docker
     #   args:
@@ -39,7 +39,7 @@ services:
     - backend
     - frontend
     ####DB_EXTRA_HOST####
-    
+
 networks:
   frontend:
     driver: bridge
