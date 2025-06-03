@@ -901,18 +901,6 @@
                     ${formatCardTypeAnalysis(typeSummary, totals, isMultiCurrency)}
                 </div>
             </div>
-
-            <!-- Detailed Merchant Data Rates (MDR) Calculator -->
-            <div class="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-6 border border-green-200">
-                <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                    <svg class="w-5 h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 012-2v16a2 2 0 01-2 2z"></path>
-                    </svg>
-                    MDR Calculation Reference
-                </h3>
-                ${formatMDRCalculationHelper(currencyTotals, isMultiCurrency)}
-            </div>
-
             <!-- Detailed Breakdown by Region → Brand → Type -->
             <div class="bg-white rounded-lg shadow-lg overflow-hidden">
                 <div class="bg-gray-50 px-6 py-4 border-b">

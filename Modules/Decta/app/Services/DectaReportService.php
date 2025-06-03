@@ -1290,7 +1290,6 @@ class DectaReportService
             ];
         }, $results);
     }
-
     /**
      * Get transaction details by payment ID
      */
@@ -1362,7 +1361,6 @@ class DectaReportService
             ]
         ];
     }
-
     /**
      * Get unmatched transactions with filters
      */
@@ -1863,8 +1861,6 @@ class DectaReportService
 
         return array_merge($volumeData, ['summary' => $summary]);
     }
-
-    // Add this to your existing generateReport method's switch statement
     protected function getVolumeBreakdownReport(array $filters): array
     {
         return $this->getDetailedVolumeBreakdown($filters);
