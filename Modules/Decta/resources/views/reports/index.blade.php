@@ -21,7 +21,7 @@
                                 <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
                                     <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
                                         <path
-                                                d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"></path>
+                                            d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"></path>
                                     </svg>
                                 </div>
                             </div>
@@ -68,7 +68,7 @@
                                 <div class="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center">
                                     <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
                                         <path
-                                                d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"></path>
+                                            d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"></path>
                                         <path fill-rule="evenodd"
                                               d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z"
                                               clip-rule="evenodd"></path>
@@ -79,7 +79,11 @@
                                 <dl>
                                     <dt class="text-sm font-medium text-gray-500 truncate">Total Amount</dt>
                                     <dd id="total-amount" class="text-2xl font-semibold text-gray-900">
-                                        €{{ number_format($summary['total_amount'] ?? 0, 2) }}
+                                        @if(isset($summary['display_currency']) && $summary['display_currency'] === 'Multi')
+                                            Multi-Currency
+                                        @else
+                                            €{{ number_format($summary['total_amount'] ?? 0, 2) }}
+                                        @endif
                                     </dd>
                                 </dl>
                             </div>
@@ -94,7 +98,7 @@
                                 <div class="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center">
                                     <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
                                         <path
-                                                d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z"></path>
+                                            d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z"></path>
                                     </svg>
                                 </div>
                             </div>
@@ -182,11 +186,14 @@
                                         name="report_type"
                                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
                                     <option value="scheme">Scheme Report</option>
-                                    <option value="transactions">Transaction Details</option>
-                                    <option value="daily_summary">Daily Summary</option>
-                                    <option value="merchant_breakdown">Merchant Breakdown</option>
-                                    <option value="matching">Matching Analysis</option>
-                                    <option value="settlements">Settlement Report</option>
+                                    <option value="volume_breakdown">Volume Breakdown by Region</option>
+                                    {{--                                    <option value="transactions">Transaction Details</option>--}}
+                                    {{--                                    <option value="daily_summary">Daily Summary</option>--}}
+                                    {{--                                    <option value="merchant_breakdown">Merchant Breakdown</option>--}}
+                                    {{--                                    <option value="matching">Matching Analysis</option>--}}
+                                    {{--                                    <option value="settlements">Settlement Report</option>--}}
+                                    {{--                                    <option value="declined_transactions">Declined Transactions</option>--}}
+                                    {{--                                    <option value="approval_analysis">Approval Analysis</option>--}}
                                 </select>
                             </div>
 
@@ -235,46 +242,46 @@
                             </div>
                         </div>
 
-                        <!-- Additional Filters -->
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                                <label for="status" class="block text-sm font-medium text-gray-700 mb-2">
-                                    Status
-                                </label>
-                                <select id="status"
-                                        name="status"
-                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
-                                    <option value="">All Statuses</option>
-                                    <option value="matched">Matched</option>
-                                    <option value="pending">Pending</option>
-                                    <option value="failed">Failed</option>
-                                </select>
-                            </div>
+                        {{--                        <!-- Additional Filters -->--}}
+                        {{--                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">--}}
+                        {{--                            <div>--}}
+                        {{--                                <label for="status" class="block text-sm font-medium text-gray-700 mb-2">--}}
+                        {{--                                    Status--}}
+                        {{--                                </label>--}}
+                        {{--                                <select id="status"--}}
+                        {{--                                        name="status"--}}
+                        {{--                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">--}}
+                        {{--                                    <option value="">All Statuses</option>--}}
+                        {{--                                    <option value="matched">Matched</option>--}}
+                        {{--                                    <option value="pending">Pending</option>--}}
+                        {{--                                    <option value="failed">Failed</option>--}}
+                        {{--                                </select>--}}
+                        {{--                            </div>--}}
 
-                            <div>
-                                <label for="amount_min" class="block text-sm font-medium text-gray-700 mb-2">
-                                    Min Amount (€)
-                                </label>
-                                <input type="number"
-                                       id="amount_min"
-                                       name="amount_min"
-                                       step="0.01"
-                                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-                                       placeholder="0.00">
-                            </div>
+                        {{--                            <div>--}}
+                        {{--                                <label for="amount_min" class="block text-sm font-medium text-gray-700 mb-2">--}}
+                        {{--                                    Min Amount (€)--}}
+                        {{--                                </label>--}}
+                        {{--                                <input type="number"--}}
+                        {{--                                       id="amount_min"--}}
+                        {{--                                       name="amount_min"--}}
+                        {{--                                       step="0.01"--}}
+                        {{--                                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"--}}
+                        {{--                                       placeholder="0.00">--}}
+                        {{--                            </div>--}}
 
-                            <div>
-                                <label for="amount_max" class="block text-sm font-medium text-gray-700 mb-2">
-                                    Max Amount (€)
-                                </label>
-                                <input type="number"
-                                       id="amount_max"
-                                       name="amount_max"
-                                       step="0.01"
-                                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-                                       placeholder="1000.00">
-                            </div>
-                        </div>
+                        {{--                            <div>--}}
+                        {{--                                <label for="amount_max" class="block text-sm font-medium text-gray-700 mb-2">--}}
+                        {{--                                    Max Amount (€)--}}
+                        {{--                                </label>--}}
+                        {{--                                <input type="number"--}}
+                        {{--                                       id="amount_max"--}}
+                        {{--                                       name="amount_max"--}}
+                        {{--                                       step="0.01"--}}
+                        {{--                                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"--}}
+                        {{--                                       placeholder="1000.00">--}}
+                        {{--                            </div>--}}
+                        {{--                        </div>--}}
 
                         <!-- Export Options -->
                         <div class="flex items-center space-x-4">
@@ -284,14 +291,14 @@
                                     <input type="radio" name="export_format" value="json" class="form-radio" checked>
                                     <span class="ml-2 text-sm text-gray-700">View Online</span>
                                 </label>
-                                <label class="inline-flex items-center">
-                                    <input type="radio" name="export_format" value="csv" class="form-radio">
-                                    <span class="ml-2 text-sm text-gray-700">CSV Download</span>
-                                </label>
-                                <label class="inline-flex items-center">
-                                    <input type="radio" name="export_format" value="excel" class="form-radio">
-                                    <span class="ml-2 text-sm text-gray-700">Excel Download</span>
-                                </label>
+                                {{--                                <label class="inline-flex items-center">--}}
+                                {{--                                    <input type="radio" name="export_format" value="csv" class="form-radio">--}}
+                                {{--                                    <span class="ml-2 text-sm text-gray-700">CSV Download</span>--}}
+                                {{--                                </label>--}}
+                                {{--                                <label class="inline-flex items-center">--}}
+                                {{--                                    <input type="radio" name="export_format" value="excel" class="form-radio">--}}
+                                {{--                                    <span class="ml-2 text-sm text-gray-700">Excel Download</span>--}}
+                                {{--                                </label>--}}
                             </div>
                         </div>
 
@@ -612,8 +619,10 @@
 
                 let html = '';
 
-                if (data.length === 0) {
+                if (data.length === 0 && reportType !== 'volume_breakdown') {
                     html = '<p class="text-gray-500 text-center py-8">No data found for the selected criteria.</p>';
+                } else if (reportType === 'volume_breakdown') {
+                    html = displayVolumeBreakdown(data);
                 } else {
                     html = generateTableHTML(data, reportType);
                 }
@@ -834,6 +843,469 @@
                 document.getElementById('errorContainer').scrollIntoView({behavior: 'smooth'});
             }
 
+            /**
+             * Format and display volume breakdown report
+             */
+            function displayVolumeBreakdown(data) {
+                const totals = data.totals;
+                const continentBreakdown = data.continent_breakdown;
+                const brandSummary = data.brand_summary;
+                const typeSummary = data.type_summary;
+                const currencyTotals = data.currency_totals;
+
+                // Check if this is a multi-currency report
+                const isMultiCurrency = Object.keys(currencyTotals).length > 1;
+
+                return `
+        <div class="space-y-8">
+            <!-- Executive Summary -->
+            <div class="bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg p-6 text-white">
+                <h3 class="text-2xl font-bold mb-6 flex items-center">
+                    <svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                    Sales Volume Summary
+                </h3>
+                ${formatExecutiveSummary(currencyTotals, totals, isMultiCurrency)}
+            </div>
+
+            <!-- Regional Breakdown -->
+            <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                <div class="bg-gray-50 px-6 py-4 border-b">
+                    <h3 class="text-lg font-semibold text-gray-900">Regional Breakdown</h3>
+                    <p class="text-sm text-gray-600 mt-1">Sales volume by card issuing region</p>
+                </div>
+                <div class="p-6">
+                    ${formatRegionalBreakdown(currencyTotals, isMultiCurrency)}
+                </div>
+            </div>
+
+            <!-- Card Brand Analysis -->
+            <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                <div class="bg-gray-50 px-6 py-4 border-b">
+                    <h3 class="text-lg font-semibold text-gray-900">Card Brand Performance</h3>
+                    <p class="text-sm text-gray-600 mt-1">Transaction volume by payment card brand</p>
+                </div>
+                <div class="p-6">
+                    ${formatCardBrandAnalysis(brandSummary, totals, isMultiCurrency)}
+                </div>
+            </div>
+
+            <!-- Card Type Analysis -->
+            <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                <div class="bg-gray-50 px-6 py-4 border-b">
+                    <h3 class="text-lg font-semibold text-gray-900">Card Type Analysis</h3>
+                    <p class="text-sm text-gray-600 mt-1">Personal vs Commercial card usage</p>
+                </div>
+                <div class="p-6">
+                    ${formatCardTypeAnalysis(typeSummary, totals, isMultiCurrency)}
+                </div>
+            </div>
+            <!-- Detailed Breakdown by Region → Brand → Type -->
+            <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                <div class="bg-gray-50 px-6 py-4 border-b">
+                    <h3 class="text-lg font-semibold text-gray-900">Detailed Transaction Breakdown</h3>
+                    <p class="text-sm text-gray-600 mt-1">Complete hierarchy: Region → Card Brand → Card Type</p>
+                </div>
+                <div class="p-6">
+                    ${formatDetailedBreakdown(continentBreakdown, isMultiCurrency)}
+                </div>
+            </div>
+        </div>
+    `;
+            }
+
+            function formatCardBrandAnalysis(brandSummary, totals, isMultiCurrency) {
+                const totalVolume = totals.total_volume;
+
+                return `
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            ${Object.entries(brandSummary).map(([brand, brandData]) => {
+                    const percentage = totalVolume > 0 ? ((brandData.total_amount / totalVolume) * 100).toFixed(1) : '0.0';
+                    const europePercentage = brandData.total_amount > 0 ? ((brandData.europe_amount / brandData.total_amount) * 100).toFixed(1) : '0.0';
+
+                    return `
+                    <div class="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-6 border border-gray-200">
+                        <div class="flex items-center justify-between mb-4">
+                            <h4 class="text-lg font-bold text-gray-900">${brand}</h4>
+                            <span class="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded">${percentage}%</span>
+                        </div>
+
+                        ${isMultiCurrency ?
+                        formatMultiCurrencyBrandData(brandData.currencies) :
+                        `<div class="text-2xl font-bold text-gray-900 mb-2">${Object.keys(brandData.currencies || {})[0] || 'EUR'} ${formatCurrency(brandData.total_amount)}</div>`
+                    }
+
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Transactions:</span>
+                                <span class="font-medium">${brandData.total_transactions.toLocaleString()}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Europe %:</span>
+                                <span class="font-medium text-blue-600">${europePercentage}%</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                }).join('')}
+        </div>
+    `;
+            }
+
+            /**
+             * Format card type analysis
+             */
+            function formatCardTypeAnalysis(typeSummary, totals, isMultiCurrency) {
+                const totalVolume = totals.total_volume;
+
+                return `
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            ${Object.entries(typeSummary).map(([type, typeData]) => {
+                    const percentage = totalVolume > 0 ? ((typeData.total_amount / totalVolume) * 100).toFixed(1) : '0.0';
+                    const europePercentage = typeData.total_amount > 0 ? ((typeData.europe_amount / typeData.total_amount) * 100).toFixed(1) : '0.0';
+                    const isCommercial = type.toLowerCase().includes('commercial');
+
+                    return `
+                    <div class="bg-gradient-to-br ${isCommercial ? 'from-green-50 to-green-100 border-green-200' : 'from-blue-50 to-blue-100 border-blue-200'} rounded-lg p-6 border">
+                        <div class="flex items-center justify-between mb-4">
+                            <h4 class="text-xl font-bold ${isCommercial ? 'text-green-900' : 'text-blue-900'}">${type}</h4>
+                            <span class="${isCommercial ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'} text-sm font-medium px-3 py-1 rounded">${percentage}%</span>
+                        </div>
+
+                        ${isMultiCurrency ?
+                        formatMultiCurrencyTypeData(typeData.currencies, isCommercial) :
+                        `<div class="text-3xl font-bold ${isCommercial ? 'text-green-700' : 'text-blue-700'} mb-4">${Object.keys(typeData.currencies || {})[0] || 'EUR'} ${formatCurrency(typeData.total_amount)}</div>`
+                    }
+
+                        <div class="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                                <div class="text-gray-600">Transactions</div>
+                                <div class="font-bold text-lg">${typeData.total_transactions.toLocaleString()}</div>
+                            </div>
+                            <div>
+                                <div class="text-gray-600">Europe %</div>
+                                <div class="font-bold text-lg ${isCommercial ? 'text-green-600' : 'text-blue-600'}">${europePercentage}%</div>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 p-3 bg-white bg-opacity-60 rounded text-xs">
+                            <strong>MDR Note:</strong> ${isCommercial ? 'Commercial cards typically have higher MDR rates than personal cards.' : 'Personal cards generally have lower MDR rates than commercial cards.'}
+                        </div>
+                    </div>
+                `;
+                }).join('')}
+        </div>
+    `;
+            }
+
+            /**
+             * Format MDR calculation helper
+             */
+            function formatMDRCalculationHelper(currencyTotals, isMultiCurrency) {
+                return `
+        <div class="bg-white rounded-lg p-4 border border-green-300">
+            <h4 class="font-semibold text-gray-900 mb-3">Quick Reference for Fee Calculations</h4>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <h5 class="font-medium text-gray-800 mb-2">Typical MDR Structure:</h5>
+                    <ul class="text-sm space-y-1">
+                        <li><span class="font-medium text-blue-600">EU Personal Cards:</span> Lower rates (e.g., 0.2-0.3%)</li>
+                        <li><span class="font-medium text-orange-600">Non-EU Personal Cards:</span> Higher rates (e.g., 1.0-2.0%)</li>
+                        <li><span class="font-medium text-green-600">EU Commercial Cards:</span> Medium rates (e.g., 0.5-0.8%)</li>
+                        <li><span class="font-medium text-red-600">Non-EU Commercial Cards:</span> Highest rates (e.g., 2.0-3.0%)</li>
+                    </ul>
+                </div>
+                <div>
+                    <h5 class="font-medium text-gray-800 mb-2">Volume Summary:</h5>
+                    ${Object.entries(currencyTotals).map(([currency, amounts]) => `
+                        <div class="text-sm mb-2">
+                            <div class="font-medium">${currency}:</div>
+                            <div class="ml-4 space-y-1">
+                                <div>EU: ${formatCurrency(amounts.europe_amount)} <span class="text-gray-500">(${((amounts.europe_amount / amounts.total_amount) * 100).toFixed(1)}%)</span></div>
+                                <div>Non-EU: ${formatCurrency(amounts.non_europe_amount)} <span class="text-gray-500">(${((amounts.non_europe_amount / amounts.total_amount) * 100).toFixed(1)}%)</span></div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        </div>
+    `;
+            }
+
+            /**
+             * Format detailed breakdown
+             */
+            function formatDetailedBreakdown(continentBreakdown, isMultiCurrency) {
+                return `
+        <div class="space-y-8">
+            ${Object.entries(continentBreakdown).map(([continent, continentData]) => {
+                    const colorClass = continent === 'Europe' ? 'blue' : continent === 'Non-Europe' ? 'orange' : 'gray';
+
+                    return `
+                    <div class="border border-${colorClass}-200 rounded-lg overflow-hidden">
+                        <div class="bg-${colorClass}-50 px-6 py-4 border-b border-${colorClass}-200">
+                            <h4 class="text-lg font-bold text-${colorClass}-900">
+                                ${continent}
+                                <span class="text-sm font-normal text-${colorClass}-700">
+                                    (${continentData.total_transactions.toLocaleString()} transactions)
+                                </span>
+                            </h4>
+                            <div class="text-sm text-${colorClass}-700 mt-1">
+                                ${isMultiCurrency ? formatCurrencyTotals(continentData.currencies) : `Total: ${Object.keys(continentData.currencies)[0]} ${formatCurrency(continentData.total_amount)}`}
+                            </div>
+                        </div>
+
+                        <div class="p-6">
+                            ${Object.entries(continentData.card_brands).map(([brand, brandData]) => `
+                                <div class="mb-6 last:mb-0">
+                                    <h5 class="font-semibold text-gray-900 mb-3">
+                                        ${brand}
+                                        <span class="text-sm font-normal text-gray-600">
+                                            (${isMultiCurrency ? formatCurrencyTotals(brandData.currencies) : `${Object.keys(brandData.currencies)[0]} ${formatCurrency(brandData.total_amount)}`})
+                                        </span>
+                                    </h5>
+
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        ${Object.entries(brandData.card_types).map(([cardType, typeData]) => `
+                                            <div class="bg-gray-50 rounded-lg p-4 border">
+                                                <div class="font-medium text-gray-900 mb-2">${cardType}</div>
+                                                <div class="text-lg font-bold text-gray-700 mb-2">
+                                                    ${isMultiCurrency ? formatCurrencyTotals(typeData.currencies) : `${Object.keys(typeData.currencies)[0]} ${formatCurrency(typeData.total_amount)}`}
+                                                </div>
+                                                <div class="text-sm text-gray-600">
+                                                    ${typeData.total_transactions.toLocaleString()} transactions
+                                                </div>
+                                                ${isMultiCurrency ? `
+                                                    <div class="mt-2 text-xs">
+                                                        <div class="text-gray-500 mb-1">By currency:</div>
+                                                        ${Object.entries(typeData.currencies).map(([currency, amount]) => `
+                                                            <span class="inline-block bg-white text-gray-700 text-xs px-2 py-1 rounded mr-1 mb-1 border">
+                                                                ${currency}: ${formatCurrency(amount)}
+                                                            </span>
+                                                        `).join('')}
+                                                    </div>
+                                                ` : ''}
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+                }).join('')}
+        </div>
+    `;
+            }
+
+            function formatRegionalBreakdown(currencyTotals, isMultiCurrency) {
+                if (!isMultiCurrency) {
+                    const [currency] = Object.keys(currencyTotals);
+                    const amounts = currencyTotals[currency];
+                    const total = amounts.total_amount;
+
+                    return `
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="bg-blue-50 rounded-lg p-6 border border-blue-200">
+                    <h4 class="font-semibold text-blue-900 mb-2">Europe Cards</h4>
+                    <div class="text-2xl font-bold text-blue-700">${currency} ${formatCurrency(amounts.europe_amount)}</div>
+                    <div class="text-sm text-blue-600 mt-1">${((amounts.europe_amount / total) * 100).toFixed(1)}% of total volume</div>
+                    <div class="text-xs text-blue-500 mt-1">Lower MDR rates typically apply</div>
+                </div>
+                <div class="bg-orange-50 rounded-lg p-6 border border-orange-200">
+                    <h4 class="font-semibold text-orange-900 mb-2">Non-Europe Cards</h4>
+                    <div class="text-2xl font-bold text-orange-700">${currency} ${formatCurrency(amounts.non_europe_amount)}</div>
+                    <div class="text-sm text-orange-600 mt-1">${((amounts.non_europe_amount / total) * 100).toFixed(1)}% of total volume</div>
+                    <div class="text-xs text-orange-500 mt-1">Higher MDR rates typically apply</div>
+                </div>
+                <div class="bg-gray-50 rounded-lg p-6 border border-gray-200">
+                    <h4 class="font-semibold text-gray-900 mb-2">Unknown Region</h4>
+                    <div class="text-2xl font-bold text-gray-700">${currency} ${formatCurrency(amounts.unknown_amount)}</div>
+                    <div class="text-sm text-gray-600 mt-1">${((amounts.unknown_amount / total) * 100).toFixed(1)}% of total volume</div>
+                    <div class="text-xs text-gray-500 mt-1">Review required for classification</div>
+                </div>
+            </div>
+        `;
+                }
+
+                // Multi-currency regional breakdown
+                return `
+        <div class="overflow-x-auto">
+            <table class="min-w-full">
+                <thead>
+                    <tr class="border-b-2 border-gray-200">
+                        <th class="text-left py-3 px-4 font-semibold text-gray-900">Currency</th>
+                        <th class="text-right py-3 px-4 font-semibold text-blue-700">Europe Cards</th>
+                        <th class="text-right py-3 px-4 font-semibold text-orange-700">Non-Europe Cards</th>
+                        <th class="text-right py-3 px-4 font-semibold text-gray-700">Unknown</th>
+                        <th class="text-right py-3 px-4 font-semibold text-gray-900">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${Object.entries(currencyTotals).map(([currency, amounts]) => `
+                        <tr class="border-b border-gray-100 hover:bg-gray-50">
+                            <td class="py-4 px-4 font-medium text-gray-900">${currency}</td>
+                            <td class="py-4 px-4 text-right">
+                                <div class="font-semibold text-blue-700">${formatCurrency(amounts.europe_amount)}</div>
+                                <div class="text-xs text-blue-500">${((amounts.europe_amount / amounts.total_amount) * 100).toFixed(1)}%</div>
+                            </td>
+                            <td class="py-4 px-4 text-right">
+                                <div class="font-semibold text-orange-700">${formatCurrency(amounts.non_europe_amount)}</div>
+                                <div class="text-xs text-orange-500">${((amounts.non_europe_amount / amounts.total_amount) * 100).toFixed(1)}%</div>
+                            </td>
+                            <td class="py-4 px-4 text-right">
+                                <div class="font-semibold text-gray-700">${formatCurrency(amounts.unknown_amount)}</div>
+                                <div class="text-xs text-gray-500">${((amounts.unknown_amount / amounts.total_amount) * 100).toFixed(1)}%</div>
+                            </td>
+                            <td class="py-4 px-4 text-right">
+                                <div class="font-bold text-gray-900">${formatCurrency(amounts.total_amount)}</div>
+                                <div class="text-xs text-gray-500">${amounts.total_transactions.toLocaleString()} txns</div>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+            }
+
+            /**
+             * Format executive summary with clear totals
+             */
+            function formatExecutiveSummary(currencyTotals, totals, isMultiCurrency) {
+                if (!isMultiCurrency) {
+                    const [currency] = Object.keys(currencyTotals);
+                    const amounts = currencyTotals[currency];
+                    return `
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div class="text-center">
+                    <div class="text-3xl font-bold">${currency} ${formatCurrency(amounts.total_amount)}</div>
+                    <div class="text-blue-100 text-sm mt-1">Total Volume</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-semibold">${currency} ${formatCurrency(amounts.europe_amount)}</div>
+                    <div class="text-blue-100 text-sm mt-1">Europe Cards</div>
+                    <div class="text-xs text-blue-200">${((amounts.europe_amount / amounts.total_amount) * 100).toFixed(1)}%</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-semibold">${currency} ${formatCurrency(amounts.non_europe_amount)}</div>
+                    <div class="text-blue-100 text-sm mt-1">Non-Europe Cards</div>
+                    <div class="text-xs">${((amounts.non_europe_amount / amounts.total_amount) * 100).toFixed(1)}%</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-semibold">${amounts.total_transactions.toLocaleString()}</div>
+                    <div class="text-blue-100 text-sm mt-1">Total Transactions</div>
+                </div>
+            </div>
+        `;
+                }
+
+                // Multi-currency summary
+                const totalVolume = Object.values(currencyTotals).reduce((sum, curr) => sum + curr.total_amount, 0);
+                const totalTransactions = Object.values(currencyTotals).reduce((sum, curr) => sum + curr.total_transactions, 0);
+
+                return `
+        <div class="space-y-4">
+            <div class="text-center">
+                <div class="text-2xl font-bold mb-2">Multi-Currency Portfolio</div>
+                <div class="text-lg text-blue-400">${totalTransactions.toLocaleString()} total transactions across ${Object.keys(currencyTotals).length} currencies</div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-${Math.min(Object.keys(currencyTotals).length, 4)} gap-4">
+                ${Object.entries(currencyTotals).map(([currency, amounts]) => `
+                    <div class="bg-white bg-opacity-20 rounded-lg p-4 text-center">
+                        <div class="text-blue-400 text-xl font-bold">${currency}</div>
+                        <div class="text-blue-400 text-lg">${formatCurrency(amounts.total_amount)}</div>
+                        <div class="text-blue-400 text-xs">${((amounts.total_amount / totalVolume) * 100).toFixed(1)}% of total</div>
+                        <div class="text-xs text-blue-400">${amounts.total_transactions.toLocaleString()} txns</div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
+            }
+
+            /**
+             * Helper function to get region currency breakdown
+             */
+            function formatCurrencyTotals(currencies) {
+                if (!currencies || Object.keys(currencies).length === 0) return 'No data';
+
+                return Object.entries(currencies)
+                    .map(([currency, amount]) => `${currency} ${formatCurrency(amount)}`)
+                    .join(', ');
+            }
+
+
+            function formatMultiCurrencyBrandData(currencies) {
+                if (!currencies) return '<div class="text-lg text-gray-500">No data</div>';
+
+                // Fix: currencies structure is { 'EUR': { total_amount: 123, europe_amount: 123, ... } }
+                const sortedCurrencies = Object.entries(currencies)
+                    .map(([currency, data]) => ({
+                        currency,
+                        total: data.total_amount || 0  // Fix: directly access total_amount, don't reduce
+                    }))
+                    .filter(({total}) => total > 0)  // Only show currencies with actual amounts
+                    .sort((a, b) => b.total - a.total);
+
+                if (sortedCurrencies.length === 0) {
+                    return '<div class="text-lg text-gray-500">No amount data</div>';
+                }
+
+                return `
+        <div class="space-y-1">
+            ${sortedCurrencies.map(({currency, total}) => `
+                <div class="flex justify-between items-center">
+                    <span class="font-medium text-gray-700">${currency}</span>
+                    <span class="font-bold text-gray-900">${formatCurrency(total)}</span>
+                </div>
+            `).join('')}
+        </div>
+    `;
+            }
+
+            /**
+             * Helper functions for formatting
+             */
+            function formatCurrency(amount) {
+                if (amount === null || amount === undefined) return '0.00';
+                return parseFloat(amount).toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+            }
+
+            function formatMultiCurrencyTypeData(currencies, isCommercial) {
+                if (!currencies) return '<div class="text-lg text-gray-500">No data</div>';
+
+                const colorClass = isCommercial ? 'green' : 'blue';
+
+                // Fix: currencies structure is { 'EUR': { total_amount: 123, europe_amount: 123, ... } }
+                const sortedCurrencies = Object.entries(currencies)
+                    .map(([currency, data]) => ({
+                        currency,
+                        total: data.total_amount || 0  // Fix: directly access total_amount, don't reduce
+                    }))
+                    .filter(({total}) => total > 0)  // Only show currencies with actual amounts
+                    .sort((a, b) => b.total - a.total);
+
+                if (sortedCurrencies.length === 0) {
+                    return '<div class="text-lg text-gray-500">No amount data</div>';
+                }
+
+                return `
+        <div class="space-y-2">
+            ${sortedCurrencies.map(({currency, total}) => `
+                <div class="flex justify-between items-center bg-white bg-opacity-60 rounded px-3 py-2">
+                    <span class="font-medium text-${colorClass}-800">${currency}</span>
+                    <span class="font-bold text-${colorClass}-900">${formatCurrency(total)}</span>
+                </div>
+            `).join('')}
+        </div>
+    `;
+            }
+
             // Real-time dashboard updates (optional)
             function updateDashboard() {
                 fetch('{{ route("decta.reports.dashboard") }}')
@@ -850,14 +1322,17 @@
                     .catch(error => console.error('Dashboard update error:', error));
             }
 
-            document.getElementById('report_type').addEventListener('change', function() {
+            document.getElementById('report_type').addEventListener('change', function () {
                 const helpTexts = {
+                    'volume_breakdown': 'Enhanced Volume Breakdown shows transaction amounts grouped by Continent (Europe/Non-Europe), Card Brand (Visa/Mastercard/etc.), and Card Type (Personal/Commercial). Perfect for calculating different MDR rates for EU vs Non-EU cards and Personal vs Commercial cards.',
                     'scheme': 'Scheme Report groups transactions by card type, transaction type, currency, and merchant to provide an overview of transaction patterns and fee calculations.',
-                    'transactions': 'Transaction Details provides a detailed view of individual transactions with their matching status.',
-                    'daily_summary': 'Daily Summary shows aggregated transaction data grouped by date.',
-                    'merchant_breakdown': 'Merchant Breakdown shows transaction statistics grouped by merchant.',
-                    'matching': 'Matching Analysis shows statistics about transaction matching success rates.',
-                    'settlements': 'Settlement Report shows settlement-related transaction data.'
+                    // 'transactions': 'Transaction Details provides a detailed view of individual transactions with their matching status.',
+                    // 'daily_summary': 'Daily Summary shows aggregated transaction data grouped by date.',
+                    // 'merchant_breakdown': 'Merchant Breakdown shows transaction statistics grouped by merchant.',
+                    // 'matching': 'Matching Analysis shows statistics about transaction matching success rates.',
+                    // 'settlements': 'Settlement Report shows settlement-related transaction data.',
+                    // 'declined_transactions': 'Declined Transactions shows all transactions that were declined by the gateway.',
+                    // 'approval_analysis': 'Approval Analysis shows approval/decline statistics by merchant.'
                 };
 
                 // Remove existing help text
@@ -873,8 +1348,7 @@
                     helpDiv.textContent = helpTexts[this.value];
                     this.parentElement.appendChild(helpDiv);
                 }
-            });
-            // Update dashboard every 30 seconds
+            });            // Update dashboard every 30 seconds
             setInterval(updateDashboard, 30000);
         });
     </script>

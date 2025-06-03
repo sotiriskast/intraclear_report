@@ -476,30 +476,31 @@
             document.getElementById('matchRate').textContent = summary.match_rate.toFixed(1) + '%';
             document.getElementById('approvalRate').textContent = summary.approval_rate.toFixed(1) + '%';
 
-            // Handle multi-currency amounts
-            if (summary.primary_currency_amount) {
-                const primaryAmount = summary.primary_currency_amount;
-                document.getElementById('totalAmount').textContent =
-                    primaryAmount.amount.toLocaleString('en-US', {
-                        style: 'currency',
-                        currency: primaryAmount.currency,
-                        minimumFractionDigits: 2
-                    });
+            // Handle multi-currency total amount display
+            const totalAmountElement = document.getElementById('totalAmount');
+            if (summary.is_multi_currency) {
+                let currencyHtml = '<span class="text-lg">Multi-Currency</span><div class="text-sm font-normal text-gray-600 mt-1">';
+                summary.amounts_by_currency.forEach(function(currency) {
+                    currencyHtml += '<div>' + currency.currency + ' ' + currency.total_amount.toLocaleString('en-US', {minimumFractionDigits: 2}) + '</div>';
+                });
+                currencyHtml += '</div>';
+                totalAmountElement.innerHTML = currencyHtml;
             } else {
-                document.getElementById('totalAmount').textContent = 'Multi-currency';
+                totalAmountElement.textContent = summary.display_currency + summary.total_amount.toLocaleString('en-US', {minimumFractionDigits: 2});
             }
 
-            // Update change indicators
+            // Update change indicators for supported metrics
             updateChangeIndicator('totalTransactionsChange', summary.today_transactions - summary.yesterday_transactions);
             updateChangeIndicator('approvedTransactionsChange', summary.today_approved - summary.yesterday_approved);
 
-            // Handle amount change for primary currency
-            if (summary.today_primary_amount && summary.yesterday_primary_amount) {
-                const todayAmount = summary.today_primary_amount.amount || 0;
-                const yesterdayAmount = summary.yesterday_primary_amount.amount || 0;
-                updateChangeIndicator('totalAmountChange', todayAmount - yesterdayAmount, summary.primary_currency_amount?.currency);
+            // For multi-currency, don't show amount change indicators
+            if (!summary.is_multi_currency && summary.today_amount !== null && summary.yesterday_amount !== null) {
+                updateChangeIndicator('totalAmountChange', summary.today_amount - summary.yesterday_amount);
             } else {
-                document.getElementById('totalAmountChange').innerHTML = '<span class="text-gray-500">-</span>';
+                const element = document.getElementById('totalAmountChange');
+                if (element) {
+                    element.innerHTML = '<span class="text-gray-500 text-xs">Multi-currency</span>';
+                }
             }
         }
 
@@ -800,30 +801,397 @@
                 return;
             }
 
-            container.innerHTML = merchantsData.map((merchant, index) => `
-                <div class="flex items-center justify-between p-3 rounded-lg bg-gray-50">
-                    <div class="flex items-center">
-                        <div class="flex-shrink-0 w-8 h-8 bg-indigo-100 text-indigo-800 rounded-full flex items-center justify-center text-sm font-medium">
-                            ${index + 1}
-                        </div>
-                        <div class="ml-3">
-                            <div class="text-sm font-medium text-gray-900">
-                                ${merchant.merchant_name || merchant.merchant_id}
-                            </div>
-                            <div class="text-xs text-gray-500">
-                                ${merchant.transaction_count} transactions
-                            </div>
-                        </div>
+            console.log('Merchant data received:', merchantsData); // Debug log
+
+            // Group merchants by normalized name to catch any duplicates that made it through
+            const groupedMerchants = groupMerchantsByName(merchantsData);
+
+            container.innerHTML = groupedMerchants.map((merchant, index) => {
+                const currencyDisplay = merchant.is_multi_currency
+                    ? createMultiCurrencyDisplay(merchant)
+                    : createSingleCurrencyDisplay(merchant);
+
+                return `
+            <div class="flex items-center justify-between p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors duration-200 cursor-pointer"
+                 onclick="showMerchantDetails('${merchant.merchant_id}', '${merchant.merchant_name.replace(/'/g, "\\'")}', ${JSON.stringify(merchant.currency_breakdown).replace(/"/g, '&quot;')})">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0 w-8 h-8 bg-indigo-100 text-indigo-800 rounded-full flex items-center justify-center text-sm font-medium">
+                        ${index + 1}
                     </div>
-                    <div class="text-right">
-                        <div class="text-sm font-medium text-gray-900">
-                            €${merchant.total_amount.toLocaleString('en-US', {minimumFractionDigits: 2})}
+                    <div class="ml-3">
+                        <div class="text-sm font-medium text-gray-900 flex items-center">
+                            ${merchant.merchant_name}
+                            ${merchant.is_multi_currency ?
+                    `<span class="ml-2 px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded-full">${merchant.currency_count} currencies</span>`
+                    : ''
+                }
                         </div>
+                        <div class="text-xs text-gray-500">
+                            ${merchant.total_transactions.toLocaleString()} total transactions
+                        </div>
+                        ${merchant.is_multi_currency ?
+                    `<div class="text-xs text-blue-600">Click for currency breakdown →</div>`
+                    : ''
+                }
                     </div>
                 </div>
-            `).join('');
+                <div class="text-right">
+                    ${currencyDisplay}
+                </div>
+            </div>
+        `;
+            }).join('');
+        }
+        function mergeMerchants(existing, newMerchant) {
+            // Use the merchant with more transactions as primary
+            const primary = existing.total_transactions >= newMerchant.total_transactions ? existing : newMerchant;
+            const secondary = existing.total_transactions >= newMerchant.total_transactions ? newMerchant : existing;
+
+            // Merge currency breakdowns
+            const currencyMap = new Map();
+
+            // Add existing currencies
+            if (primary.currency_breakdown) {
+                primary.currency_breakdown.forEach(curr => {
+                    currencyMap.set(curr.currency, curr);
+                });
+            }
+
+            // Merge secondary currencies
+            if (secondary.currency_breakdown) {
+                secondary.currency_breakdown.forEach(curr => {
+                    if (currencyMap.has(curr.currency)) {
+                        const existing = currencyMap.get(curr.currency);
+                        existing.transaction_count += curr.transaction_count;
+                        existing.total_amount += curr.total_amount;
+                    } else {
+                        currencyMap.set(curr.currency, curr);
+                    }
+                });
+            }
+
+            const mergedCurrencies = Array.from(currencyMap.values())
+                .sort((a, b) => b.transaction_count - a.transaction_count);
+
+            // Recalculate percentages
+            const totalTransactions = mergedCurrencies.reduce((sum, curr) => sum + curr.transaction_count, 0);
+            mergedCurrencies.forEach(curr => {
+                curr.percentage = totalTransactions > 0 ?
+                    Math.round((curr.transaction_count / totalTransactions) * 100 * 10) / 10 : 0;
+            });
+
+            return {
+                ...primary,
+                total_transactions: totalTransactions,
+                currency_count: mergedCurrencies.length,
+                is_multi_currency: mergedCurrencies.length > 1,
+                currency_breakdown: mergedCurrencies,
+                dominant_currency: mergedCurrencies[0]?.currency || 'N/A',
+                dominant_currency_amount: mergedCurrencies[0]?.total_amount || 0,
+                dominant_currency_transactions: mergedCurrencies[0]?.transaction_count || 0
+            };
         }
 
+        function normalizeMerchantName(name) {
+            if (!name) return 'unknown';
+            return name.toLowerCase()
+                .trim()
+                .replace(/[^a-z0-9]/g, '') // Remove special characters
+                .replace(/\s+/g, ''); // Remove spaces
+        }
+        function groupMerchantsByName(merchants) {
+            const grouped = new Map();
+
+            merchants.forEach(merchant => {
+                const normalizedName = normalizeMerchantName(merchant.merchant_name);
+
+                if (grouped.has(normalizedName)) {
+                    // Merge with existing merchant
+                    const existing = grouped.get(normalizedName);
+                    const merged = mergeMerchants(existing, merchant);
+                    grouped.set(normalizedName, merged);
+                } else {
+                    grouped.set(normalizedName, merchant);
+                }
+            });
+
+            // Convert back to array and sort by transaction count
+            return Array.from(grouped.values()).sort((a, b) => b.total_transactions - a.total_transactions);
+        }
+        function createSingleCurrencyDisplay(merchant) {
+            const currency = merchant.currency_breakdown && merchant.currency_breakdown[0]
+                ? merchant.currency_breakdown[0]
+                : {
+                    currency: merchant.dominant_currency || 'N/A',
+                    total_amount: merchant.dominant_currency_amount || 0
+                };
+
+            return `
+        <div class="text-sm font-medium text-gray-900">
+            ${currency.total_amount.toLocaleString('en-US', {
+                style: 'currency',
+                currency: currency.currency,
+                minimumFractionDigits: 2
+            })}
+        </div>
+        <div class="text-xs text-gray-500">${currency.currency}</div>
+    `;
+        }
+        function createMultiCurrencyDisplay(merchant) {
+            const topCurrencies = merchant.currency_breakdown
+                ? merchant.currency_breakdown.slice(0, 2)
+                : [];
+
+            if (topCurrencies.length === 0) {
+                return `
+            <div class="text-sm font-medium text-gray-900">
+                ${merchant.total_transactions.toLocaleString()} txns
+            </div>
+            <div class="text-xs text-gray-500">Multi-currency</div>
+        `;
+            }
+
+            return `
+        <div class="text-right">
+            ${topCurrencies.map(currency => `
+                <div class="text-sm font-medium text-gray-900">
+                    ${currency.total_amount.toLocaleString('en-US', {
+                style: 'currency',
+                currency: currency.currency,
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            })}
+                </div>
+            `).join('')}
+            ${merchant.currency_count > 2 ?
+                `<div class="text-xs text-gray-500">+${merchant.currency_count - 2} more</div>`
+                : ''
+            }
+        </div>
+    `;
+        }
+        function showMerchantDetails(merchantId, merchantName, currencyBreakdown) {
+            const modalHTML = `
+        <div id="merchantDetailsModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+            <div class="relative top-20 mx-auto p-5 border w-11/12 max-w-5xl shadow-lg rounded-md bg-white">
+                <div class="mt-3">
+                    <div class="flex items-center justify-between mb-6">
+                        <div>
+                            <h3 class="text-xl font-medium text-gray-900">${merchantName}</h3>
+                            <p class="text-sm text-gray-500 mt-1">Transaction breakdown by currency (Last 30 days)</p>
+                        </div>
+                        <button onclick="closeMerchantDetailsModal()" class="text-gray-400 hover:text-gray-600">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <!-- Summary Cards -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div class="bg-blue-50 p-4 rounded-lg">
+                            <div class="text-2xl font-bold text-blue-900">
+                                ${currencyBreakdown.reduce((sum, curr) => sum + curr.transaction_count, 0).toLocaleString()}
+                            </div>
+                            <div class="text-sm text-blue-600">Total Transactions</div>
+                        </div>
+                        <div class="bg-green-50 p-4 rounded-lg">
+                            <div class="text-2xl font-bold text-green-900">${currencyBreakdown.length}</div>
+                            <div class="text-sm text-green-600">Currencies Used</div>
+                        </div>
+                        <div class="bg-purple-50 p-4 rounded-lg">
+                            <div class="text-2xl font-bold text-purple-900">
+                                ${currencyBreakdown[0]?.currency || 'N/A'}
+                            </div>
+                            <div class="text-sm text-purple-600">Primary Currency</div>
+                        </div>
+                    </div>
+
+                    <!-- Currency Breakdown Table -->
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Currency</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transactions</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Amount</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">% of Total</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg per Transaction</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                ${currencyBreakdown.map((currency, index) => {
+                const avgAmount = currency.transaction_count > 0 ? currency.total_amount / currency.transaction_count : 0;
+                const isTopCurrency = index === 0;
+
+                return `
+                                        <tr class="${isTopCurrency ? 'bg-blue-50' : 'hover:bg-gray-50'}">
+                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                <div class="flex items-center">
+                                                    <span class="text-sm font-medium text-gray-900">${currency.currency}</span>
+                                                    ${isTopCurrency ? '<span class="ml-2 px-2 py-1 text-xs bg-blue-200 text-blue-800 rounded-full">Primary</span>' : ''}
+                                                </div>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                ${currency.transaction_count.toLocaleString()}
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                                ${currency.total_amount.toLocaleString('en-US', {
+                    style: 'currency',
+                    currency: currency.currency,
+                    minimumFractionDigits: 2
+                })}
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <div class="flex items-center">
+                                                    <div class="w-16 bg-gray-200 rounded-full h-2 mr-2">
+                                                        <div class="bg-blue-600 h-2 rounded-full" style="width: ${currency.percentage}%"></div>
+                                                    </div>
+                                                    ${currency.percentage}%
+                                                </div>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                ${avgAmount.toLocaleString('en-US', {
+                    style: 'currency',
+                    currency: currency.currency,
+                    minimumFractionDigits: 2
+                })}
+                                            </td>
+                                        </tr>
+                                    `;
+            }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="mt-6 flex justify-end space-x-3">
+                        <button onclick="exportMerchantData('${merchantId}', '${merchantName}')"
+                                class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors duration-200">
+                            Export Data
+                        </button>
+                        <button onclick="closeMerchantDetailsModal()"
+                                class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors duration-200">
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+        }
+        function exportMerchantData(merchantId, merchantName) {
+            // Create CSV export of the merchant's currency breakdown
+            const merchant = dashboardData.top_merchants.find(m => m.merchant_id === merchantId);
+            if (!merchant) return;
+
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += `Merchant: ${merchantName}\n`;
+            csvContent += `Period: Last 30 days\n`;
+            csvContent += `Export Date: ${new Date().toLocaleDateString()}\n\n`;
+            csvContent += "Currency,Transaction Count,Total Amount,Percentage,Average per Transaction\n";
+
+            merchant.currency_breakdown.forEach(currency => {
+                const avgAmount = currency.transaction_count > 0 ? currency.total_amount / currency.transaction_count : 0;
+                csvContent += `${currency.currency},${currency.transaction_count},${currency.total_amount.toFixed(2)},${currency.percentage}%,${avgAmount.toFixed(2)}\n`;
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `merchant_${merchantId}_currency_breakdown.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+        function displayMerchantCurrencyModal(merchantData) {
+            // Create and show modal with detailed currency breakdown
+            const modalHTML = `
+        <div id="merchantCurrencyModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+            <div class="relative top-20 mx-auto p-5 border w-11/12 max-w-4xl shadow-lg rounded-md bg-white">
+                <div class="mt-3">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-medium text-gray-900">
+                            Currency Breakdown - ${merchantData.merchant_name}
+                        </h3>
+                        <button onclick="closeMerchantCurrencyModal()" class="text-gray-400 hover:text-gray-600">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Currency</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Transactions</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Amount</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">% of Total Txns</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                ${merchantData.currencies.map(currency => `
+                                    <tr>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                            ${currency.currency}
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            ${currency.transaction_count.toLocaleString()}
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            ${currency.total_amount.toLocaleString('en-US', {
+                style: 'currency',
+                currency: currency.currency,
+                minimumFractionDigits: 2
+            })}
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            ${((currency.transaction_count / merchantData.total_transactions) * 100).toFixed(1)}%
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="mt-4 flex justify-end">
+                        <button onclick="closeMerchantCurrencyModal()" class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+        }
+        function closeMerchantDetailsModal() {
+            const modal = document.getElementById('merchantDetailsModal');
+            if (modal) {
+                modal.remove();
+            }
+        }
+        function closeMerchantCurrencyModal() {
+            const modal = document.getElementById('merchantCurrencyModal');
+            if (modal) {
+                modal.remove();
+            }
+        }
+        function showMerchantCurrencyBreakdown(merchantId) {
+            // Fetch detailed currency breakdown
+            fetch(`/decta/reports/merchant-currency-breakdown/${merchantId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        displayMerchantCurrencyModal(data.data);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading merchant currency breakdown:', error);
+                });
+        }
         function updateProcessingStatusChart(statusData) {
             const ctx = document.getElementById('processingStatusChart').getContext('2d');
 
@@ -866,7 +1234,6 @@
                 }
             });
         }
-
         function updateRecentFiles(filesData) {
             const tbody = document.getElementById('recentFilesTableBody');
 
@@ -900,7 +1267,6 @@
                 </tr>
             `).join('');
         }
-
         function updateHealthStatus(statusData) {
             // This would be implemented based on actual health check results
             const badge = document.getElementById('healthStatusBadge');
@@ -939,7 +1305,6 @@
                 `;
             }
         }
-
         function getStatusColor(status) {
             switch (status.toLowerCase()) {
                 case 'processed':
@@ -954,7 +1319,6 @@
                     return 'bg-gray-100 text-gray-800';
             }
         }
-
         function formatFileSize(bytes) {
             if (!bytes) return 'N/A';
             const units = ['B', 'KB', 'MB', 'GB'];
@@ -968,7 +1332,6 @@
 
             return size.toFixed(1) + ' ' + units[unitIndex];
         }
-
         // Cleanup on page unload
         window.addEventListener('beforeunload', function() {
             if (refreshInterval) {
