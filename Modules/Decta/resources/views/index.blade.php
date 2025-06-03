@@ -937,7 +937,6 @@
         <div class="text-xs text-gray-500">${currency.currency}</div>
     `;
         }
-
         function createMultiCurrencyDisplay(merchant) {
             const topCurrencies = merchant.currency_breakdown
                 ? merchant.currency_breakdown.slice(0, 2)
@@ -1082,7 +1081,6 @@
 
             document.body.insertAdjacentHTML('beforeend', modalHTML);
         }
-
         function exportMerchantData(merchantId, merchantName) {
             // Create CSV export of the merchant's currency breakdown
             const merchant = dashboardData.top_merchants.find(m => m.merchant_id === merchantId);
@@ -1236,7 +1234,6 @@
                 }
             });
         }
-
         function updateRecentFiles(filesData) {
             const tbody = document.getElementById('recentFilesTableBody');
 
@@ -1270,7 +1267,6 @@
                 </tr>
             `).join('');
         }
-
         function updateHealthStatus(statusData) {
             // This would be implemented based on actual health check results
             const badge = document.getElementById('healthStatusBadge');
@@ -1309,7 +1305,6 @@
                 `;
             }
         }
-
         function getStatusColor(status) {
             switch (status.toLowerCase()) {
                 case 'processed':
@@ -1324,7 +1319,6 @@
                     return 'bg-gray-100 text-gray-800';
             }
         }
-
         function formatFileSize(bytes) {
             if (!bytes) return 'N/A';
             const units = ['B', 'KB', 'MB', 'GB'];
@@ -1338,80 +1332,6 @@
 
             return size.toFixed(1) + ' ' + units[unitIndex];
         }
-        function debugMerchantGrouping() {
-            fetch('/decta/reports/debug-merchants')
-                .then(response => response.json())
-                .then(data => {
-                    console.log('Raw merchant debug data:', data);
-
-                    if (data.debug_data.fintzero_specific) {
-                        console.log('Fintzero specific data:', data.debug_data.fintzero_specific);
-                        console.log('Number of fintzero entries:', data.debug_data.fintzero_specific.length);
-                    }
-
-                    if (data.debug_data.duplicate_groups) {
-                        console.log('Duplicate groups found:', Object.keys(data.debug_data.duplicate_groups).length);
-                        Object.entries(data.debug_data.duplicate_groups).forEach(([name, merchants]) => {
-                            console.log(`Duplicate group "${name}":`, merchants);
-                        });
-                    }
-                })
-                .catch(error => {
-                    console.error('Debug request failed:', error);
-                });
-        }
-
-        // Test the merchant grouping
-        function testMerchantGrouping() {
-            fetch('/decta/reports/test-merchant-grouping')
-                .then(response => response.json())
-                .then(data => {
-                    console.log('Merchant grouping test results:', data);
-
-                    if (data.comparison) {
-                        console.log('Original method merchants:', data.comparison.original_method.count);
-                        console.log('Improved method merchants:', data.comparison.improved_method.count);
-
-                        // Check for fintzero in both methods
-                        const originalFintzero = data.comparison.original_method.merchants.filter(m =>
-                            m.name.toLowerCase().includes('fintzero'));
-                        const improvedFintzero = data.comparison.improved_method.merchants.filter(m =>
-                            m.name.toLowerCase().includes('fintzero'));
-
-                        console.log('Fintzero in original method:', originalFintzero);
-                        console.log('Fintzero in improved method:', improvedFintzero);
-                    }
-                })
-                .catch(error => {
-                    console.error('Test request failed:', error);
-                });
-        }
-
-        // Add debug buttons to the dashboard (for development only)
-        function addDebugButtons() {
-            if (window.location.hostname === 'localhost' || window.location.hostname.includes('dev')) {
-                const debugContainer = document.createElement('div');
-                debugContainer.className = 'fixed bottom-4 right-4 space-y-2';
-                debugContainer.innerHTML = `
-            <button onclick="debugMerchantGrouping()"
-                    class="block px-3 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600">
-                Debug Merchants
-            </button>
-            <button onclick="testMerchantGrouping()"
-                    class="block px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600">
-                Test Grouping
-            </button>
-        `;
-                document.body.appendChild(debugContainer);
-            }
-        }
-
-        // Initialize debug buttons when page loads
-        document.addEventListener('DOMContentLoaded', function() {
-            // Add debug buttons for development
-            addDebugButtons();
-        });
-
         // Cleanup on page unload
         window.addEventListener('beforeunload', function() {
             if (refreshInterval) {

@@ -187,13 +187,13 @@
                                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
                                     <option value="scheme">Scheme Report</option>
                                     <option value="volume_breakdown">Volume Breakdown by Region</option>
-{{--                                    <option value="transactions">Transaction Details</option>--}}
-{{--                                    <option value="daily_summary">Daily Summary</option>--}}
-{{--                                    <option value="merchant_breakdown">Merchant Breakdown</option>--}}
-{{--                                    <option value="matching">Matching Analysis</option>--}}
-{{--                                    <option value="settlements">Settlement Report</option>--}}
-{{--                                    <option value="declined_transactions">Declined Transactions</option>--}}
-{{--                                    <option value="approval_analysis">Approval Analysis</option>--}}
+                                    {{--                                    <option value="transactions">Transaction Details</option>--}}
+                                    {{--                                    <option value="daily_summary">Daily Summary</option>--}}
+                                    {{--                                    <option value="merchant_breakdown">Merchant Breakdown</option>--}}
+                                    {{--                                    <option value="matching">Matching Analysis</option>--}}
+                                    {{--                                    <option value="settlements">Settlement Report</option>--}}
+                                    {{--                                    <option value="declined_transactions">Declined Transactions</option>--}}
+                                    {{--                                    <option value="approval_analysis">Approval Analysis</option>--}}
                                 </select>
                             </div>
 
@@ -242,46 +242,46 @@
                             </div>
                         </div>
 
-{{--                        <!-- Additional Filters -->--}}
-{{--                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">--}}
-{{--                            <div>--}}
-{{--                                <label for="status" class="block text-sm font-medium text-gray-700 mb-2">--}}
-{{--                                    Status--}}
-{{--                                </label>--}}
-{{--                                <select id="status"--}}
-{{--                                        name="status"--}}
-{{--                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">--}}
-{{--                                    <option value="">All Statuses</option>--}}
-{{--                                    <option value="matched">Matched</option>--}}
-{{--                                    <option value="pending">Pending</option>--}}
-{{--                                    <option value="failed">Failed</option>--}}
-{{--                                </select>--}}
-{{--                            </div>--}}
+                        {{--                        <!-- Additional Filters -->--}}
+                        {{--                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">--}}
+                        {{--                            <div>--}}
+                        {{--                                <label for="status" class="block text-sm font-medium text-gray-700 mb-2">--}}
+                        {{--                                    Status--}}
+                        {{--                                </label>--}}
+                        {{--                                <select id="status"--}}
+                        {{--                                        name="status"--}}
+                        {{--                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">--}}
+                        {{--                                    <option value="">All Statuses</option>--}}
+                        {{--                                    <option value="matched">Matched</option>--}}
+                        {{--                                    <option value="pending">Pending</option>--}}
+                        {{--                                    <option value="failed">Failed</option>--}}
+                        {{--                                </select>--}}
+                        {{--                            </div>--}}
 
-{{--                            <div>--}}
-{{--                                <label for="amount_min" class="block text-sm font-medium text-gray-700 mb-2">--}}
-{{--                                    Min Amount (€)--}}
-{{--                                </label>--}}
-{{--                                <input type="number"--}}
-{{--                                       id="amount_min"--}}
-{{--                                       name="amount_min"--}}
-{{--                                       step="0.01"--}}
-{{--                                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"--}}
-{{--                                       placeholder="0.00">--}}
-{{--                            </div>--}}
+                        {{--                            <div>--}}
+                        {{--                                <label for="amount_min" class="block text-sm font-medium text-gray-700 mb-2">--}}
+                        {{--                                    Min Amount (€)--}}
+                        {{--                                </label>--}}
+                        {{--                                <input type="number"--}}
+                        {{--                                       id="amount_min"--}}
+                        {{--                                       name="amount_min"--}}
+                        {{--                                       step="0.01"--}}
+                        {{--                                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"--}}
+                        {{--                                       placeholder="0.00">--}}
+                        {{--                            </div>--}}
 
-{{--                            <div>--}}
-{{--                                <label for="amount_max" class="block text-sm font-medium text-gray-700 mb-2">--}}
-{{--                                    Max Amount (€)--}}
-{{--                                </label>--}}
-{{--                                <input type="number"--}}
-{{--                                       id="amount_max"--}}
-{{--                                       name="amount_max"--}}
-{{--                                       step="0.01"--}}
-{{--                                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"--}}
-{{--                                       placeholder="1000.00">--}}
-{{--                            </div>--}}
-{{--                        </div>--}}
+                        {{--                            <div>--}}
+                        {{--                                <label for="amount_max" class="block text-sm font-medium text-gray-700 mb-2">--}}
+                        {{--                                    Max Amount (€)--}}
+                        {{--                                </label>--}}
+                        {{--                                <input type="number"--}}
+                        {{--                                       id="amount_max"--}}
+                        {{--                                       name="amount_max"--}}
+                        {{--                                       step="0.01"--}}
+                        {{--                                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"--}}
+                        {{--                                       placeholder="1000.00">--}}
+                        {{--                            </div>--}}
+                        {{--                        </div>--}}
 
                         <!-- Export Options -->
                         <div class="flex items-center space-x-4">
@@ -291,14 +291,14 @@
                                     <input type="radio" name="export_format" value="json" class="form-radio" checked>
                                     <span class="ml-2 text-sm text-gray-700">View Online</span>
                                 </label>
-{{--                                <label class="inline-flex items-center">--}}
-{{--                                    <input type="radio" name="export_format" value="csv" class="form-radio">--}}
-{{--                                    <span class="ml-2 text-sm text-gray-700">CSV Download</span>--}}
-{{--                                </label>--}}
-{{--                                <label class="inline-flex items-center">--}}
-{{--                                    <input type="radio" name="export_format" value="excel" class="form-radio">--}}
-{{--                                    <span class="ml-2 text-sm text-gray-700">Excel Download</span>--}}
-{{--                                </label>--}}
+                                {{--                                <label class="inline-flex items-center">--}}
+                                {{--                                    <input type="radio" name="export_format" value="csv" class="form-radio">--}}
+                                {{--                                    <span class="ml-2 text-sm text-gray-700">CSV Download</span>--}}
+                                {{--                                </label>--}}
+                                {{--                                <label class="inline-flex items-center">--}}
+                                {{--                                    <input type="radio" name="export_format" value="excel" class="form-radio">--}}
+                                {{--                                    <span class="ml-2 text-sm text-gray-700">Excel Download</span>--}}
+                                {{--                                </label>--}}
                             </div>
                         </div>
 
@@ -856,7 +856,7 @@
                 // Check if this is a multi-currency report
                 const isMultiCurrency = Object.keys(currencyTotals).length > 1;
 
-                let html = `
+                return `
         <div class="space-y-8">
             <!-- Executive Summary -->
             <div class="bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg p-6 text-white">
@@ -925,9 +925,8 @@
             </div>
         </div>
     `;
-
-                return html;
             }
+
             function formatCardBrandAnalysis(brandSummary, totals, isMultiCurrency) {
                 const totalVolume = totals.total_volume;
 
@@ -1277,6 +1276,7 @@
         </div>
     `;
             }
+
             /**
              * Helper functions for formatting
              */
@@ -1317,6 +1317,7 @@
         </div>
     `;
             }
+
             // Real-time dashboard updates (optional)
             function updateDashboard() {
                 fetch('{{ route("decta.reports.dashboard") }}')
