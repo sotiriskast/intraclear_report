@@ -42,7 +42,7 @@ class DectaReportController extends Controller
         $validator = Validator::make($request->all(), [
             'date_from' => 'required|date',
             'date_to' => 'required|date|after_or_equal:date_from',
-            'report_type' => 'required|in:transactions,settlements,matching,daily_summary,merchant_breakdown,scheme,declined_transactions,approval_analysis',
+            'report_type' => 'required|in:transactions,settlements,matching,daily_summary,merchant_breakdown,scheme,declined_transactions,approval_analysis,volume_breakdown',
             'merchant_id' => 'nullable|integer|exists:merchants,id',
             'currency' => 'nullable|string|size:3',
             'status' => 'nullable|in:pending,matched,failed,approved,declined',
@@ -89,7 +89,43 @@ class DectaReportController extends Controller
             ], 500);
         }
     }
+    /**
+     * Get volume breakdown report specifically
+     */
+    public function getVolumeBreakdown(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'date_from' => 'required|date',
+            'date_to' => 'required|date|after_or_equal:date_from',
+            'merchant_id' => 'nullable|integer|exists:merchants,id',
+            'currency' => 'nullable|string|size:3'
+        ]);
 
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $filters = $request->only(['date_from', 'date_to', 'merchant_id', 'currency']);
+            $data = $this->reportService->getDetailedVolumeBreakdown($filters);
+
+            return response()->json([
+                'success' => true,
+                'data' => $data,
+                'filters_applied' => $filters,
+                'generated_at' => Carbon::now()->toISOString()
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to generate volume breakdown: ' . $e->getMessage()
+            ], 500);
+        }
+    }
     /**
      * Get declined transactions (API endpoint for modal)
      */
@@ -525,6 +561,11 @@ class DectaReportController extends Controller
     protected function getCsvHeaders($reportType): array
     {
         switch ($reportType) {
+            case 'volume_breakdown':
+                return [
+                    'Continent', 'Card Brand', 'Card Type', 'Currency', 'Volume', 'Transaction Count',
+                    'Percentage of Total', 'Percentage of Continent', 'Percentage of Brand'
+                ];
             case 'transactions':
                 return [
                     'Payment ID', 'Date', 'Amount', 'Currency', 'Merchant', 'Status', 'Gateway Status', 'Matched'
@@ -564,6 +605,18 @@ class DectaReportController extends Controller
     protected function formatRowForCsv($row, $reportType): array
     {
         switch ($reportType) {
+            case 'volume_breakdown':
+                return [
+                    $row['continent'] ?? '',
+                    $row['card_brand'] ?? '',
+                    $row['card_type'] ?? '',
+                    $row['currency'] ?? '',
+                    $row['volume'] ?? 0,
+                    $row['transaction_count'] ?? 0,
+                    round($row['percentage_of_total'] ?? 0, 2),
+                    round($row['percentage_of_continent'] ?? 0, 2),
+                    round($row['percentage_of_brand'] ?? 0, 2)
+                ];
             case 'transactions':
                 return [
                     $row['payment_id'] ?? '',
@@ -721,6 +774,10 @@ class DectaReportController extends Controller
      */
     protected function exportToCsv($data, $reportType)
     {
+        if ($reportType === 'volume_breakdown') {
+            $data = $this->prepareVolumeBreakdownForCsv($data);
+        }
+
         $filename = "decta_{$reportType}_" . Carbon::now()->format('Y-m-d_H-i-s') . '.csv';
         $headers = [
             'Content-Type' => 'text/csv',
@@ -744,7 +801,41 @@ class DectaReportController extends Controller
 
         return response()->stream($callback, 200, $headers);
     }
+    /**
+     * Prepare volume breakdown data for CSV export
+     */
+    private function prepareVolumeBreakdownForCsv($data): array
+    {
+        $csvData = [];
 
+        foreach ($data['continent_breakdown'] as $continent => $continentData) {
+            foreach ($continentData['card_brands'] as $cardBrand => $brandData) {
+                foreach ($brandData['card_types'] as $cardType => $typeData) {
+                    foreach ($typeData['currencies'] as $currency => $volume) {
+                        $csvData[] = [
+                            'continent' => $continent,
+                            'card_brand' => $cardBrand,
+                            'card_type' => $cardType,
+                            'currency' => $currency,
+                            'volume' => $volume,
+                            'transaction_count' => $typeData['total_transactions'],
+                            'percentage_of_total' => $data['totals']['total_volume'] > 0
+                                ? ($volume / $data['totals']['total_volume']) * 100
+                                : 0,
+                            'percentage_of_continent' => $continentData['total_amount'] > 0
+                                ? ($volume / $continentData['total_amount']) * 100
+                                : 0,
+                            'percentage_of_brand' => $brandData['total_amount'] > 0
+                                ? ($volume / $brandData['total_amount']) * 100
+                                : 0
+                        ];
+                    }
+                }
+            }
+        }
+
+        return $csvData;
+    }
     /**
      * Export data to Excel (placeholder - would need PhpSpreadsheet)
      */

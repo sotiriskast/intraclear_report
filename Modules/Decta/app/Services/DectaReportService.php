@@ -27,7 +27,7 @@ class DectaReportService
             COUNT(*) FILTER (WHERE status = 'failed') as failed_transactions,
             COUNT(*) FILTER (WHERE gateway_transaction_status = 'approved' OR gateway_transaction_status = 'APPROVED') as approved_transactions,
             COUNT(*) FILTER (WHERE gateway_transaction_status = 'declined' OR gateway_transaction_status = 'DECLINED') as declined_transactions,
-            COUNT(DISTINCT merchant_id) FILTER (WHERE merchant_id IS NOT NULL) as unique_merchants,
+            COUNT(DISTINCT gateway_account_id) FILTER (WHERE gateway_account_id IS NOT NULL) as unique_merchants,
             COUNT(DISTINCT tr_ccy) FILTER (WHERE tr_ccy IS NOT NULL) as unique_currencies
         FROM decta_transactions
         WHERE created_at >= ?
@@ -124,9 +124,31 @@ class DectaReportService
             $yesterdayAmountsByCurrency[$row->currency] = ($row->total_amount ?? 0) / 100;
         }
 
-        // Determine primary currency (most transactions)
-        $primaryCurrency = !empty($amountsByCurrency) ? $amountsByCurrency[0]['currency'] : 'EUR';
-        $primaryCurrencyData = !empty($amountsByCurrency) ? $amountsByCurrency[0] : null;
+        // Determine display strategy for amounts
+        $isMultiCurrency = ($mainStats->unique_currencies ?? 0) > 1;
+
+        if (!$isMultiCurrency && !empty($amountsByCurrency)) {
+            // Single currency - show it directly
+            $primaryCurrency = $amountsByCurrency[0]['currency'];
+            $displayAmount = $amountsByCurrency[0]['total_amount'];
+            $todayDisplayAmount = $todayAmountsByCurrency[$primaryCurrency] ?? 0;
+            $yesterdayDisplayAmount = $yesterdayAmountsByCurrency[$primaryCurrency] ?? 0;
+            $displayCurrency = $primaryCurrency;
+        } else if ($isMultiCurrency) {
+            // Multi-currency - don't show a total amount, show a breakdown instead
+            $primaryCurrency = !empty($amountsByCurrency) ? $amountsByCurrency[0]['currency'] : 'EUR';
+            $displayAmount = null; // Don't show mixed currency total
+            $todayDisplayAmount = null;
+            $yesterdayDisplayAmount = null;
+            $displayCurrency = 'Multi';
+        } else {
+            // No data
+            $primaryCurrency = 'EUR';
+            $displayAmount = 0;
+            $todayDisplayAmount = 0;
+            $yesterdayDisplayAmount = 0;
+            $displayCurrency = 'EUR';
+        }
 
         return [
             'total_transactions' => $mainStats->total_transactions ?? 0,
@@ -142,31 +164,19 @@ class DectaReportService
 
             // Currency information
             'unique_currencies' => $mainStats->unique_currencies ?? 0,
-            'is_multi_currency' => ($mainStats->unique_currencies ?? 0) > 1,
+            'is_multi_currency' => $isMultiCurrency,
             'primary_currency' => $primaryCurrency,
+            'display_currency' => $displayCurrency,
 
-            // Primary currency amounts (for main display)
-            'primary_currency_amount' => $primaryCurrencyData ? [
-                'currency' => $primaryCurrency,
-                'amount' => $primaryCurrencyData['total_amount']
-            ] : null,
+            // Display amounts (null for multi-currency)
+            'total_amount' => $displayAmount,
+            'today_amount' => $todayDisplayAmount,
+            'yesterday_amount' => $yesterdayDisplayAmount,
 
-            // All currency breakdown
+            // Detailed currency breakdown
             'amounts_by_currency' => $amountsByCurrency,
-
-            // Today's amounts by currency
             'today_amounts_by_currency' => $todayAmountsByCurrency,
-            'today_primary_amount' => [
-                'currency' => $primaryCurrency,
-                'amount' => $todayAmountsByCurrency[$primaryCurrency] ?? 0
-            ],
-
-            // Yesterday's amounts by currency
             'yesterday_amounts_by_currency' => $yesterdayAmountsByCurrency,
-            'yesterday_primary_amount' => [
-                'currency' => $primaryCurrency,
-                'amount' => $yesterdayAmountsByCurrency[$primaryCurrency] ?? 0
-            ],
 
             'unique_merchants' => $mainStats->unique_merchants ?? 0,
             'today_transactions' => $todayData->today_transactions ?? 0,
@@ -357,6 +367,8 @@ class DectaReportService
                 return $this->getDeclinedTransactionsReport($filters);
             case 'approval_analysis':
                 return $this->getApprovalAnalysisReport($filters);
+            case 'volume_breakdown':
+                return $this->getVolumeBreakdownReport($filters);
             default:
                 throw new \InvalidArgumentException("Unknown report type: {$reportType}");
         }
@@ -1418,5 +1430,445 @@ class DectaReportService
             ];
         }, $results);
     }
+    public function getCardVolumeBreakdownByRegion(array $filters = []): array
+    {
+        $whereConditions = ['dt.tr_amount IS NOT NULL', 'dt.tr_amount > 0'];
+        $params = [];
+
+        // Apply date filters
+        if (!empty($filters['date_from'])) {
+            $whereConditions[] = 'dt.tr_date_time >= ?::timestamp';
+            $params[] = $filters['date_from'] . ' 00:00:00';
+        }
+
+        if (!empty($filters['date_to'])) {
+            $whereConditions[] = 'dt.tr_date_time <= ?::timestamp';
+            $params[] = $filters['date_to'] . ' 23:59:59';
+        }
+
+        // Apply merchant filter if provided
+        if (!empty($filters['merchant_id'])) {
+            $whereConditions[] = 'EXISTS (SELECT 1 FROM merchants m WHERE dt.gateway_account_id = m.account_id AND m.id = ?)';
+            $params[] = (int)$filters['merchant_id'];
+        }
+
+        // Apply currency filter if provided
+        if (!empty($filters['currency'])) {
+            $whereConditions[] = 'dt.tr_ccy = ?';
+            $params[] = $filters['currency'];
+        }
+
+        $whereClause = implode(' AND ', $whereConditions);
+
+        // Define EU countries list with 3-letter ISO codes
+        $euCountries = [
+            'AUT', 'BEL', 'BGR', 'HRV', 'CYP', 'CZE', 'DNK', 'EST', 'FIN', 'FRA',
+            'DEU', 'GRC', 'HUN', 'IRL', 'ITA', 'LVA', 'LTU', 'LUX', 'MLT', 'NLD',
+            'POL', 'PRT', 'ROU', 'SVK', 'SVN', 'ESP', 'SWE'
+        ];
+
+        $euCountriesString = "'" . implode("','", $euCountries) . "'";
+
+        $query = "
+    WITH enhanced_breakdown AS (
+        SELECT
+            -- Continent classification using 3-letter country codes
+            CASE
+                WHEN dt.issuer_country IS NULL OR dt.issuer_country = '' THEN 'Unknown'
+                WHEN dt.issuer_country IN ({$euCountriesString}) THEN 'Europe'
+                ELSE 'Non-Europe'
+            END as continent,
+
+            -- Card Brand classification (from card_type_name)
+            CASE
+                WHEN dt.card_type_name IS NULL OR dt.card_type_name = '' THEN 'Unknown Brand'
+                WHEN UPPER(dt.card_type_name) LIKE '%VISA%' OR UPPER(dt.card_type_name) LIKE '%VI%' THEN 'Visa'
+                WHEN UPPER(dt.card_type_name) LIKE '%MASTERCARD%' OR UPPER(dt.card_type_name) LIKE '%MC%' OR UPPER(dt.card_type_name) LIKE '%MASTER%' THEN 'Mastercard'
+                WHEN UPPER(dt.card_type_name) LIKE '%AMEX%' OR UPPER(dt.card_type_name) LIKE '%AMERICAN EXPRESS%' THEN 'American Express'
+                WHEN UPPER(dt.card_type_name) LIKE '%DINERS%' THEN 'Diners Club'
+                WHEN UPPER(dt.card_type_name) LIKE '%DISCOVER%' THEN 'Discover'
+                WHEN UPPER(dt.card_type_name) LIKE '%JCB%' THEN 'JCB'
+                WHEN UPPER(dt.card_type_name) LIKE '%UNION%' THEN 'UnionPay'
+                ELSE INITCAP(dt.card_type_name)
+            END as card_brand,
+
+            -- Card Type classification (from card_product_type)
+            CASE
+                WHEN dt.card_product_type IS NULL OR dt.card_product_type = '' THEN 'Unknown Type'
+                WHEN LOWER(dt.card_product_type) LIKE '%personal%' OR LOWER(dt.card_product_type) LIKE '%consumer%' OR LOWER(dt.card_product_type) LIKE '%individual%' OR LOWER(dt.card_product_type) LIKE '%private%' THEN 'Personal'
+                WHEN LOWER(dt.card_product_type) LIKE '%commercial%' OR LOWER(dt.card_product_type) LIKE '%business%' OR LOWER(dt.card_product_type) LIKE '%corporate%' OR LOWER(dt.card_product_type) LIKE '%company%' THEN 'Commercial'
+                WHEN LOWER(dt.card_product_type) LIKE '%premium%' OR LOWER(dt.card_product_type) LIKE '%platinum%' OR LOWER(dt.card_product_type) LIKE '%gold%' THEN 'Premium Personal'
+                ELSE INITCAP(dt.card_product_type)
+            END as card_type,
+
+            dt.tr_amount,
+            dt.tr_ccy,
+            dt.issuer_country
+        FROM decta_transactions dt
+        WHERE {$whereClause}
+    )
+    SELECT
+        continent,
+        card_brand,
+        card_type,
+        SUM(tr_amount) as total_amount_cents,
+        COUNT(*) as transaction_count,
+        tr_ccy as currency,
+        COUNT(DISTINCT issuer_country) as countries_count,
+        array_agg(DISTINCT issuer_country) as countries
+    FROM enhanced_breakdown
+    GROUP BY continent, card_brand, card_type, tr_ccy
+    ORDER BY continent, card_brand, card_type, tr_ccy
+";
+
+        try {
+            $results = DB::select($query, $params);
+
+            return $this->formatVolumeBreakdownResults($results);
+
+        } catch (\Exception $e) {
+            \Log::error('Enhanced card volume breakdown query failed', [
+                'error' => $e->getMessage(),
+                'query' => $query,
+                'params' => $params,
+                'filters' => $filters
+            ]);
+
+            return [
+                'totals' => [],
+                'continent_breakdown' => [],
+                'brand_summary' => [],
+                'type_summary' => [],
+                'currency_totals' => [],
+                'error' => 'Failed to generate enhanced volume breakdown report'
+            ];
+        }
+    }
+
+    /**
+     * Format the enhanced volume breakdown results with proper currency separation
+     */
+    private function formatVolumeBreakdownResults(array $results): array
+    {
+        $continentData = [];
+        $brandSummary = [];
+        $typeSummary = [];
+        $currencyTotals = [];
+
+        // Group results by continent → card brand → card type → currency
+        foreach ($results as $row) {
+            $continent = $row->continent;
+            $cardBrand = $row->card_brand;
+            $cardType = $row->card_type;
+            $currency = $row->currency ?: 'Unknown';
+            $amountInBaseCurrency = $row->total_amount_cents / 100;
+            $transactionCount = $row->transaction_count;
+            $countriesCount = $row->countries_count;
+
+            // Initialize continent data structure
+            if (!isset($continentData[$continent])) {
+                $continentData[$continent] = [
+                    'total_transactions' => 0,
+                    'total_amount' => 0,
+                    'currencies' => [],
+                    'card_brands' => [],
+                    'countries_count' => 0
+                ];
+            }
+
+            // Initialize card brand data structure
+            if (!isset($continentData[$continent]['card_brands'][$cardBrand])) {
+                $continentData[$continent]['card_brands'][$cardBrand] = [
+                    'total_transactions' => 0,
+                    'total_amount' => 0,
+                    'currencies' => [],
+                    'card_types' => []
+                ];
+            }
+
+            // Initialize card type data structure
+            if (!isset($continentData[$continent]['card_brands'][$cardBrand]['card_types'][$cardType])) {
+                $continentData[$continent]['card_brands'][$cardBrand]['card_types'][$cardType] = [
+                    'total_transactions' => 0,
+                    'total_amount' => 0,
+                    'currencies' => []
+                ];
+            }
+
+            // Initialize currency structures
+            if (!isset($continentData[$continent]['currencies'][$currency])) {
+                $continentData[$continent]['currencies'][$currency] = 0;
+            }
+            if (!isset($continentData[$continent]['card_brands'][$cardBrand]['currencies'][$currency])) {
+                $continentData[$continent]['card_brands'][$cardBrand]['currencies'][$currency] = 0;
+            }
+            if (!isset($continentData[$continent]['card_brands'][$cardBrand]['card_types'][$cardType]['currencies'][$currency])) {
+                $continentData[$continent]['card_brands'][$cardBrand]['card_types'][$cardType]['currencies'][$currency] = 0;
+            }
+
+            // Accumulate data
+            $continentData[$continent]['total_transactions'] += $transactionCount;
+            $continentData[$continent]['total_amount'] += $amountInBaseCurrency;
+            $continentData[$continent]['countries_count'] = max($continentData[$continent]['countries_count'], $countriesCount);
+
+            $continentData[$continent]['card_brands'][$cardBrand]['total_transactions'] += $transactionCount;
+            $continentData[$continent]['card_brands'][$cardBrand]['total_amount'] += $amountInBaseCurrency;
+            $continentData[$continent]['card_brands'][$cardBrand]['card_types'][$cardType]['total_transactions'] += $transactionCount;
+            $continentData[$continent]['card_brands'][$cardBrand]['card_types'][$cardType]['total_amount'] += $amountInBaseCurrency;
+
+            // Update currency amounts
+            $continentData[$continent]['currencies'][$currency] += $amountInBaseCurrency;
+            $continentData[$continent]['card_brands'][$cardBrand]['currencies'][$currency] += $amountInBaseCurrency;
+            $continentData[$continent]['card_brands'][$cardBrand]['card_types'][$cardType]['currencies'][$currency] += $amountInBaseCurrency;
+
+            // Update brand summary by currency
+            if (!isset($brandSummary[$cardBrand])) {
+                $brandSummary[$cardBrand] = [
+                    'total_transactions' => 0,
+                    'total_amount' => 0,
+                    'europe_amount' => 0,
+                    'non_europe_amount' => 0,
+                    'unknown_amount' => 0,
+                    'currencies' => []
+                ];
+            }
+            if (!isset($brandSummary[$cardBrand]['currencies'][$currency])) {
+                $brandSummary[$cardBrand]['currencies'][$currency] = [
+                    'europe_amount' => 0,
+                    'non_europe_amount' => 0,
+                    'unknown_amount' => 0,
+                    'total_amount' => 0
+                ];
+            }
+
+            $brandSummary[$cardBrand]['total_transactions'] += $transactionCount;
+            $brandSummary[$cardBrand]['total_amount'] += $amountInBaseCurrency;
+            $brandSummary[$cardBrand]['currencies'][$currency]['total_amount'] += $amountInBaseCurrency;
+
+            switch ($continent) {
+                case 'Europe':
+                    $brandSummary[$cardBrand]['europe_amount'] += $amountInBaseCurrency;
+                    $brandSummary[$cardBrand]['currencies'][$currency]['europe_amount'] += $amountInBaseCurrency;
+                    break;
+                case 'Non-Europe':
+                    $brandSummary[$cardBrand]['non_europe_amount'] += $amountInBaseCurrency;
+                    $brandSummary[$cardBrand]['currencies'][$currency]['non_europe_amount'] += $amountInBaseCurrency;
+                    break;
+                case 'Unknown':
+                    $brandSummary[$cardBrand]['unknown_amount'] += $amountInBaseCurrency;
+                    $brandSummary[$cardBrand]['currencies'][$currency]['unknown_amount'] += $amountInBaseCurrency;
+                    break;
+            }
+
+            // Update type summary by currency
+            if (!isset($typeSummary[$cardType])) {
+                $typeSummary[$cardType] = [
+                    'total_transactions' => 0,
+                    'total_amount' => 0,
+                    'europe_amount' => 0,
+                    'non_europe_amount' => 0,
+                    'unknown_amount' => 0,
+                    'currencies' => []
+                ];
+            }
+            if (!isset($typeSummary[$cardType]['currencies'][$currency])) {
+                $typeSummary[$cardType]['currencies'][$currency] = [
+                    'europe_amount' => 0,
+                    'non_europe_amount' => 0,
+                    'unknown_amount' => 0,
+                    'total_amount' => 0
+                ];
+            }
+
+            $typeSummary[$cardType]['total_transactions'] += $transactionCount;
+            $typeSummary[$cardType]['total_amount'] += $amountInBaseCurrency;
+            $typeSummary[$cardType]['currencies'][$currency]['total_amount'] += $amountInBaseCurrency;
+
+            switch ($continent) {
+                case 'Europe':
+                    $typeSummary[$cardType]['europe_amount'] += $amountInBaseCurrency;
+                    $typeSummary[$cardType]['currencies'][$currency]['europe_amount'] += $amountInBaseCurrency;
+                    break;
+                case 'Non-Europe':
+                    $typeSummary[$cardType]['non_europe_amount'] += $amountInBaseCurrency;
+                    $typeSummary[$cardType]['currencies'][$currency]['non_europe_amount'] += $amountInBaseCurrency;
+                    break;
+                case 'Unknown':
+                    $typeSummary[$cardType]['unknown_amount'] += $amountInBaseCurrency;
+                    $typeSummary[$cardType]['currencies'][$currency]['unknown_amount'] += $amountInBaseCurrency;
+                    break;
+            }
+
+            // Update currency totals
+            if (!isset($currencyTotals[$currency])) {
+                $currencyTotals[$currency] = [
+                    'europe_amount' => 0,
+                    'non_europe_amount' => 0,
+                    'unknown_amount' => 0,
+                    'total_amount' => 0,
+                    'total_transactions' => 0
+                ];
+            }
+
+            $currencyTotals[$currency]['total_amount'] += $amountInBaseCurrency;
+            $currencyTotals[$currency]['total_transactions'] += $transactionCount;
+
+            switch ($continent) {
+                case 'Europe':
+                    $currencyTotals[$currency]['europe_amount'] += $amountInBaseCurrency;
+                    break;
+                case 'Non-Europe':
+                    $currencyTotals[$currency]['non_europe_amount'] += $amountInBaseCurrency;
+                    break;
+                case 'Unknown':
+                    $currencyTotals[$currency]['unknown_amount'] += $amountInBaseCurrency;
+                    break;
+            }
+        }
+
+        // Calculate overall totals across all currencies - FIXED: Create the expected totals structure
+        $grandTotals = [
+            'europe_cards_volume' => 0,
+            'non_europe_cards_volume' => 0,
+            'unknown_volume' => 0,
+            'total_volume' => 0,
+            'total_transactions' => 0
+        ];
+
+        foreach ($currencyTotals as $currency => $data) {
+            $grandTotals['europe_cards_volume'] += $data['europe_amount'];
+            $grandTotals['non_europe_cards_volume'] += $data['non_europe_amount'];
+            $grandTotals['unknown_volume'] += $data['unknown_amount'];
+            $grandTotals['total_volume'] += $data['total_amount'];
+            $grandTotals['total_transactions'] += $data['total_transactions'];
+        }
+
+        return [
+            'totals' => $grandTotals, // FIXED: Provide the totals structure that JavaScript expects
+            'totals_by_currency' => $currencyTotals, // Keep detailed currency breakdown
+            'currency_totals' => $currencyTotals,
+            'continent_breakdown' => $continentData,
+            'brand_summary' => $brandSummary,
+            'type_summary' => $typeSummary,
+            'grand_total_transactions' => $grandTotals['total_transactions'],
+            'generated_at' => now()->toISOString()
+        ];
+    }
+    /**
+     * Get detailed card volume summary with regional and card type breakdowns
+     */
+    public function getDetailedVolumeBreakdown(array $filters = []): array
+    {
+        $volumeData = $this->getCardVolumeBreakdownByRegion($filters);
+
+        // Build summary using the corrected data structure
+        $totals = $volumeData['totals'] ?? [
+            'total_volume' => 0,
+            'europe_cards_volume' => 0,
+            'non_europe_cards_volume' => 0,
+            'unknown_volume' => 0
+        ];
+
+        $summary = [
+            'overview' => [
+                'total_volume' => $totals['total_volume'],
+                'europe_percentage' => $totals['total_volume'] > 0
+                    ? round(($totals['europe_cards_volume'] / $totals['total_volume']) * 100, 2)
+                    : 0,
+                'non_europe_percentage' => $totals['total_volume'] > 0
+                    ? round(($totals['non_europe_cards_volume'] / $totals['total_volume']) * 100, 2)
+                    : 0,
+            ],
+            'continent_details' => [],
+            'brand_analysis' => [],
+            'type_analysis' => []
+        ];
+
+        // Build continent details
+        foreach ($volumeData['continent_breakdown'] as $continent => $data) {
+            $continentSummary = [
+                'continent' => $continent,
+                'total_volume' => $data['total_amount'],
+                'total_transactions' => $data['total_transactions'],
+                'percentage_of_total' => $totals['total_volume'] > 0
+                    ? round(($data['total_amount'] / $totals['total_volume']) * 100, 2)
+                    : 0,
+                'card_brand_breakdown' => [],
+                'currency_breakdown' => $data['currencies']
+            ];
+
+            foreach ($data['card_brands'] as $cardBrand => $brandData) {
+                $brandSummary = [
+                    'brand' => $cardBrand,
+                    'volume' => $brandData['total_amount'],
+                    'transactions' => $brandData['total_transactions'],
+                    'percentage_of_continent' => $data['total_amount'] > 0
+                        ? round(($brandData['total_amount'] / $data['total_amount']) * 100, 2)
+                        : 0,
+                    'card_type_breakdown' => [],
+                    'currencies' => $brandData['currencies']
+                ];
+
+                foreach ($brandData['card_types'] as $cardType => $typeData) {
+                    $brandSummary['card_type_breakdown'][$cardType] = [
+                        'type' => $cardType,
+                        'volume' => $typeData['total_amount'],
+                        'transactions' => $typeData['total_transactions'],
+                        'percentage_of_brand' => $brandData['total_amount'] > 0
+                            ? round(($typeData['total_amount'] / $brandData['total_amount']) * 100, 2)
+                            : 0,
+                        'currencies' => $typeData['currencies']
+                    ];
+                }
+
+                $continentSummary['card_brand_breakdown'][$cardBrand] = $brandSummary;
+            }
+
+            $summary['continent_details'][$continent] = $continentSummary;
+        }
+
+        // Build brand analysis
+        foreach ($volumeData['brand_summary'] as $brand => $brandData) {
+            $summary['brand_analysis'][$brand] = [
+                'brand' => $brand,
+                'total_volume' => $brandData['total_amount'],
+                'total_transactions' => $brandData['total_transactions'],
+                'europe_volume' => $brandData['europe_amount'],
+                'non_europe_volume' => $brandData['non_europe_amount'],
+                'europe_percentage' => $brandData['total_amount'] > 0
+                    ? round(($brandData['europe_amount'] / $brandData['total_amount']) * 100, 2)
+                    : 0,
+                'percentage_of_total' => $totals['total_volume'] > 0
+                    ? round(($brandData['total_amount'] / $totals['total_volume']) * 100, 2)
+                    : 0
+            ];
+        }
+
+        // Build type analysis
+        foreach ($volumeData['type_summary'] as $type => $typeData) {
+            $summary['type_analysis'][$type] = [
+                'type' => $type,
+                'total_volume' => $typeData['total_amount'],
+                'total_transactions' => $typeData['total_transactions'],
+                'europe_volume' => $typeData['europe_amount'],
+                'non_europe_volume' => $typeData['non_europe_amount'],
+                'europe_percentage' => $typeData['total_amount'] > 0
+                    ? round(($typeData['europe_amount'] / $typeData['total_amount']) * 100, 2)
+                    : 0,
+                'percentage_of_total' => $totals['total_volume'] > 0
+                    ? round(($typeData['total_amount'] / $totals['total_volume']) * 100, 2)
+                    : 0
+            ];
+        }
+
+        return array_merge($volumeData, ['summary' => $summary]);
+    }
+
+    // Add this to your existing generateReport method's switch statement
+    protected function getVolumeBreakdownReport(array $filters): array
+    {
+        return $this->getDetailedVolumeBreakdown($filters);
+    }
+
 }
 

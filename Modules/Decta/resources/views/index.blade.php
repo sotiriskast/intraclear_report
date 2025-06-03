@@ -476,30 +476,31 @@
             document.getElementById('matchRate').textContent = summary.match_rate.toFixed(1) + '%';
             document.getElementById('approvalRate').textContent = summary.approval_rate.toFixed(1) + '%';
 
-            // Handle multi-currency amounts
-            if (summary.primary_currency_amount) {
-                const primaryAmount = summary.primary_currency_amount;
-                document.getElementById('totalAmount').textContent =
-                    primaryAmount.amount.toLocaleString('en-US', {
-                        style: 'currency',
-                        currency: primaryAmount.currency,
-                        minimumFractionDigits: 2
-                    });
+            // Handle multi-currency total amount display
+            const totalAmountElement = document.getElementById('totalAmount');
+            if (summary.is_multi_currency) {
+                let currencyHtml = '<span class="text-lg">Multi-Currency</span><div class="text-sm font-normal text-gray-600 mt-1">';
+                summary.amounts_by_currency.forEach(function(currency) {
+                    currencyHtml += '<div>' + currency.currency + ' ' + currency.total_amount.toLocaleString('en-US', {minimumFractionDigits: 2}) + '</div>';
+                });
+                currencyHtml += '</div>';
+                totalAmountElement.innerHTML = currencyHtml;
             } else {
-                document.getElementById('totalAmount').textContent = 'Multi-currency';
+                totalAmountElement.textContent = summary.display_currency + summary.total_amount.toLocaleString('en-US', {minimumFractionDigits: 2});
             }
 
-            // Update change indicators
+            // Update change indicators for supported metrics
             updateChangeIndicator('totalTransactionsChange', summary.today_transactions - summary.yesterday_transactions);
             updateChangeIndicator('approvedTransactionsChange', summary.today_approved - summary.yesterday_approved);
 
-            // Handle amount change for primary currency
-            if (summary.today_primary_amount && summary.yesterday_primary_amount) {
-                const todayAmount = summary.today_primary_amount.amount || 0;
-                const yesterdayAmount = summary.yesterday_primary_amount.amount || 0;
-                updateChangeIndicator('totalAmountChange', todayAmount - yesterdayAmount, summary.primary_currency_amount?.currency);
+            // For multi-currency, don't show amount change indicators
+            if (!summary.is_multi_currency && summary.today_amount !== null && summary.yesterday_amount !== null) {
+                updateChangeIndicator('totalAmountChange', summary.today_amount - summary.yesterday_amount);
             } else {
-                document.getElementById('totalAmountChange').innerHTML = '<span class="text-gray-500">-</span>';
+                const element = document.getElementById('totalAmountChange');
+                if (element) {
+                    element.innerHTML = '<span class="text-gray-500 text-xs">Multi-currency</span>';
+                }
             }
         }
 

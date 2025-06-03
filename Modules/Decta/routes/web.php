@@ -42,7 +42,7 @@ Route::middleware(['auth', 'verified'])->prefix('decta')->group(function () {
         Route::get('/decline-reasons', [DectaReportController::class, 'getDeclineReasons'])->name('decta.reports.decline-reasons');
         Route::get('/decline-analysis', [DectaReportController::class, 'getDeclineAnalysis'])->name('decta.reports.decline-analysis');
         Route::post('/compare-decline-rates', [DectaReportController::class, 'compareDeclineRates'])->name('decta.reports.compare-decline-rates');
-
+        Route::post('/volume-breakdown', [DectaReportController::class, 'getVolumeBreakdown'])->name('decta.reports.volume-breakdown');
         // Debug routes
         Route::get('/debug-dashboard-data', [DectaReportController::class, 'debugDashboardData'])->name('decta.reports.debug-dashboard');
         Route::get('/debug-merchants', [DectaReportController::class, 'debugMerchantData'])->name('decta.reports.debug-merchants');
