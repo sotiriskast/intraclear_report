@@ -15,7 +15,11 @@ return [
         'host' => env('DECTA_SFTP_HOST', 'files.decta.com'),
         'port' => env('DECTA_SFTP_PORT', 822),
         'username' => env('DECTA_SFTP_USERNAME', 'INTCL'),
-        'private_key_path' => env('DECTA_SFTP_PRIVATE_KEY_PATH', storage_path('app/private/decta_rsa')),
+        'private_key_path' => env('DECTA_SFTP_PRIVATE_KEY_PATH') ?
+            (str_starts_with(env('DECTA_SFTP_PRIVATE_KEY_PATH'), '/') ?
+                env('DECTA_SFTP_PRIVATE_KEY_PATH') :
+                storage_path('app/private/' . basename(env('DECTA_SFTP_PRIVATE_KEY_PATH')))
+            ) : storage_path('app/private/decta_rsa'),
         'remote_path' => env('DECTA_SFTP_REMOTE_PATH', 'in_file/reports'),
         'local_path' => env('DECTA_SFTP_LOCAL_PATH', 'files'),
         'timeout' => env('DECTA_SFTP_TIMEOUT', 30),

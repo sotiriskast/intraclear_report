@@ -134,7 +134,6 @@
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">TR CCY</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">TR Type</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tr Date Time</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                         </tr>
                         </thead>
@@ -148,7 +147,7 @@
                                     {{ $transaction->merchant_name ?: '-' }}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    {{ $transaction->merchant_id ?: '-' }}
+                                    {{ $transaction->gateway_account_id ?: '-' }}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                     @if($transaction->card_type_name)
@@ -172,25 +171,6 @@
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                     {{ $transaction->tr_date_time ? $transaction->tr_date_time->format('Y-m-d H:i:s') : '-' }}
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    @if($transaction->is_matched)
-                                        <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Matched</span>
-                                    @else
-                                        @switch($transaction->status)
-                                            @case('pending')
-                                                <span class="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">Pending</span>
-                                                @break
-                                            @case('failed')
-                                                <span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">Failed</span>
-                                                @break
-                                            @case('processing')
-                                                <span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">Processing</span>
-                                                @break
-                                            @default
-                                                <span class="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">{{ ucfirst($transaction->status) }}</span>
-                                        @endswitch
-                                    @endif
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm">
                                     <a href="{{ route('decta.transactions.show', $transaction->id) }}"
