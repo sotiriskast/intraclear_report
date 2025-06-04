@@ -7,12 +7,15 @@ use Illuminate\Support\ServiceProvider;
 use Modules\Decta\Console\DectaBulkHistoricalImportCommand;
 use Modules\Decta\Console\DectaFixFilePathsCommand;
 use Modules\Decta\Console\DectaTestConnectionCommand;
+use Modules\Decta\Console\DectaTestDeclinedNotificationCommand;
+use Modules\Decta\Console\DectaTestIntegrationCommand;
 use Modules\Decta\Console\DectaTestLatestFileCommand;
 use Modules\Decta\Console\DectaMatchTransactionsCommand;
 use Modules\Decta\Console\DectaCleanupCommand;
 use Modules\Decta\Console\DectaStatusCommand;
 use Modules\Decta\Console\DectaTestNotificationCommand;
 use Modules\Decta\Console\DectaSetupCommand;
+use Modules\Decta\Console\DectaCheckDeclinedTransactionsCommand; // New command
 use Nwidart\Modules\Traits\PathNamespace;
 use Illuminate\Console\Scheduling\Schedule;
 use Modules\Decta\Console\DectaDownloadFilesCommand;
@@ -103,6 +106,9 @@ class DectaServiceProvider extends ServiceProvider
             DectaTestNotificationCommand::class,
             DectaSetupCommand::class,
             DectaBulkHistoricalImportCommand::class,
+            DectaCheckDeclinedTransactionsCommand::class,
+            DectaTestDeclinedNotificationCommand::class,
+            DectaTestIntegrationCommand::class,
         ]);
     }
 
@@ -144,6 +150,12 @@ class DectaServiceProvider extends ServiceProvider
                 ->sundays()
                 ->at('01:00')
                 ->appendOutputTo(storage_path('logs/decta-cleanup.log'));
+
+            // NEW: Schedule declined transactions check every day at 9 AM
+            $schedule->command('decta:check-declined-transactions')
+                ->dailyAt('08:00')
+                ->withoutOverlapping(1440) // 24 hours overlap protection
+                ->appendOutputTo(storage_path('logs/decta-declined-check.log'));
         });
     }
 

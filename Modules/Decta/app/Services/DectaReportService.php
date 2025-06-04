@@ -189,8 +189,6 @@ class DectaReportService
             'period_days' => 30
         ];
     }
-
-
     /**
      * Get declined transactions with filters
      */
@@ -280,7 +278,6 @@ class DectaReportService
             ];
         }, $results);
     }
-
     /**
      * Get approval/decline trends for the last N days
      */
@@ -313,7 +310,6 @@ class DectaReportService
             ];
         }, $results);
     }
-
     /**
      * Get decline reasons summary
      */
@@ -344,7 +340,6 @@ class DectaReportService
             ];
         }, $results);
     }
-
     /**
      * Generate reports based on type and filters
      */
@@ -373,7 +368,6 @@ class DectaReportService
                 throw new \InvalidArgumentException("Unknown report type: {$reportType}");
         }
     }
-
     /**
      * Get declined transactions report
      */
@@ -381,7 +375,6 @@ class DectaReportService
     {
         return $this->getDeclinedTransactions($filters, 1000, 0);
     }
-
     /**
      * Get approval analysis report
      */
@@ -443,7 +436,6 @@ class DectaReportService
             ];
         }, $results);
     }
-
     /**
      * Get scheme report - grouped by card type, transaction type, currency, and merchant
      * Fixed for PostgreSQL GROUP BY requirements
@@ -575,7 +567,6 @@ class DectaReportService
             return [];
         }
     }
-
     /**
      * Get detailed transaction report
      */
@@ -694,7 +685,6 @@ class DectaReportService
             ];
         }, $results);
     }
-
     /**
      * Get daily summary report
      */
@@ -753,7 +743,6 @@ class DectaReportService
             ];
         }, $results);
     }
-
     /**
      * Get merchant breakdown report
      */
@@ -835,7 +824,6 @@ class DectaReportService
             ];
         }, $results);
     }
-
     /**
      * Get matching report (success/failure analysis)
      */
@@ -881,7 +869,6 @@ class DectaReportService
             ];
         }, $results);
     }
-
     /**
      * Get settlement report (placeholder)
      */
@@ -889,7 +876,6 @@ class DectaReportService
     {
         return $this->getDailySummaryReport($filters);
     }
-
     /**
      * Get recent files
      */
@@ -930,7 +916,6 @@ class DectaReportService
             ];
         }, $results);
     }
-
     /**
      * Get processing status overview
      */
@@ -953,7 +938,6 @@ class DectaReportService
             ];
         }, $results);
     }
-
     /**
      * Get matching trends for the last N days
      */
@@ -983,7 +967,6 @@ class DectaReportService
             ];
         }, $results);
     }
-
     /**
      * Get top merchants by transaction volume
      */
@@ -1468,60 +1451,59 @@ class DectaReportService
         $euCountriesString = "'" . implode("','", $euCountries) . "'";
 
         $query = "
-    WITH enhanced_breakdown AS (
+        WITH enhanced_breakdown AS (
+            SELECT
+                -- Continent classification using 3-letter country codes
+                CASE
+                    WHEN dt.issuer_country IS NULL OR dt.issuer_country = '' THEN 'Unknown'
+                    WHEN dt.issuer_country IN ({$euCountriesString}) THEN 'Europe'
+                    ELSE 'Non-Europe'
+                END as continent,
+
+                -- Card Brand classification (from card_type_name)
+                CASE
+                    WHEN dt.card_type_name IS NULL OR dt.card_type_name = '' THEN 'Unknown Brand'
+                    WHEN UPPER(dt.card_type_name) LIKE '%VISA%' OR UPPER(dt.card_type_name) LIKE '%VI%' THEN 'Visa'
+                    WHEN UPPER(dt.card_type_name) LIKE '%MASTERCARD%' OR UPPER(dt.card_type_name) LIKE '%MC%' OR UPPER(dt.card_type_name) LIKE '%MASTER%' THEN 'Mastercard'
+                    WHEN UPPER(dt.card_type_name) LIKE '%AMEX%' OR UPPER(dt.card_type_name) LIKE '%AMERICAN EXPRESS%' THEN 'American Express'
+                    WHEN UPPER(dt.card_type_name) LIKE '%DINERS%' THEN 'Diners Club'
+                    WHEN UPPER(dt.card_type_name) LIKE '%DISCOVER%' THEN 'Discover'
+                    WHEN UPPER(dt.card_type_name) LIKE '%JCB%' THEN 'JCB'
+                    WHEN UPPER(dt.card_type_name) LIKE '%UNION%' THEN 'UnionPay'
+                    ELSE INITCAP(dt.card_type_name)
+                END as card_brand,
+
+                -- Card Type classification (from card_product_type)
+                CASE
+                    WHEN dt.card_product_type IS NULL OR dt.card_product_type = '' THEN 'Unknown Type'
+                    WHEN LOWER(dt.card_product_type) LIKE '%personal%' OR LOWER(dt.card_product_type) LIKE '%consumer%' OR LOWER(dt.card_product_type) LIKE '%individual%' OR LOWER(dt.card_product_type) LIKE '%private%' THEN 'Personal'
+                    WHEN LOWER(dt.card_product_type) LIKE '%commercial%' OR LOWER(dt.card_product_type) LIKE '%business%' OR LOWER(dt.card_product_type) LIKE '%corporate%' OR LOWER(dt.card_product_type) LIKE '%company%' THEN 'Commercial'
+                    WHEN LOWER(dt.card_product_type) LIKE '%premium%' OR LOWER(dt.card_product_type) LIKE '%platinum%' OR LOWER(dt.card_product_type) LIKE '%gold%' THEN 'Premium Personal'
+                    ELSE INITCAP(dt.card_product_type)
+                END as card_type,
+
+                dt.tr_amount,
+                dt.tr_ccy,
+                dt.issuer_country
+            FROM decta_transactions dt
+            WHERE {$whereClause}
+        )
         SELECT
-            -- Continent classification using 3-letter country codes
-            CASE
-                WHEN dt.issuer_country IS NULL OR dt.issuer_country = '' THEN 'Unknown'
-                WHEN dt.issuer_country IN ({$euCountriesString}) THEN 'Europe'
-                ELSE 'Non-Europe'
-            END as continent,
-
-            -- Card Brand classification (from card_type_name)
-            CASE
-                WHEN dt.card_type_name IS NULL OR dt.card_type_name = '' THEN 'Unknown Brand'
-                WHEN UPPER(dt.card_type_name) LIKE '%VISA%' OR UPPER(dt.card_type_name) LIKE '%VI%' THEN 'Visa'
-                WHEN UPPER(dt.card_type_name) LIKE '%MASTERCARD%' OR UPPER(dt.card_type_name) LIKE '%MC%' OR UPPER(dt.card_type_name) LIKE '%MASTER%' THEN 'Mastercard'
-                WHEN UPPER(dt.card_type_name) LIKE '%AMEX%' OR UPPER(dt.card_type_name) LIKE '%AMERICAN EXPRESS%' THEN 'American Express'
-                WHEN UPPER(dt.card_type_name) LIKE '%DINERS%' THEN 'Diners Club'
-                WHEN UPPER(dt.card_type_name) LIKE '%DISCOVER%' THEN 'Discover'
-                WHEN UPPER(dt.card_type_name) LIKE '%JCB%' THEN 'JCB'
-                WHEN UPPER(dt.card_type_name) LIKE '%UNION%' THEN 'UnionPay'
-                ELSE INITCAP(dt.card_type_name)
-            END as card_brand,
-
-            -- Card Type classification (from card_product_type)
-            CASE
-                WHEN dt.card_product_type IS NULL OR dt.card_product_type = '' THEN 'Unknown Type'
-                WHEN LOWER(dt.card_product_type) LIKE '%personal%' OR LOWER(dt.card_product_type) LIKE '%consumer%' OR LOWER(dt.card_product_type) LIKE '%individual%' OR LOWER(dt.card_product_type) LIKE '%private%' THEN 'Personal'
-                WHEN LOWER(dt.card_product_type) LIKE '%commercial%' OR LOWER(dt.card_product_type) LIKE '%business%' OR LOWER(dt.card_product_type) LIKE '%corporate%' OR LOWER(dt.card_product_type) LIKE '%company%' THEN 'Commercial'
-                WHEN LOWER(dt.card_product_type) LIKE '%premium%' OR LOWER(dt.card_product_type) LIKE '%platinum%' OR LOWER(dt.card_product_type) LIKE '%gold%' THEN 'Premium Personal'
-                ELSE INITCAP(dt.card_product_type)
-            END as card_type,
-
-            dt.tr_amount,
-            dt.tr_ccy,
-            dt.issuer_country
-        FROM decta_transactions dt
-        WHERE {$whereClause}
-    )
-    SELECT
-        continent,
-        card_brand,
-        card_type,
-        SUM(tr_amount) as total_amount_cents,
-        COUNT(*) as transaction_count,
-        tr_ccy as currency,
-        COUNT(DISTINCT issuer_country) as countries_count,
-        array_agg(DISTINCT issuer_country) as countries
-    FROM enhanced_breakdown
-    GROUP BY continent, card_brand, card_type, tr_ccy
-    ORDER BY continent, card_brand, card_type, tr_ccy
-";
+            continent,
+            card_brand,
+            card_type,
+            SUM(tr_amount) as total_amount_cents,
+            COUNT(*) as transaction_count,
+            tr_ccy as currency,
+            COUNT(DISTINCT issuer_country) as countries_count,
+            array_agg(DISTINCT issuer_country) as countries
+        FROM enhanced_breakdown
+        GROUP BY continent, card_brand, card_type, tr_ccy
+        ORDER BY continent, card_brand, card_type, tr_ccy
+    ";
 
         try {
             $results = DB::select($query, $params);
-
             return $this->formatVolumeBreakdownResults($results);
 
         } catch (\Exception $e) {
@@ -1532,17 +1514,31 @@ class DectaReportService
                 'filters' => $filters
             ]);
 
-            return [
-                'totals' => [],
-                'continent_breakdown' => [],
-                'brand_summary' => [],
-                'type_summary' => [],
-                'currency_totals' => [],
-                'error' => 'Failed to generate enhanced volume breakdown report'
-            ];
+            // Return empty but properly structured data
+            return $this->getEmptyVolumeBreakdownStructure();
         }
     }
-
+    private function getEmptyVolumeBreakdownStructure(): array
+    {
+        return [
+            'totals' => [
+                'europe_cards_volume' => 0,
+                'non_europe_cards_volume' => 0,
+                'unknown_volume' => 0,
+                'total_volume' => 0,
+                'total_transactions' => 0
+            ],
+            'totals_by_currency' => [],
+            'currency_totals' => [],
+            'continent_breakdown' => [],
+            'brand_summary' => [],
+            'type_summary' => [],
+            'grand_total_transactions' => 0,
+            'generated_at' => now()->toISOString(),
+            'has_data' => false,
+            'message' => 'No data found for the selected criteria'
+        ];
+    }
     /**
      * Format the enhanced volume breakdown results with proper currency separation
      */
@@ -1553,15 +1549,25 @@ class DectaReportService
         $typeSummary = [];
         $currencyTotals = [];
 
+        // Handle empty results
+        if (empty($results)) {
+            return $this->getEmptyVolumeBreakdownStructure();
+        }
+
         // Group results by continent → card brand → card type → currency
         foreach ($results as $row) {
-            $continent = $row->continent;
-            $cardBrand = $row->card_brand;
-            $cardType = $row->card_type;
+            $continent = $row->continent ?? 'Unknown';
+            $cardBrand = $row->card_brand ?? 'Unknown Brand';
+            $cardType = $row->card_type ?? 'Unknown Type';
             $currency = $row->currency ?: 'Unknown';
-            $amountInBaseCurrency = $row->total_amount_cents / 100;
-            $transactionCount = $row->transaction_count;
-            $countriesCount = $row->countries_count;
+            $amountInBaseCurrency = ($row->total_amount_cents ?? 0) / 100;
+            $transactionCount = $row->transaction_count ?? 0;
+            $countriesCount = $row->countries_count ?? 0;
+
+            // Skip if no meaningful data
+            if ($transactionCount === 0 && $amountInBaseCurrency === 0) {
+                continue;
+            }
 
             // Initialize continent data structure
             if (!isset($continentData[$continent])) {
@@ -1724,7 +1730,12 @@ class DectaReportService
             }
         }
 
-        // Calculate overall totals across all currencies - FIXED: Create the expected totals structure
+        // If after processing we still have no meaningful data, return empty structure
+        if (empty($currencyTotals)) {
+            return $this->getEmptyVolumeBreakdownStructure();
+        }
+
+        // Calculate overall totals across all currencies
         $grandTotals = [
             'europe_cards_volume' => 0,
             'non_europe_cards_volume' => 0,
@@ -1742,14 +1753,15 @@ class DectaReportService
         }
 
         return [
-            'totals' => $grandTotals, // FIXED: Provide the totals structure that JavaScript expects
-            'totals_by_currency' => $currencyTotals, // Keep detailed currency breakdown
+            'totals' => $grandTotals,
+            'totals_by_currency' => $currencyTotals,
             'currency_totals' => $currencyTotals,
             'continent_breakdown' => $continentData,
             'brand_summary' => $brandSummary,
             'type_summary' => $typeSummary,
             'grand_total_transactions' => $grandTotals['total_transactions'],
-            'generated_at' => now()->toISOString()
+            'generated_at' => now()->toISOString(),
+            'has_data' => true
         ];
     }
     /**
@@ -1757,109 +1769,137 @@ class DectaReportService
      */
     public function getDetailedVolumeBreakdown(array $filters = []): array
     {
-        $volumeData = $this->getCardVolumeBreakdownByRegion($filters);
+        try {
+            $volumeData = $this->getCardVolumeBreakdownByRegion($filters);
 
-        // Build summary using the corrected data structure
-        $totals = $volumeData['totals'] ?? [
-            'total_volume' => 0,
-            'europe_cards_volume' => 0,
-            'non_europe_cards_volume' => 0,
-            'unknown_volume' => 0
-        ];
-
-        $summary = [
-            'overview' => [
-                'total_volume' => $totals['total_volume'],
-                'europe_percentage' => $totals['total_volume'] > 0
-                    ? round(($totals['europe_cards_volume'] / $totals['total_volume']) * 100, 2)
-                    : 0,
-                'non_europe_percentage' => $totals['total_volume'] > 0
-                    ? round(($totals['non_europe_cards_volume'] / $totals['total_volume']) * 100, 2)
-                    : 0,
-            ],
-            'continent_details' => [],
-            'brand_analysis' => [],
-            'type_analysis' => []
-        ];
-
-        // Build continent details
-        foreach ($volumeData['continent_breakdown'] as $continent => $data) {
-            $continentSummary = [
-                'continent' => $continent,
-                'total_volume' => $data['total_amount'],
-                'total_transactions' => $data['total_transactions'],
-                'percentage_of_total' => $totals['total_volume'] > 0
-                    ? round(($data['total_amount'] / $totals['total_volume']) * 100, 2)
-                    : 0,
-                'card_brand_breakdown' => [],
-                'currency_breakdown' => $data['currencies']
-            ];
-
-            foreach ($data['card_brands'] as $cardBrand => $brandData) {
-                $brandSummary = [
-                    'brand' => $cardBrand,
-                    'volume' => $brandData['total_amount'],
-                    'transactions' => $brandData['total_transactions'],
-                    'percentage_of_continent' => $data['total_amount'] > 0
-                        ? round(($brandData['total_amount'] / $data['total_amount']) * 100, 2)
-                        : 0,
-                    'card_type_breakdown' => [],
-                    'currencies' => $brandData['currencies']
+            // If no data found, return early with proper structure
+            if (!$volumeData['has_data']) {
+                return [
+                    'summary' => [
+                        'overview' => [
+                            'total_volume' => 0,
+                            'europe_percentage' => 0,
+                            'non_europe_percentage' => 0,
+                        ],
+                        'continent_details' => [],
+                        'brand_analysis' => [],
+                        'type_analysis' => []
+                    ],
+                    'totals' => $volumeData['totals'],
+                    'currency_totals' => $volumeData['currency_totals'],
+                    'continent_breakdown' => $volumeData['continent_breakdown'],
+                    'brand_summary' => $volumeData['brand_summary'],
+                    'type_summary' => $volumeData['type_summary'],
+                    'has_data' => false,
+                    'message' => $volumeData['message']
                 ];
-
-                foreach ($brandData['card_types'] as $cardType => $typeData) {
-                    $brandSummary['card_type_breakdown'][$cardType] = [
-                        'type' => $cardType,
-                        'volume' => $typeData['total_amount'],
-                        'transactions' => $typeData['total_transactions'],
-                        'percentage_of_brand' => $brandData['total_amount'] > 0
-                            ? round(($typeData['total_amount'] / $brandData['total_amount']) * 100, 2)
-                            : 0,
-                        'currencies' => $typeData['currencies']
-                    ];
-                }
-
-                $continentSummary['card_brand_breakdown'][$cardBrand] = $brandSummary;
             }
 
-            $summary['continent_details'][$continent] = $continentSummary;
-        }
+            // Build summary using the corrected data structure
+            $totals = $volumeData['totals'];
 
-        // Build brand analysis
-        foreach ($volumeData['brand_summary'] as $brand => $brandData) {
-            $summary['brand_analysis'][$brand] = [
-                'brand' => $brand,
-                'total_volume' => $brandData['total_amount'],
-                'total_transactions' => $brandData['total_transactions'],
-                'europe_volume' => $brandData['europe_amount'],
-                'non_europe_volume' => $brandData['non_europe_amount'],
-                'europe_percentage' => $brandData['total_amount'] > 0
-                    ? round(($brandData['europe_amount'] / $brandData['total_amount']) * 100, 2)
-                    : 0,
-                'percentage_of_total' => $totals['total_volume'] > 0
-                    ? round(($brandData['total_amount'] / $totals['total_volume']) * 100, 2)
-                    : 0
+            $summary = [
+                'overview' => [
+                    'total_volume' => $totals['total_volume'],
+                    'europe_percentage' => $totals['total_volume'] > 0
+                        ? round(($totals['europe_cards_volume'] / $totals['total_volume']) * 100, 2)
+                        : 0,
+                    'non_europe_percentage' => $totals['total_volume'] > 0
+                        ? round(($totals['non_europe_cards_volume'] / $totals['total_volume']) * 100, 2)
+                        : 0,
+                ],
+                'continent_details' => [],
+                'brand_analysis' => [],
+                'type_analysis' => []
             ];
-        }
 
-        // Build type analysis
-        foreach ($volumeData['type_summary'] as $type => $typeData) {
-            $summary['type_analysis'][$type] = [
-                'type' => $type,
-                'total_volume' => $typeData['total_amount'],
-                'total_transactions' => $typeData['total_transactions'],
-                'europe_volume' => $typeData['europe_amount'],
-                'non_europe_volume' => $typeData['non_europe_amount'],
-                'europe_percentage' => $typeData['total_amount'] > 0
-                    ? round(($typeData['europe_amount'] / $typeData['total_amount']) * 100, 2)
-                    : 0,
-                'percentage_of_total' => $totals['total_volume'] > 0
-                    ? round(($typeData['total_amount'] / $totals['total_volume']) * 100, 2)
-                    : 0
-            ];
-        }
+            // Build continent details
+            foreach ($volumeData['continent_breakdown'] as $continent => $data) {
+                $continentSummary = [
+                    'continent' => $continent,
+                    'total_volume' => $data['total_amount'],
+                    'total_transactions' => $data['total_transactions'],
+                    'percentage_of_total' => $totals['total_volume'] > 0
+                        ? round(($data['total_amount'] / $totals['total_volume']) * 100, 2)
+                        : 0,
+                    'card_brand_breakdown' => [],
+                    'currency_breakdown' => $data['currencies']
+                ];
 
-        return array_merge($volumeData, ['summary' => $summary]);
+                foreach ($data['card_brands'] as $cardBrand => $brandData) {
+                    $brandSummary = [
+                        'brand' => $cardBrand,
+                        'volume' => $brandData['total_amount'],
+                        'transactions' => $brandData['total_transactions'],
+                        'percentage_of_continent' => $data['total_amount'] > 0
+                            ? round(($brandData['total_amount'] / $data['total_amount']) * 100, 2)
+                            : 0,
+                        'card_type_breakdown' => [],
+                        'currencies' => $brandData['currencies']
+                    ];
+
+                    foreach ($brandData['card_types'] as $cardType => $typeData) {
+                        $brandSummary['card_type_breakdown'][$cardType] = [
+                            'type' => $cardType,
+                            'volume' => $typeData['total_amount'],
+                            'transactions' => $typeData['total_transactions'],
+                            'percentage_of_brand' => $brandData['total_amount'] > 0
+                                ? round(($typeData['total_amount'] / $brandData['total_amount']) * 100, 2)
+                                : 0,
+                            'currencies' => $typeData['currencies']
+                        ];
+                    }
+
+                    $continentSummary['card_brand_breakdown'][$cardBrand] = $brandSummary;
+                }
+
+                $summary['continent_details'][$continent] = $continentSummary;
+            }
+
+            // Build brand analysis
+            foreach ($volumeData['brand_summary'] as $brand => $brandData) {
+                $summary['brand_analysis'][$brand] = [
+                    'brand' => $brand,
+                    'total_volume' => $brandData['total_amount'],
+                    'total_transactions' => $brandData['total_transactions'],
+                    'europe_volume' => $brandData['europe_amount'],
+                    'non_europe_volume' => $brandData['non_europe_amount'],
+                    'europe_percentage' => $brandData['total_amount'] > 0
+                        ? round(($brandData['europe_amount'] / $brandData['total_amount']) * 100, 2)
+                        : 0,
+                    'percentage_of_total' => $totals['total_volume'] > 0
+                        ? round(($brandData['total_amount'] / $totals['total_volume']) * 100, 2)
+                        : 0
+                ];
+            }
+
+            // Build type analysis
+            foreach ($volumeData['type_summary'] as $type => $typeData) {
+                $summary['type_analysis'][$type] = [
+                    'type' => $type,
+                    'total_volume' => $typeData['total_amount'],
+                    'total_transactions' => $typeData['total_transactions'],
+                    'europe_volume' => $typeData['europe_amount'],
+                    'non_europe_volume' => $typeData['non_europe_amount'],
+                    'europe_percentage' => $typeData['total_amount'] > 0
+                        ? round(($typeData['europe_amount'] / $typeData['total_amount']) * 100, 2)
+                        : 0,
+                    'percentage_of_total' => $totals['total_volume'] > 0
+                        ? round(($typeData['total_amount'] / $totals['total_volume']) * 100, 2)
+                        : 0
+                ];
+            }
+
+            return array_merge($volumeData, ['summary' => $summary]);
+
+        } catch (\Exception $e) {
+            \Log::error('Detailed volume breakdown failed', [
+                'error' => $e->getMessage(),
+                'filters' => $filters
+            ]);
+
+            return $this->getEmptyVolumeBreakdownStructure();
+        }
     }
     protected function getVolumeBreakdownReport(array $filters): array
     {

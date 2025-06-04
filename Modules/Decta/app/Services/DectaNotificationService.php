@@ -9,6 +9,115 @@ use Carbon\Carbon;
 class DectaNotificationService
 {
     /**
+     * Get notification recipients from config
+     */
+    protected function getRecipients(): array
+    {
+        $recipients = config('decta.notifications.recipients', []);
+        return array_filter($recipients); // Remove empty values
+    }
+
+    /**
+     * Check if notifications are enabled
+     */
+    protected function isNotificationsEnabled(): bool
+    {
+        return config('decta.notifications.enabled', true);
+    }
+
+    /**
+     * Send declined transactions notification
+     */
+    public function sendDeclinedTransactionsNotification(string $subject, array $summaryData): void
+    {
+        if (!$this->isNotificationsEnabled()) {
+            Log::info('Declined transactions notification skipped - notifications disabled');
+            return;
+        }
+
+        $recipients = $this->getRecipients();
+        if (empty($recipients)) {
+            Log::warning('No recipients configured for declined transactions notification');
+            return;
+        }
+
+        try {
+            $mailable = new DeclinedTransactionsMail($subject, $summaryData);
+
+            foreach ($recipients as $recipient) {
+                Mail::to($recipient)->send($mailable);
+                Log::info("Declined transactions notification sent to: {$recipient}");
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Failed to send declined transactions notification', [
+                'error' => $e->getMessage(),
+                'recipients' => $recipients,
+                'summary_data' => $summaryData
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Send error notification
+     */
+    public function sendErrorNotification(string $subject, string $message, array $details = []): void
+    {
+        if (!$this->isNotificationsEnabled()) {
+            return;
+        }
+
+        $recipients = $this->getRecipients();
+        if (empty($recipients)) {
+            return;
+        }
+
+        try {
+            $mailable = new ErrorNotificationMail($subject, $message, $details);
+
+            foreach ($recipients as $recipient) {
+                Mail::to($recipient)->send($mailable);
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Failed to send error notification', [
+                'error' => $e->getMessage(),
+                'original_message' => $message
+            ]);
+        }
+    }
+
+    /**
+     * Send general notification
+     */
+    public function sendGeneralNotification(string $subject, string $message, array $data = []): void
+    {
+        if (!$this->isNotificationsEnabled()) {
+            return;
+        }
+
+        $recipients = $this->getRecipients();
+        if (empty($recipients)) {
+            return;
+        }
+
+        try {
+            $mailable = new GeneralNotificationMail($subject, $message, $data);
+
+            foreach ($recipients as $recipient) {
+                Mail::to($recipient)->send($mailable);
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Failed to send general notification', [
+                'error' => $e->getMessage(),
+                'subject' => $subject
+            ]);
+        }
+    }
+
+    /**
      * Send notification for download process
      */
     public function sendDownloadNotification(array $results, bool $success = true): void
