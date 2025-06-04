@@ -142,7 +142,7 @@ class DectaCheckDeclinedTransactionsCommand extends Command
             $query->where('gateway_transaction_status', 'declined')
                 ->orWhere('gateway_transaction_status', 'DECLINED');
         })
-            ->whereBetween('tr_date_time', [$startDate, $endDate])
+            ->whereBetween('created_at', [$startDate, $endDate])
             ->with('dectaFile')
             ->orderBy('tr_date_time', 'desc')
             ->get();

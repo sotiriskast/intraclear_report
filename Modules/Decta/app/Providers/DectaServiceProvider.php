@@ -8,6 +8,7 @@ use Modules\Decta\Console\DectaBulkHistoricalImportCommand;
 use Modules\Decta\Console\DectaFixFilePathsCommand;
 use Modules\Decta\Console\DectaTestConnectionCommand;
 use Modules\Decta\Console\DectaTestDeclinedNotificationCommand;
+use Modules\Decta\Console\DectaTestIntegrationCommand;
 use Modules\Decta\Console\DectaTestLatestFileCommand;
 use Modules\Decta\Console\DectaMatchTransactionsCommand;
 use Modules\Decta\Console\DectaCleanupCommand;
@@ -107,6 +108,7 @@ class DectaServiceProvider extends ServiceProvider
             DectaBulkHistoricalImportCommand::class,
             DectaCheckDeclinedTransactionsCommand::class,
             DectaTestDeclinedNotificationCommand::class,
+            DectaTestIntegrationCommand::class,
         ]);
     }
 
