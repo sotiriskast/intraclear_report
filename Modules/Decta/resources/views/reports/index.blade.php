@@ -847,11 +847,40 @@
              * Format and display volume breakdown report
              */
             function displayVolumeBreakdown(data) {
-                const totals = data.totals;
-                const continentBreakdown = data.continent_breakdown;
-                const brandSummary = data.brand_summary;
-                const typeSummary = data.type_summary;
-                const currencyTotals = data.currency_totals;
+                // Handle completely empty data
+                if (!data || Object.keys(data).length === 0) {
+                    return `
+            <div class="text-center py-12">
+                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                </svg>
+                <h3 class="mt-2 text-sm font-medium text-gray-900">No Data Available</h3>
+                <p class="mt-1 text-sm text-gray-500">No transactions found for the selected criteria.</p>
+            </div>
+        `;
+                }
+
+                const totals = data.totals || {};
+                const continentBreakdown = data.continent_breakdown || {};
+                const brandSummary = data.brand_summary || {};
+                const typeSummary = data.type_summary || {};
+                const currencyTotals = data.currency_totals || {};
+
+                // Check if we have any meaningful data
+                const hasData = Object.keys(currencyTotals).length > 0 &&
+                    Object.values(currencyTotals).some(currency => currency.total_amount > 0);
+
+                if (!hasData) {
+                    return `
+            <div class="text-center py-12">
+                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                </svg>
+                <h3 class="mt-2 text-sm font-medium text-gray-900">No Transaction Data</h3>
+                <p class="mt-1 text-sm text-gray-500">No transactions found matching your filter criteria. Try adjusting the date range or removing filters.</p>
+            </div>
+        `;
+                }
 
                 // Check if this is a multi-currency report
                 const isMultiCurrency = Object.keys(currencyTotals).length > 1;
@@ -880,6 +909,7 @@
                 </div>
             </div>
 
+            ${Object.keys(brandSummary).length > 0 ? `
             <!-- Card Brand Analysis -->
             <div class="bg-white rounded-lg shadow-lg overflow-hidden">
                 <div class="bg-gray-50 px-6 py-4 border-b">
@@ -890,7 +920,9 @@
                     ${formatCardBrandAnalysis(brandSummary, totals, isMultiCurrency)}
                 </div>
             </div>
+            ` : ''}
 
+            ${Object.keys(typeSummary).length > 0 ? `
             <!-- Card Type Analysis -->
             <div class="bg-white rounded-lg shadow-lg overflow-hidden">
                 <div class="bg-gray-50 px-6 py-4 border-b">
@@ -901,6 +933,9 @@
                     ${formatCardTypeAnalysis(typeSummary, totals, isMultiCurrency)}
                 </div>
             </div>
+            ` : ''}
+
+            ${Object.keys(continentBreakdown).length > 0 ? `
             <!-- Detailed Breakdown by Region → Brand → Type -->
             <div class="bg-white rounded-lg shadow-lg overflow-hidden">
                 <div class="bg-gray-50 px-6 py-4 border-b">
@@ -911,11 +946,19 @@
                     ${formatDetailedBreakdown(continentBreakdown, isMultiCurrency)}
                 </div>
             </div>
+            ` : ''}
         </div>
     `;
             }
 
             function formatCardBrandAnalysis(brandSummary, totals, isMultiCurrency) {
+                if (!brandSummary || Object.keys(brandSummary).length === 0) {
+                    return `
+            <div class="text-center py-8 text-gray-500">
+                <p>No card brand data available for the selected criteria.</p>
+            </div>
+        `;
+                }
                 const totalVolume = totals.total_volume;
 
                 return `
@@ -1037,6 +1080,13 @@
              * Format detailed breakdown
              */
             function formatDetailedBreakdown(continentBreakdown, isMultiCurrency) {
+                if (!continentBreakdown || Object.keys(continentBreakdown).length === 0) {
+                    return `
+            <div class="text-center py-8 text-gray-500">
+                <p>No detailed breakdown data available for the selected criteria.</p>
+            </div>
+        `;
+                }
                 return `
         <div class="space-y-8">
             ${Object.entries(continentBreakdown).map(([continent, continentData]) => {
@@ -1100,6 +1150,14 @@
             }
 
             function formatRegionalBreakdown(currencyTotals, isMultiCurrency) {
+                if (!currencyTotals || Object.keys(currencyTotals).length === 0) {
+                    return `
+            <div class="text-center py-8 text-gray-500">
+                <p>No regional data available for the selected criteria.</p>
+            </div>
+        `;
+                }
+
                 if (!isMultiCurrency) {
                     const [currency] = Object.keys(currencyTotals);
                     const amounts = currencyTotals[currency];
@@ -1174,6 +1232,15 @@
              * Format executive summary with clear totals
              */
             function formatExecutiveSummary(currencyTotals, totals, isMultiCurrency) {
+                if (!currencyTotals || Object.keys(currencyTotals).length === 0) {
+                    return `
+            <div class="text-center">
+                <div class="text-2xl font-bold">No Data Available</div>
+                <div class="text-blue-100 text-sm mt-1">No transactions found for the selected period</div>
+            </div>
+        `;
+                }
+
                 if (!isMultiCurrency) {
                     const [currency] = Object.keys(currencyTotals);
                     const amounts = currencyTotals[currency];
@@ -1238,6 +1305,9 @@
 
 
             function formatMultiCurrencyBrandData(currencies) {
+                if (!currencies || Object.keys(currencies).length === 0) {
+                    return '<div class="text-lg text-gray-500">No currency data</div>';
+                }
                 if (!currencies) return '<div class="text-lg text-gray-500">No data</div>';
 
                 // Fix: currencies structure is { 'EUR': { total_amount: 123, europe_amount: 123, ... } }
@@ -1269,7 +1339,7 @@
              * Helper functions for formatting
              */
             function formatCurrency(amount) {
-                if (amount === null || amount === undefined) return '0.00';
+                if (amount === null || amount === undefined || isNaN(amount)) return '0.00';
                 return parseFloat(amount).toLocaleString('en-US', {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2
@@ -1277,6 +1347,9 @@
             }
 
             function formatMultiCurrencyTypeData(currencies, isCommercial) {
+                if (!currencies || Object.keys(currencies).length === 0) {
+                    return '<div class="text-lg text-gray-500">No currency data</div>';
+                }
                 if (!currencies) return '<div class="text-lg text-gray-500">No data</div>';
 
                 const colorClass = isCommercial ? 'green' : 'blue';

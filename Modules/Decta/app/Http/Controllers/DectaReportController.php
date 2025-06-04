@@ -67,7 +67,41 @@ class DectaReportController extends Controller
             $reportType = $request->input('report_type');
             $exportFormat = $request->input('export_format', 'json');
 
-            $data = $this->reportService->generateReport($reportType, $filters);
+            // Handle volume_breakdown specially for better error handling
+            if ($reportType === 'volume_breakdown') {
+                $data = $this->reportService->getDetailedVolumeBreakdown($filters);
+
+                // Check if we have data
+                if (!$data['has_data']) {
+                    if ($exportFormat === 'csv' || $exportFormat === 'excel') {
+                        // For exports, still generate a file but with a message
+                        $emptyData = [
+                            ['message' => 'No data found for the selected criteria'],
+                            ['date_from' => $filters['date_from']],
+                            ['date_to' => $filters['date_to']],
+                            ['report_type' => $reportType],
+                            ['generated_at' => Carbon::now()->toISOString()]
+                        ];
+
+                        if ($exportFormat === 'csv') {
+                            return $this->exportToCsv($emptyData, $reportType);
+                        } else {
+                            return $this->exportToExcel($emptyData, $reportType);
+                        }
+                    }
+
+                    return response()->json([
+                        'success' => true,
+                        'data' => $data,
+                        'filters_applied' => $filters,
+                        'generated_at' => Carbon::now()->toISOString(),
+                        'message' => 'No transaction data found for the selected criteria.'
+                    ]);
+                }
+            } else {
+                // Handle other report types normally
+                $data = $this->reportService->generateReport($reportType, $filters);
+            }
 
             if ($exportFormat === 'csv') {
                 return $this->exportToCsv($data, $reportType);
@@ -83,9 +117,21 @@ class DectaReportController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            \Log::error('Report generation failed', [
+                'report_type' => $request->input('report_type'),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'filters' => $filters ?? [],
+                'request_data' => $request->all()
+            ]);
+
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to generate report: ' . $e->getMessage()
+                'message' => 'Failed to generate report: ' . $e->getMessage(),
+                'debug_info' => app()->environment('local') ? [
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine()
+                ] : null
             ], 500);
         }
     }
@@ -110,7 +156,31 @@ class DectaReportController extends Controller
 
         try {
             $filters = $request->only(['date_from', 'date_to', 'merchant_id', 'currency']);
+
+            // Validate date range is not too wide (optional safeguard)
+            $dateFrom = Carbon::parse($filters['date_from']);
+            $dateTo = Carbon::parse($filters['date_to']);
+            $daysDiff = $dateFrom->diffInDays($dateTo);
+
+            if ($daysDiff > 365) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Date range cannot exceed 365 days for volume breakdown reports.'
+                ], 422);
+            }
+
             $data = $this->reportService->getDetailedVolumeBreakdown($filters);
+
+            // Check if we have any data
+            if (!$data['has_data']) {
+                return response()->json([
+                    'success' => true,
+                    'data' => $data,
+                    'filters_applied' => $filters,
+                    'generated_at' => Carbon::now()->toISOString(),
+                    'message' => 'No transaction data found for the selected criteria. Try adjusting your filters or date range.'
+                ]);
+            }
 
             return response()->json([
                 'success' => true,
@@ -120,9 +190,21 @@ class DectaReportController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            \Log::error('Volume breakdown generation failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'filters' => $filters ?? [],
+                'request_data' => $request->all()
+            ]);
+
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to generate volume breakdown: ' . $e->getMessage()
+                'message' => 'Failed to generate volume breakdown: ' . $e->getMessage(),
+                'debug_info' => app()->environment('local') ? [
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => $e->getTraceAsString()
+                ] : null
             ], 500);
         }
     }
