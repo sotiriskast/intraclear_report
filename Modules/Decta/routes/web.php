@@ -16,7 +16,7 @@ Route::middleware(['auth', 'verified'])->prefix('decta')->group(function () {
 
         // AJAX API Endpoints
         Route::post('/test-connection', [DectaSftpViewController::class, 'testConnection'])->name('decta.sftp.test-connection');
-        Route::get('/list-files', [DectaSftpViewController::class, 'listFiles'])->name('decta.sftp.list-files');
+        Route::get('/list', [DectaSftpViewController::class, 'listFiles'])->name('decta.sftp.list-files');
         Route::get('/status', [DectaSftpViewController::class, 'getStatus'])->name('decta.sftp.status');
 
         // File Operations

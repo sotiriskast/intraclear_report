@@ -180,7 +180,10 @@
                     <!-- Remote Files Tab -->
                     <div x-show="activeTab === 'remote'" class="p-6">
                         <div class="flex justify-between items-center mb-6">
-                            <h3 class="text-lg font-medium text-gray-900">Remote SFTP Files</h3>
+                            <div>
+                                <h3 class="text-lg font-medium text-gray-900">Remote SFTP Files</h3>
+                                <p class="text-sm text-gray-500 mt-1">Manage files by type - Transaction files are processed by the system</p>
+                            </div>
                             <div class="flex space-x-3">
                                 <label class="flex items-center">
                                     <input type="checkbox" x-model="showAllRemoteFiles" @change="loadRemoteFiles()" class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50">
@@ -212,6 +215,100 @@
                             </div>
                         </div>
 
+                        <!-- File Type Filter Tabs -->
+                        <div class="mb-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="flex space-x-1 flex-wrap gap-2">
+                                    <button @click="fileTypeFilter = 'all'; filterRemoteFiles()"
+                                            :class="fileTypeFilter === 'all' ? 'bg-gray-100 text-gray-700 border-gray-300' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'"
+                                            class="inline-flex items-center px-3 py-2 border text-sm font-medium rounded-md">
+                                        All Files <span class="ml-1 bg-gray-200 text-gray-800 text-xs px-2 py-0.5 rounded-full" x-text="getFileTypeCounts().all"></span>
+                                    </button>
+                                    <button @click="fileTypeFilter = 'transaction'; filterRemoteFiles()"
+                                            :class="fileTypeFilter === 'transaction' ? 'bg-green-100 text-green-700 border-green-300' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'"
+                                            class="inline-flex items-center px-3 py-2 border text-sm font-medium rounded-md">
+                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                        </svg>
+                                        Transactions <span class="ml-1 bg-green-200 text-green-800 text-xs px-2 py-0.5 rounded-full" x-text="getFileTypeCounts().transaction"></span>
+                                    </button>
+                                    <button @click="fileTypeFilter = 'chargeback'; filterRemoteFiles()"
+                                            :class="fileTypeFilter === 'chargeback' ? 'bg-red-100 text-red-700 border-red-300' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'"
+                                            class="inline-flex items-center px-3 py-2 border text-sm font-medium rounded-md">
+                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                                        </svg>
+                                        Chargebacks <span class="ml-1 bg-red-200 text-red-800 text-xs px-2 py-0.5 rounded-full" x-text="getFileTypeCounts().chargeback"></span>
+                                    </button>
+                                    <button @click="fileTypeFilter = 'fraud'; filterRemoteFiles()"
+                                            :class="fileTypeFilter === 'fraud' ? 'bg-orange-100 text-orange-700 border-orange-300' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'"
+                                            class="inline-flex items-center px-3 py-2 border text-sm font-medium rounded-md">
+                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                                        </svg>
+                                        Fraud <span class="ml-1 bg-orange-200 text-orange-800 text-xs px-2 py-0.5 rounded-full" x-text="getFileTypeCounts().fraud"></span>
+                                    </button>
+                                    <button @click="fileTypeFilter = 'guarantee'; filterRemoteFiles()"
+                                            :class="fileTypeFilter === 'guarantee' ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'"
+                                            class="inline-flex items-center px-3 py-2 border text-sm font-medium rounded-md">
+                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                                        </svg>
+                                        Guarantee <span class="ml-1 bg-blue-200 text-blue-800 text-xs px-2 py-0.5 rounded-full" x-text="getFileTypeCounts().guarantee"></span>
+                                    </button>
+                                    <button @click="fileTypeFilter = 'batches'; filterRemoteFiles()"
+                                            :class="fileTypeFilter === 'batches' ? 'bg-purple-100 text-purple-700 border-purple-300' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'"
+                                            class="inline-flex items-center px-3 py-2 border text-sm font-medium rounded-md">
+                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                                        </svg>
+                                        Batches <span class="ml-1 bg-purple-200 text-purple-800 text-xs px-2 py-0.5 rounded-full" x-text="getFileTypeCounts().batches"></span>
+                                    </button>
+                                    <button @click="fileTypeFilter = 'arbitration'; filterRemoteFiles()"
+                                            :class="fileTypeFilter === 'arbitration' ? 'bg-yellow-100 text-yellow-700 border-yellow-300' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'"
+                                            class="inline-flex items-center px-3 py-2 border text-sm font-medium rounded-md">
+                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16l3-1m-3 1l-3-1"></path>
+                                        </svg>
+                                        Arbitration <span class="ml-1 bg-yellow-200 text-yellow-800 text-xs px-2 py-0.5 rounded-full" x-text="getFileTypeCounts().arbitration"></span>
+                                    </button>
+                                    <button @click="fileTypeFilter = 'representment'; filterRemoteFiles()"
+                                            :class="fileTypeFilter === 'representment' ? 'bg-indigo-100 text-indigo-700 border-indigo-300' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'"
+                                            class="inline-flex items-center px-3 py-2 border text-sm font-medium rounded-md">
+                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
+                                        </svg>
+                                        Representment <span class="ml-1 bg-indigo-200 text-indigo-800 text-xs px-2 py-0.5 rounded-full" x-text="getFileTypeCounts().representment"></span>
+                                    </button>
+                                </div>
+
+                                <!-- Search Input -->
+                                <div class="relative">
+                                    <input type="text"
+                                           x-model="searchQuery"
+                                           @input="filterRemoteFiles()"
+                                           placeholder="Search files..."
+                                           class="block w-64 pr-10 border-gray-300 rounded-md shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 text-sm">
+                                    <div class="absolute inset-y-0 right-0 pr-3 flex items-center">
+                                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                                        </svg>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Results Summary -->
+                            <div class="mb-4 text-sm text-gray-600">
+                                Showing <span class="font-medium" x-text="filteredRemoteFiles.length"></span> of <span class="font-medium" x-text="remoteFiles.length"></span> files
+                                <span x-show="fileTypeFilter !== 'all'">
+                                    for <span class="font-medium capitalize" x-text="fileTypeFilter"></span> type
+                                </span>
+                                <span x-show="searchQuery.trim() !== ''">
+                                    matching "<span class="font-medium" x-text="searchQuery"></span>"
+                                </span>
+                            </div>
+                        </div>
+
                         <!-- Remote Files Table -->
                         <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
                             <table class="min-w-full divide-y divide-gray-300">
@@ -221,6 +318,7 @@
                                         <input type="checkbox" @change="toggleAllRemoteFiles($event.target.checked)" class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50">
                                     </th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">File Name</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Type</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Size</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Modified</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Status</th>
@@ -228,7 +326,8 @@
                                 </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
-                                <template x-for="file in remoteFiles" :key="file.name">
+                                <!-- Fixed: Changed from remoteFiles to filteredRemoteFiles -->
+                                <template x-for="file in filteredRemoteFiles" :key="file.name">
                                     <tr>
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             <input type="checkbox"
@@ -237,6 +336,12 @@
                                                    class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50">
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900" x-text="file.name"></td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span :class="getFileTypeBadgeClass(file.name)"
+                                                  class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                                  x-text="getFileType(file.name)">
+                                            </span>
+                                        </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="file.size_human"></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="file.modified_human"></td>
                                         <td class="px-6 py-4 whitespace-nowrap">
@@ -256,13 +361,19 @@
                                         </td>
                                     </tr>
                                 </template>
+                                <tr x-show="filteredRemoteFiles.length === 0 && !loadingRemoteFiles && remoteFiles.length > 0">
+                                    <td colspan="7" class="px-6 py-4 text-center text-sm text-gray-500">
+                                        No files match your current filter criteria.
+                                        <button @click="fileTypeFilter = 'all'; searchQuery = ''; filterRemoteFiles()" class="text-blue-600 hover:text-blue-800 ml-1">Clear filters</button>
+                                    </td>
+                                </tr>
                                 <tr x-show="remoteFiles.length === 0 && !loadingRemoteFiles">
-                                    <td colspan="6" class="px-6 py-4 text-center text-sm text-gray-500">
+                                    <td colspan="7" class="px-6 py-4 text-center text-sm text-gray-500">
                                         No files found. Click "Refresh" to load files from SFTP server.
                                     </td>
                                 </tr>
                                 <tr x-show="loadingRemoteFiles">
-                                    <td colspan="6" class="px-6 py-4 text-center text-sm text-gray-500">
+                                    <td colspan="7" class="px-6 py-4 text-center text-sm text-gray-500">
                                         <div class="flex items-center justify-center">
                                             <svg class="animate-spin h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
@@ -349,6 +460,11 @@
                                         </td>
                                     </tr>
                                 </template>
+                                <tr x-show="recentFiles.length === 0">
+                                    <td colspan="7" class="px-6 py-4 text-center text-sm text-gray-500">
+                                        No local files found. Download files from the remote server to see them here.
+                                    </td>
+                                </tr>
                                 </tbody>
                             </table>
                         </div>
@@ -387,6 +503,15 @@
                                         </div>
                                     </li>
                                 </template>
+                                <li x-show="recentActivity.length === 0">
+                                    <div class="text-center py-8 text-gray-500">
+                                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                        </svg>
+                                        <p class="mt-2 text-sm text-gray-500">No recent activity</p>
+                                        <p class="text-xs text-gray-400">File processing activity will appear here</p>
+                                    </div>
+                                </li>
                             </ul>
                         </div>
                     </div>
@@ -447,8 +572,13 @@
                 connectionStatus: null,
                 statusCounts: {},
                 remoteFiles: [],
-                recentFiles: [],
+                filteredRemoteFiles: [],
+                recentFiles: @json($recentFiles ?? []),
                 recentActivity: [],
+
+                // Filtering
+                fileTypeFilter: 'transaction', // Default to transaction files
+                searchQuery: '',
 
                 // Selections
                 selectedRemoteFiles: [],
@@ -468,6 +598,7 @@
                     this.refreshStatus();
                     this.loadRemoteFiles();
                     this.loadLocalFiles();
+
                     // Auto-refresh every 30 seconds
                     setInterval(() => {
                         this.refreshStatus();
@@ -523,8 +654,9 @@
                 async loadRemoteFiles() {
                     this.loadingRemoteFiles = true;
                     try {
-                        const result = await this.apiCall(`/decta/sftp/list-files?show_all=${this.showAllRemoteFiles}`);
+                        const result = await this.apiCall(`/decta/sftp/list?show_all=${this.showAllRemoteFiles}`);
                         this.remoteFiles = result.files;
+                        this.filterRemoteFiles();
                         this.selectedRemoteFiles = [];
                     } catch (error) {
                         this.showNotification('error', 'Failed to Load Files', error.message);
@@ -533,20 +665,112 @@
                     }
                 },
 
-                // Refresh status
-                async refreshStatus() {
-                    try {
-                        const result = await this.apiCall('/decta/sftp/status');
-                        this.statusCounts = result.status_counts;
-                        this.recentActivity = result.recent_activity;
+                // Improved filtering based on your file naming patterns
+                filterRemoteFiles() {
+                    let filtered = this.remoteFiles;
 
-                        // Get updated recent files list - you'll need to pass this from the controller
-                        this.recentFiles = @json($recentFiles);
-                    } catch (error) {
-                        console.error('Failed to refresh status:', error);
+                    // Filter by file type based on your specific naming conventions
+                    if (this.fileTypeFilter !== 'all') {
+                        filtered = filtered.filter(file => {
+                            const filename = file.name.toLowerCase();
+                            switch (this.fileTypeFilter) {
+                                case 'transaction':
+                                    return filename.includes('transact');
+                                case 'chargeback':
+                                    return filename.includes('chrgbck');
+                                case 'fraud':
+                                    return filename.includes('fraud');
+                                case 'guarantee':
+                                    return filename.includes('_gf_');
+                                case 'batches':
+                                    return filename.includes('batches');
+                                case 'arbitration':
+                                    return filename.includes('prearb') || filename.includes('_arb');
+                                case 'representment':
+                                    return filename.includes('reprsnt');
+                                default:
+                                    return true;
+                            }
+                        });
                     }
+
+                    // Filter by search query
+                    if (this.searchQuery.trim() !== '') {
+                        const query = this.searchQuery.toLowerCase();
+                        filtered = filtered.filter(file =>
+                            file.name.toLowerCase().includes(query)
+                        );
+                    }
+
+                    // Sort: Transaction files first, then by date (newest first)
+                    filtered.sort((a, b) => {
+                        const aIsTransaction = a.name.toLowerCase().includes('transact');
+                        const bIsTransaction = b.name.toLowerCase().includes('transact');
+
+                        if (aIsTransaction && !bIsTransaction) return -1;
+                        if (!aIsTransaction && bIsTransaction) return 1;
+
+                        // Then sort by modified date (newest first)
+                        return new Date(b.modified) - new Date(a.modified);
+                    });
+
+                    this.filteredRemoteFiles = filtered;
                 },
-// Load local files
+
+                // Get file type from filename based on your naming patterns
+                getFileType(filename) {
+                    const name = filename.toLowerCase();
+                    if (name.includes('transact')) return 'Transaction';
+                    if (name.includes('chrgbck')) return 'Chargeback';
+                    if (name.includes('fraud')) return 'Fraud';
+                    if (name.includes('_gf_')) return 'Guarantee';
+                    if (name.includes('batches')) return 'Batches';
+                    if (name.includes('prearb') || name.includes('_arb')) return 'Arbitration';
+                    if (name.includes('reprsnt')) return 'Representment';
+                    return 'Other';
+                },
+
+                // Get file type badge color
+                getFileTypeBadgeClass(filename) {
+                    const name = filename.toLowerCase();
+                    if (name.includes('transact')) return 'bg-green-100 text-green-800'; // Primary files
+                    if (name.includes('chrgbck')) return 'bg-red-100 text-red-800';
+                    if (name.includes('fraud')) return 'bg-orange-100 text-orange-800';
+                    if (name.includes('_gf_')) return 'bg-blue-100 text-blue-800';
+                    if (name.includes('batches')) return 'bg-purple-100 text-purple-800';
+                    if (name.includes('prearb') || name.includes('_arb')) return 'bg-yellow-100 text-yellow-800';
+                    if (name.includes('reprsnt')) return 'bg-indigo-100 text-indigo-800';
+                    return 'bg-gray-100 text-gray-800';
+                },
+
+                // Get file counts by type
+                getFileTypeCounts() {
+                    const counts = {
+                        all: this.remoteFiles.length,
+                        transaction: 0,
+                        chargeback: 0,
+                        fraud: 0,
+                        guarantee: 0,
+                        batches: 0,
+                        arbitration: 0,
+                        representment: 0
+                    };
+
+                    this.remoteFiles.forEach(file => {
+                        const name = file.name.toLowerCase();
+                        if (name.includes('transact')) counts.transaction++;
+                        if (name.includes('chrgbck')) counts.chargeback++;
+                        if (name.includes('fraud')) counts.fraud++;
+                        if (name.includes('_gf_')) counts.guarantee++;
+                        if (name.includes('batches')) counts.batches++;
+                        if (name.includes('prearb') || name.includes('_arb')) counts.arbitration++;
+                        if (name.includes('reprsnt')) counts.representment++;
+                    });
+
+                    return counts;
+                },
+
+                // Load local files
                 async loadLocalFiles() {
                     try {
                         const result = await this.apiCall('/decta/sftp/status');
@@ -557,6 +781,23 @@
                         console.error('Failed to load local files:', error);
                     }
                 },
+
+                // Refresh status
+                async refreshStatus() {
+                    try {
+                        const result = await this.apiCall('/decta/sftp/status');
+                        this.statusCounts = result.status_counts;
+                        this.recentActivity = result.recent_activity;
+
+                        // Update recent files if provided in the response
+                        if (result.recent_files) {
+                            this.recentFiles = result.recent_files;
+                        }
+                    } catch (error) {
+                        console.error('Failed to refresh status:', error);
+                    }
+                },
+
                 // Download files
                 async downloadSelected() {
                     if (this.selectedRemoteFiles.length === 0) return;
@@ -580,6 +821,7 @@
                         if (result.success) {
                             await this.loadRemoteFiles();
                             await this.refreshStatus();
+                            await this.loadLocalFiles();
                             this.selectedRemoteFiles = [];
                         }
                     } catch (error) {
@@ -610,6 +852,7 @@
                         if (result.success) {
                             await this.loadRemoteFiles();
                             await this.refreshStatus();
+                            await this.loadLocalFiles();
                         }
                     } catch (error) {
                         this.showNotification('error', 'Download Failed', error.message);
@@ -634,6 +877,7 @@
 
                         this.showNotification('success', 'Processing Started', result.message);
                         await this.refreshStatus();
+                        await this.loadLocalFiles();
                         this.selectedLocalFiles = [];
                     } catch (error) {
                         this.showNotification('error', 'Processing Failed', error.message);
@@ -656,6 +900,7 @@
 
                         this.showNotification('success', 'Processing Started', result.message);
                         await this.refreshStatus();
+                        await this.loadLocalFiles();
                     } catch (error) {
                         this.showNotification('error', 'Processing Failed', error.message);
                     } finally {
@@ -671,7 +916,7 @@
                 // Selection helpers
                 toggleAllRemoteFiles(checked) {
                     if (checked) {
-                        this.selectedRemoteFiles = this.remoteFiles.map(f => f.name);
+                        this.selectedRemoteFiles = this.filteredRemoteFiles.map(f => f.name);
                     } else {
                         this.selectedRemoteFiles = [];
                     }
