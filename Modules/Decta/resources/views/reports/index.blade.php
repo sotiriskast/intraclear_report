@@ -187,12 +187,12 @@
                                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
                                     <option value="scheme">Scheme Report</option>
                                     <option value="volume_breakdown">Volume Breakdown by Region</option>
-                                    {{--                                    <option value="transactions">Transaction Details</option>--}}
-                                    {{--                                    <option value="daily_summary">Daily Summary</option>--}}
-                                    {{--                                    <option value="merchant_breakdown">Merchant Breakdown</option>--}}
+                                    <option value="transactions">Transaction Details</option>
+{{--                                    <option value="daily_summary">Daily Summary</option>--}}
+{{--                                    <option value="merchant_breakdown">Merchant Breakdown</option>--}}
                                     {{--                                    <option value="matching">Matching Analysis</option>--}}
                                     {{--                                    <option value="settlements">Settlement Report</option>--}}
-                                    {{--                                    <option value="declined_transactions">Declined Transactions</option>--}}
+{{--                                                                        <option value="declined_transactions">Declined Transactions</option>--}}
                                     {{--                                    <option value="approval_analysis">Approval Analysis</option>--}}
                                 </select>
                             </div>
@@ -241,47 +241,46 @@
                                 </select>
                             </div>
                         </div>
+                        <!-- Additional Filters -->
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label for="status" class="block text-sm font-medium text-gray-700 mb-2">
+                                    Status
+                                </label>
+                                <select id="status"
+                                        name="status"
+                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                                    <option value="">All Statuses</option>
+                                    <option value="matched">Matched</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="failed">Failed</option>
+                                </select>
+                            </div>
 
-                        {{--                        <!-- Additional Filters -->--}}
-                        {{--                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">--}}
-                        {{--                            <div>--}}
-                        {{--                                <label for="status" class="block text-sm font-medium text-gray-700 mb-2">--}}
-                        {{--                                    Status--}}
-                        {{--                                </label>--}}
-                        {{--                                <select id="status"--}}
-                        {{--                                        name="status"--}}
-                        {{--                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">--}}
-                        {{--                                    <option value="">All Statuses</option>--}}
-                        {{--                                    <option value="matched">Matched</option>--}}
-                        {{--                                    <option value="pending">Pending</option>--}}
-                        {{--                                    <option value="failed">Failed</option>--}}
-                        {{--                                </select>--}}
-                        {{--                            </div>--}}
+                            <div>
+                                <label for="amount_min" class="block text-sm font-medium text-gray-700 mb-2">
+                                    Min Amount (€)
+                                </label>
+                                <input type="number"
+                                       id="amount_min"
+                                       name="amount_min"
+                                       step="0.01"
+                                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                                       placeholder="0.00">
+                            </div>
 
-                        {{--                            <div>--}}
-                        {{--                                <label for="amount_min" class="block text-sm font-medium text-gray-700 mb-2">--}}
-                        {{--                                    Min Amount (€)--}}
-                        {{--                                </label>--}}
-                        {{--                                <input type="number"--}}
-                        {{--                                       id="amount_min"--}}
-                        {{--                                       name="amount_min"--}}
-                        {{--                                       step="0.01"--}}
-                        {{--                                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"--}}
-                        {{--                                       placeholder="0.00">--}}
-                        {{--                            </div>--}}
-
-                        {{--                            <div>--}}
-                        {{--                                <label for="amount_max" class="block text-sm font-medium text-gray-700 mb-2">--}}
-                        {{--                                    Max Amount (€)--}}
-                        {{--                                </label>--}}
-                        {{--                                <input type="number"--}}
-                        {{--                                       id="amount_max"--}}
-                        {{--                                       name="amount_max"--}}
-                        {{--                                       step="0.01"--}}
-                        {{--                                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"--}}
-                        {{--                                       placeholder="1000.00">--}}
-                        {{--                            </div>--}}
-                        {{--                        </div>--}}
+                            <div>
+                                <label for="amount_max" class="block text-sm font-medium text-gray-700 mb-2">
+                                    Max Amount (€)
+                                </label>
+                                <input type="number"
+                                       id="amount_max"
+                                       name="amount_max"
+                                       step="0.01"
+                                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                                       placeholder="1000.00">
+                            </div>
+                        </div>
 
                         <!-- Export Options -->
                         <div class="flex items-center space-x-4">
@@ -654,7 +653,11 @@
                     case 'daily_summary':
                         headers = ['Date', 'Transactions', 'Amount', 'Matched', 'Match Rate'];
                         rowFormatter = (row) => [
-                            new Date(row.date).toLocaleDateString(),
+                            new Date(row.date).toLocaleDateString('en-GB', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric'
+                            }),
                             row.total_transactions.toLocaleString(),
                             `€${row.total_amount.toFixed(2)}`,
                             row.matched_count.toLocaleString(),
