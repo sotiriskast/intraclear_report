@@ -36,8 +36,6 @@ services:
     #       memory: 512M
     ports:
     - "####ENV_HTTP_PORT####:443"
-    extra_hosts:
-    - "files.decta.com:172.18.1.14"
     networks:
     - backend
     - frontend
