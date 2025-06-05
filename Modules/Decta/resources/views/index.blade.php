@@ -31,7 +31,7 @@
             </div>
 
             <!-- Key Performance Indicators -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <!-- Total Transactions -->
                 <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
                     <div class="p-6">
@@ -112,6 +112,39 @@
                     </div>
                 </div>
 
+                <!-- Unmatched Transactions -->
+                <!-- Unmatched Transactions -->
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                    <div class="p-6">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0">
+                                <div class="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center">
+                                    <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="ml-5 w-0 flex-1">
+                                <dl>
+                                    <dt class="text-sm font-medium text-gray-500 truncate">Unmatched</dt>
+                                    <dd class="flex items-baseline">
+                                        <div id="unmatchedTransactions" class="text-2xl font-semibold text-gray-900">-</div>
+                                        <div id="unmatchedTransactionsChange" class="ml-2 flex items-baseline text-sm font-semibold">
+                                            <!-- Change indicator will be populated -->
+                                        </div>
+                                    </dd>
+                                    <dd class="mt-1">
+                                        <button onclick="showUnmatchedTransactions()" class="text-sm text-orange-600 hover:text-orange-500">
+                                            View →
+                                        </button>
+                                    </dd>
+                                </dl>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-3 gap-6">
                 <!-- Match Rate -->
                 <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
                     <div class="p-6">
@@ -266,6 +299,52 @@
                         </div>
                         <div class="mt-4 flex justify-end">
                             <button onclick="closeDeclinedModal()" class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Unmatched Transactions Modal -->
+            <div id="unmatchedModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+                <div class="relative top-20 mx-auto p-5 border w-11/12 max-w-7xl shadow-lg rounded-md bg-white">
+                    <div class="mt-3">
+                        <div class="flex items-center justify-between mb-4">
+                            <div>
+                                <h3 class="text-lg font-medium text-gray-900">Unmatched Transactions</h3>
+                                <p class="text-sm text-gray-500 mt-1">Transactions that haven't been matched with gateway data</p>
+                            </div>
+                            <button onclick="closeUnmatchedModal()" class="text-gray-400 hover:text-gray-600">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment ID</th>
+                                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Merchant</th>
+                                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Approval ID</th>
+                                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Return Ref</th>
+                                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Attempts</th>
+                                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Attempt</th>
+                                </tr>
+                                </thead>
+                                <tbody id="unmatchedTransactionsTableBody" class="bg-white divide-y divide-gray-200">
+                                <!-- Will be populated by JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="mt-4 flex justify-between">
+                            <div class="text-sm text-gray-500">
+                                <span id="unmatchedResultsInfo">Loading...</span>
+                            </div>
+                            <button onclick="closeUnmatchedModal()" class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
                                 Close
                             </button>
                         </div>
@@ -473,6 +552,7 @@
             document.getElementById('totalTransactions').textContent = summary.total_transactions.toLocaleString();
             document.getElementById('approvedTransactions').textContent = summary.approved_transactions.toLocaleString();
             document.getElementById('declinedTransactions').textContent = summary.declined_transactions.toLocaleString();
+            document.getElementById('unmatchedTransactions').textContent = summary.unmatched_transactions.toLocaleString();
             document.getElementById('matchRate').textContent = summary.match_rate.toFixed(1) + '%';
             document.getElementById('approvalRate').textContent = summary.approval_rate.toFixed(1) + '%';
 
@@ -493,6 +573,10 @@
             updateChangeIndicator('totalTransactionsChange', summary.today_transactions - summary.yesterday_transactions);
             updateChangeIndicator('approvedTransactionsChange', summary.today_approved - summary.yesterday_approved);
 
+            // Add change indicator for unmatched transactions
+            const unmatchedChange = (summary.today_unmatched || 0) - (summary.yesterday_unmatched || 0);
+            updateChangeIndicator('unmatchedTransactionsChange', unmatchedChange);
+
             // For multi-currency, don't show amount change indicators
             if (!summary.is_multi_currency && summary.today_amount !== null && summary.yesterday_amount !== null) {
                 updateChangeIndicator('totalAmountChange', summary.today_amount - summary.yesterday_amount);
@@ -503,7 +587,6 @@
                 }
             }
         }
-
         function updateChangeIndicator(elementId, change, currency = null) {
             const element = document.getElementById(elementId);
             const formatValue = currency ?
@@ -647,6 +730,186 @@
                     </td>
                 </tr>
             `).join('');
+        }
+
+        // Unmatched transactions modal functions
+        function showUnmatchedTransactions() {
+            document.getElementById('unmatchedModal').classList.remove('hidden');
+            loadUnmatchedTransactions();
+        }
+
+        function closeUnmatchedModal() {
+            document.getElementById('unmatchedModal').classList.add('hidden');
+        }
+
+        function loadUnmatchedTransactions() {
+            const tbody = document.getElementById('unmatchedTransactionsTableBody');
+            const resultsInfo = document.getElementById('unmatchedResultsInfo');
+
+            tbody.innerHTML = '<tr><td colspan="8" class="px-6 py-4 text-center text-gray-500">Loading unmatched transactions...</td></tr>';
+            resultsInfo.textContent = 'Loading...';
+
+            fetch('/decta/reports/unmatched?limit=50')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        updateUnmatchedTransactionsTable(data.data);
+                        resultsInfo.textContent = `Showing ${data.data.length} unmatched transactions`;
+                    } else {
+                        console.error('Failed to load unmatched transactions:', data.message);
+                        tbody.innerHTML = '<tr><td colspan="8" class="px-6 py-4 text-center text-red-500">Failed to load transactions</td></tr>';
+                        resultsInfo.textContent = 'Failed to load data';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading unmatched transactions:', error);
+                    tbody.innerHTML = '<tr><td colspan="8" class="px-6 py-4 text-center text-red-500">Error loading transactions</td></tr>';
+                    resultsInfo.textContent = 'Error loading data';
+                });
+        }
+
+        function updateUnmatchedTransactionsTable(transactions) {
+            const tbody = document.getElementById('unmatchedTransactionsTableBody');
+
+            if (!transactions || transactions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="px-6 py-4 text-center text-gray-500">No unmatched transactions found</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = transactions.map(transaction => {
+                const attempts = transaction.attempts || [];
+                const attemptCount = Array.isArray(attempts) ? attempts.length : 0;
+                const lastAttempt = attemptCount > 0 ? attempts[attempts.length - 1] : null;
+                const lastAttemptDate = lastAttempt ? new Date(lastAttempt.attempted_at).toLocaleDateString() : '-';
+
+                return `
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-3 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
+                            <button onclick="showTransactionDetails('${transaction.payment_id}')" class="hover:underline">
+                                ${transaction.payment_id}
+                            </button>
+                        </td>
+                        <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                            ${new Date(transaction.transaction_date).toLocaleDateString()}
+                        </td>
+                        <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                            ${transaction.amount.toFixed(2)} ${transaction.currency}
+                        </td>
+                        <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                            ${transaction.merchant_name || transaction.merchant_id || '-'}
+                        </td>
+                        <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                            ${transaction.approval_id || '-'}
+                        </td>
+                        <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                            ${transaction.return_reference || '-'}
+                        </td>
+                        <td class="px-3 py-4 whitespace-nowrap text-sm text-center">
+                            <span class="px-2 py-1 text-xs rounded-full ${attemptCount === 0 ? 'bg-gray-100 text-gray-800' :
+                    attemptCount < 3 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}">
+                                ${attemptCount}
+                            </span>
+                        </td>
+                        <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
+                            ${lastAttemptDate}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function showTransactionDetails(paymentId) {
+            // Fetch transaction details and show in a modal
+            fetch(`/decta/reports/transaction/${paymentId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        displayTransactionDetailsModal(data.data);
+                    } else {
+                        alert('Failed to load transaction details');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading transaction details:', error);
+                    alert('Error loading transaction details');
+                });
+        }
+
+        function displayTransactionDetailsModal(transaction) {
+            // Create a detailed modal for transaction information
+            const modalHTML = `
+                <div id="transactionDetailsModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+                    <div class="relative top-10 mx-auto p-5 border w-11/12 max-w-4xl shadow-lg rounded-md bg-white">
+                        <div class="mt-3">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-lg font-medium text-gray-900">Transaction Details - ${transaction.payment_id}</h3>
+                                <button onclick="closeTransactionDetailsModal()" class="text-gray-400 hover:text-gray-600">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <h4 class="font-medium text-gray-900 mb-3">Transaction Information</h4>
+                                    <dl class="space-y-2">
+                                        <div><dt class="text-sm text-gray-500">Amount:</dt><dd class="text-sm font-medium">${transaction.transaction_details.amount} ${transaction.transaction_details.currency}</dd></div>
+                                        <div><dt class="text-sm text-gray-500">Date:</dt><dd class="text-sm">${new Date(transaction.transaction_details.date_time).toLocaleString()}</dd></div>
+                                        <div><dt class="text-sm text-gray-500">Type:</dt><dd class="text-sm">${transaction.transaction_details.type || 'N/A'}</dd></div>
+                                        <div><dt class="text-sm text-gray-500">Approval ID:</dt><dd class="text-sm">${transaction.transaction_details.approval_id || 'N/A'}</dd></div>
+                                        <div><dt class="text-sm text-gray-500">Return Reference:</dt><dd class="text-sm">${transaction.transaction_details.return_reference || 'N/A'}</dd></div>
+                                    </dl>
+                                </div>
+
+                                <div>
+                                    <h4 class="font-medium text-gray-900 mb-3">Merchant Information</h4>
+                                    <dl class="space-y-2">
+                                        <div><dt class="text-sm text-gray-500">Name:</dt><dd class="text-sm">${transaction.merchant_details.name || 'N/A'}</dd></div>
+                                        <div><dt class="text-sm text-gray-500">ID:</dt><dd class="text-sm">${transaction.merchant_details.id || 'N/A'}</dd></div>
+                                        <div><dt class="text-sm text-gray-500">Terminal:</dt><dd class="text-sm">${transaction.merchant_details.terminal_id || 'N/A'}</dd></div>
+                                        <div><dt class="text-sm text-gray-500">Country:</dt><dd class="text-sm">${transaction.merchant_details.country || 'N/A'}</dd></div>
+                                    </dl>
+                                </div>
+
+                                <div>
+                                    <h4 class="font-medium text-gray-900 mb-3">Matching Status</h4>
+                                    <dl class="space-y-2">
+                                        <div><dt class="text-sm text-gray-500">Matched:</dt><dd class="text-sm"><span class="${transaction.matching_status.is_matched ? 'text-green-600' : 'text-red-600'}">${transaction.matching_status.is_matched ? 'Yes' : 'No'}</span></dd></div>
+                                        <div><dt class="text-sm text-gray-500">Status:</dt><dd class="text-sm">${transaction.matching_status.status}</dd></div>
+                                        <div><dt class="text-sm text-gray-500">Attempts:</dt><dd class="text-sm">${transaction.matching_status.attempts ? transaction.matching_status.attempts.length : 0}</dd></div>
+                                        ${transaction.matching_status.error_message ? `<div><dt class="text-sm text-gray-500">Error:</dt><dd class="text-sm text-red-600">${transaction.matching_status.error_message}</dd></div>` : ''}
+                                    </dl>
+                                </div>
+
+                                <div>
+                                    <h4 class="font-medium text-gray-900 mb-3">Card Information</h4>
+                                    <dl class="space-y-2">
+                                        <div><dt class="text-sm text-gray-500">Masked Number:</dt><dd class="text-sm">${transaction.card_details.masked_number || 'N/A'}</dd></div>
+                                        <div><dt class="text-sm text-gray-500">Type:</dt><dd class="text-sm">${transaction.card_details.type || 'N/A'}</dd></div>
+                                        <div><dt class="text-sm text-gray-500">Product Type:</dt><dd class="text-sm">${transaction.card_details.product_type || 'N/A'}</dd></div>
+                                    </dl>
+                                </div>
+                            </div>
+
+                            <div class="mt-6 flex justify-end">
+                                <button onclick="closeTransactionDetailsModal()" class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+        }
+
+        function closeTransactionDetailsModal() {
+            const modal = document.getElementById('transactionDetailsModal');
+            if (modal) {
+                modal.remove();
+            }
         }
 
         function updateCharts(data) {
@@ -842,6 +1105,7 @@
         `;
             }).join('');
         }
+
         function mergeMerchants(existing, newMerchant) {
             // Use the merchant with more transactions as primary
             const primary = existing.total_transactions >= newMerchant.total_transactions ? existing : newMerchant;
@@ -899,6 +1163,7 @@
                 .replace(/[^a-z0-9]/g, '') // Remove special characters
                 .replace(/\s+/g, ''); // Remove spaces
         }
+
         function groupMerchantsByName(merchants) {
             const grouped = new Map();
 
@@ -918,6 +1183,7 @@
             // Convert back to array and sort by transaction count
             return Array.from(grouped.values()).sort((a, b) => b.total_transactions - a.total_transactions);
         }
+
         function createSingleCurrencyDisplay(merchant) {
             const currency = merchant.currency_breakdown && merchant.currency_breakdown[0]
                 ? merchant.currency_breakdown[0]
@@ -937,6 +1203,7 @@
         <div class="text-xs text-gray-500">${currency.currency}</div>
     `;
         }
+
         function createMultiCurrencyDisplay(merchant) {
             const topCurrencies = merchant.currency_breakdown
                 ? merchant.currency_breakdown.slice(0, 2)
@@ -970,6 +1237,7 @@
         </div>
     `;
         }
+
         function showMerchantDetails(merchantId, merchantName, currencyBreakdown) {
             const modalHTML = `
         <div id="merchantDetailsModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
@@ -1081,6 +1349,7 @@
 
             document.body.insertAdjacentHTML('beforeend', modalHTML);
         }
+
         function exportMerchantData(merchantId, merchantName) {
             // Create CSV export of the merchant's currency breakdown
             const merchant = dashboardData.top_merchants.find(m => m.merchant_id === merchantId);
@@ -1105,93 +1374,14 @@
             link.click();
             document.body.removeChild(link);
         }
-        function displayMerchantCurrencyModal(merchantData) {
-            // Create and show modal with detailed currency breakdown
-            const modalHTML = `
-        <div id="merchantCurrencyModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-            <div class="relative top-20 mx-auto p-5 border w-11/12 max-w-4xl shadow-lg rounded-md bg-white">
-                <div class="mt-3">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-lg font-medium text-gray-900">
-                            Currency Breakdown - ${merchantData.merchant_name}
-                        </h3>
-                        <button onclick="closeMerchantCurrencyModal()" class="text-gray-400 hover:text-gray-600">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                            </svg>
-                        </button>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Currency</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Transactions</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Amount</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">% of Total Txns</th>
-                                </tr>
-                            </thead>
-                            <tbody class="bg-white divide-y divide-gray-200">
-                                ${merchantData.currencies.map(currency => `
-                                    <tr>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                            ${currency.currency}
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            ${currency.transaction_count.toLocaleString()}
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            ${currency.total_amount.toLocaleString('en-US', {
-                style: 'currency',
-                currency: currency.currency,
-                minimumFractionDigits: 2
-            })}
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                            ${((currency.transaction_count / merchantData.total_transactions) * 100).toFixed(1)}%
-                                        </td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="mt-4 flex justify-end">
-                        <button onclick="closeMerchantCurrencyModal()" class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
-                            Close
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
 
-            document.body.insertAdjacentHTML('beforeend', modalHTML);
-        }
         function closeMerchantDetailsModal() {
             const modal = document.getElementById('merchantDetailsModal');
             if (modal) {
                 modal.remove();
             }
         }
-        function closeMerchantCurrencyModal() {
-            const modal = document.getElementById('merchantCurrencyModal');
-            if (modal) {
-                modal.remove();
-            }
-        }
-        function showMerchantCurrencyBreakdown(merchantId) {
-            // Fetch detailed currency breakdown
-            fetch(`/decta/reports/merchant-currency-breakdown/${merchantId}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        displayMerchantCurrencyModal(data.data);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error loading merchant currency breakdown:', error);
-                });
-        }
+
         function updateProcessingStatusChart(statusData) {
             const ctx = document.getElementById('processingStatusChart').getContext('2d');
 
@@ -1234,6 +1424,7 @@
                 }
             });
         }
+
         function updateRecentFiles(filesData) {
             const tbody = document.getElementById('recentFilesTableBody');
 
@@ -1267,6 +1458,7 @@
                 </tr>
             `).join('');
         }
+
         function updateHealthStatus(statusData) {
             // This would be implemented based on actual health check results
             const badge = document.getElementById('healthStatusBadge');
@@ -1305,6 +1497,7 @@
                 `;
             }
         }
+
         function getStatusColor(status) {
             switch (status.toLowerCase()) {
                 case 'processed':
@@ -1319,6 +1512,7 @@
                     return 'bg-gray-100 text-gray-800';
             }
         }
+
         function formatFileSize(bytes) {
             if (!bytes) return 'N/A';
             const units = ['B', 'KB', 'MB', 'GB'];
@@ -1332,6 +1526,7 @@
 
             return size.toFixed(1) + ' ' + units[unitIndex];
         }
+
         // Cleanup on page unload
         window.addEventListener('beforeunload', function() {
             if (refreshInterval) {

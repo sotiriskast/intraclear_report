@@ -38,6 +38,7 @@ class DectaReportService
         SELECT
             COUNT(*) as today_transactions,
             COUNT(*) FILTER (WHERE is_matched = true) as today_matched,
+            COUNT(*) FILTER (WHERE is_matched = false) as today_unmatched,
             COUNT(*) FILTER (WHERE gateway_transaction_status = 'approved' OR gateway_transaction_status = 'APPROVED') as today_approved,
             COUNT(*) FILTER (WHERE gateway_transaction_status = 'declined' OR gateway_transaction_status = 'DECLINED') as today_declined
         FROM decta_transactions
@@ -47,6 +48,7 @@ class DectaReportService
         $yesterdayStats = DB::select("
         SELECT
             COUNT(*) as yesterday_transactions,
+            COUNT(*) FILTER (WHERE is_matched = false) as yesterday_unmatched,
             COUNT(*) FILTER (WHERE gateway_transaction_status = 'approved' OR gateway_transaction_status = 'APPROVED') as yesterday_approved,
             COUNT(*) FILTER (WHERE gateway_transaction_status = 'declined' OR gateway_transaction_status = 'DECLINED') as yesterday_declined
         FROM decta_transactions
@@ -181,12 +183,65 @@ class DectaReportService
             'unique_merchants' => $mainStats->unique_merchants ?? 0,
             'today_transactions' => $todayData->today_transactions ?? 0,
             'today_matched' => $todayData->today_matched ?? 0,
+            'today_unmatched' => $todayData->today_unmatched ?? 0,
             'today_approved' => $todayData->today_approved ?? 0,
             'today_declined' => $todayData->today_declined ?? 0,
             'yesterday_transactions' => $yesterdayData->yesterday_transactions ?? 0,
+            'yesterday_unmatched' => $yesterdayData->yesterday_unmatched ?? 0,
             'yesterday_approved' => $yesterdayData->yesterday_approved ?? 0,
             'yesterday_declined' => $yesterdayData->yesterday_declined ?? 0,
             'period_days' => 30
+        ];
+    }
+    /**
+     * Debug method to understand unmatched transactions discrepancy
+     */
+    public function debugUnmatchedTransactions(): array
+    {
+        $lastMonth = Carbon::now()->subDays(30);
+
+        // Count from summary stats query (last 30 days, includes failed)
+        $summaryCount = DB::select("
+        SELECT
+            COUNT(*) FILTER (WHERE is_matched = false) as unmatched_all,
+            COUNT(*) FILTER (WHERE is_matched = false AND status != 'failed') as unmatched_non_failed,
+            COUNT(*) FILTER (WHERE is_matched = false AND status = 'failed') as unmatched_failed
+        FROM decta_transactions
+        WHERE created_at >= ?
+    ", [$lastMonth]);
+
+        // Count from current unmatched list query (all time, excludes failed)
+        $listCount = DB::select("
+        SELECT
+            COUNT(*) as unmatched_all_time,
+            COUNT(*) FILTER (WHERE created_at >= ?) as unmatched_last_30_days
+        FROM decta_transactions
+        WHERE is_matched = false AND status != 'failed'
+    ", [$lastMonth]);
+
+        // Sample of unmatched records
+        $samples = DB::select("
+        SELECT
+            payment_id,
+            is_matched,
+            status,
+            created_at,
+            tr_date_time
+        FROM decta_transactions
+        WHERE is_matched = false
+        ORDER BY created_at DESC
+        LIMIT 10
+    ");
+
+        return [
+            'summary_stats' => $summaryCount[0] ?? null,
+            'list_stats' => $listCount[0] ?? null,
+            'sample_records' => $samples,
+            'explanation' => [
+                'summary_unmatched_count' => 'Counts from last 30 days, includes failed transactions',
+                'list_unmatched_count' => 'Shows all time, excludes failed transactions',
+                'discrepancy_reason' => 'Different date filters and failed transaction handling'
+            ]
         ];
     }
     /**
@@ -1349,8 +1404,15 @@ class DectaReportService
      */
     public function getUnmatchedTransactions(array $filters = [], int $limit = 50, int $offset = 0): array
     {
-        $whereConditions = ['is_matched = false', 'status != \'failed\''];
+        $whereConditions = ['is_matched = false'];
         $params = [];
+
+        // Apply default 30-day filter if no date filters provided
+        if (empty($filters['date_from']) && empty($filters['date_to'])) {
+            $lastMonth = Carbon::now()->subDays(60);
+            $whereConditions[] = 'created_at >= ?';
+            $params[] = $lastMonth;
+        }
 
         if (!empty($filters['merchant_id'])) {
             $whereConditions[] = 'merchant_id = ?';
@@ -1377,22 +1439,22 @@ class DectaReportService
         $params[] = $offset;
 
         $query = "
-            SELECT
-                payment_id,
-                tr_date_time,
-                tr_amount,
-                tr_ccy,
-                merchant_name,
-                merchant_id,
-                tr_approval_id,
-                tr_ret_ref_nr,
-                matching_attempts,
-                created_at
-            FROM decta_transactions
-            WHERE {$whereClause}
-            ORDER BY tr_date_time DESC
-            LIMIT ? OFFSET ?
-        ";
+        SELECT
+            payment_id,
+            tr_date_time,
+            tr_amount,
+            tr_ccy,
+            merchant_name,
+            merchant_id,
+            tr_approval_id,
+            tr_ret_ref_nr,
+            matching_attempts,
+            created_at
+        FROM decta_transactions
+        WHERE {$whereClause}
+        ORDER BY tr_date_time DESC
+        LIMIT ? OFFSET ?
+    ";
 
         $results = DB::select($query, $params);
 

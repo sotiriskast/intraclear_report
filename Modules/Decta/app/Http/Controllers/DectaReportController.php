@@ -135,6 +135,22 @@ class DectaReportController extends Controller
             ], 500);
         }
     }
+    public function debugUnmatchedTransactions(): JsonResponse
+    {
+        try {
+            $data = $this->reportService->debugUnmatchedTransactions();
+
+            return response()->json([
+                'success' => true,
+                'data' => $data
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Debug failed: ' . $e->getMessage()
+            ], 500);
+        }
+    }
     /**
      * Get volume breakdown report specifically
      */
