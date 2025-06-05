@@ -87,4 +87,67 @@ return [
             'enabled' => env('DECTA_NOTIFY_HEALTH_CHECK', true),
         ],
     ],
+
+    /*
+|--------------------------------------------------------------------------
+| Large Export Configuration
+|--------------------------------------------------------------------------
+|
+| Configuration settings for handling large dataset exports
+|
+*/
+
+    'memory_limit' => env('EXPORT_MEMORY_LIMIT', '1G'),
+    'time_limit' => env('EXPORT_TIME_LIMIT', 3600), // 1 hour
+    'chunk_size' => env('EXPORT_CHUNK_SIZE', 1000),
+    'max_records' => env('EXPORT_MAX_RECORDS', 5000000), // 5 million max
+
+    /*
+    |--------------------------------------------------------------------------
+    | Performance Thresholds
+    |--------------------------------------------------------------------------
+    |
+    | Define when to show warnings and recommendations to users
+    |
+    */
+
+    'thresholds' => [
+        'large_dataset' => 300000,      // 300k records
+        'very_large_dataset' => 800000, // 800k records
+        'huge_dataset' => 1500000,      // 1.5M records
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Format Recommendations
+    |--------------------------------------------------------------------------
+    |
+    | Which formats work best for different dataset sizes
+    |
+    */
+
+    'format_limits' => [
+        'excel' => [
+            'max_rows' => 1048576,      // Excel row limit
+            'recommended_max' => 500000, // Recommended max for performance
+        ],
+        'csv' => [
+            'max_rows' => PHP_INT_MAX,   // No practical limit
+            'recommended_max' => 10000000, // 10M records
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Progress Tracking
+    |--------------------------------------------------------------------------
+    |
+    | Settings for progress reporting during exports
+    |
+    */
+
+    'progress' => [
+        'log_interval' => 10000,    // Log progress every N records
+        'memory_check_interval' => 5000, // Check memory every N records
+    ],
 ];

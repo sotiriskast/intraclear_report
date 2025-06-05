@@ -2,6 +2,7 @@
 
 namespace Modules\Decta\Services;
 
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -18,16 +19,77 @@ class DectaExportService
      */
     public function exportToCsv(array $data, string $reportType, array $filters = []): string
     {
-        $filename = $this->generateFilename($reportType, 'csv');
-        $filePath = 'exports/' . $filename;
+        try {
+            $filename = $this->generateFilename($reportType, 'csv');
+            $filePath = 'exports/' . $filename;
+            $fullPath = storage_path('app/' . $filePath);
 
-        // Create CSV content
-        $csvContent = $this->generateCsvContent($data, $reportType, $filters);
+            Log::info('Starting CSV export with direct file writing', [
+                'filename' => $filename,
+                'file_path' => $filePath,
+                'full_path' => $fullPath,
+                'data_count' => count($data),
+                'report_type' => $reportType
+            ]);
 
-        // Store file
-        Storage::put($filePath, $csvContent);
+            // Ensure exports directory exists using native PHP
+            $exportsDir = storage_path('app/exports');
+            if (!is_dir($exportsDir)) {
+                if (!mkdir($exportsDir, 0755, true)) {
+                    throw new \Exception("Failed to create exports directory: {$exportsDir}");
+                }
+                Log::info('Created exports directory', ['path' => $exportsDir]);
+            }
 
-        return $filePath;
+            // Create CSV content
+            $csvContent = $this->generateCsvContent($data, $reportType, $filters);
+
+            Log::info('CSV content generated', [
+                'content_length' => strlen($csvContent),
+                'content_preview' => substr($csvContent, 0, 200)
+            ]);
+
+            // Write file directly using PHP instead of Laravel Storage
+            $bytesWritten = file_put_contents($fullPath, $csvContent);
+
+            if ($bytesWritten === false) {
+                throw new \Exception("Failed to write CSV file to: {$fullPath}");
+            }
+
+            Log::info('File written with file_put_contents', [
+                'bytes_written' => $bytesWritten,
+                'full_path' => $fullPath
+            ]);
+
+            // Verify file exists and has content
+            if (!file_exists($fullPath)) {
+                throw new \Exception("CSV file was not created successfully at: {$fullPath}");
+            }
+
+            $actualFileSize = filesize($fullPath);
+            if ($actualFileSize === 0) {
+                throw new \Exception("CSV file was created but is empty at: {$fullPath}");
+            }
+
+            Log::info('CSV export completed successfully', [
+                'file_path' => $filePath,
+                'full_path' => $fullPath,
+                'file_size' => $actualFileSize,
+                'bytes_written' => $bytesWritten
+            ]);
+
+            return $filePath;
+
+        } catch (\Exception $e) {
+            Log::error('CSV export failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'report_type' => $reportType,
+                'data_count' => count($data),
+                'full_path' => isset($fullPath) ? $fullPath : 'not set'
+            ]);
+            throw $e;
+        }
     }
 
     /**
@@ -35,41 +97,77 @@ class DectaExportService
      */
     public function exportToExcel(array $data, string $reportType, array $filters = []): string
     {
-        $filename = $this->generateFilename($reportType, 'xlsx');
-        $filePath = 'exports/' . $filename;
+        try {
+            $filename = $this->generateFilename($reportType, 'xlsx');
+            $filePath = 'exports/' . $filename;
+            $fullPath = storage_path('app/' . $filePath);
 
-        $spreadsheet = new Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
+            Log::info('Starting Excel export', [
+                'filename' => $filename,
+                'file_path' => $filePath,
+                'full_path' => $fullPath,
+                'data_count' => count($data),
+                'report_type' => $reportType
+            ]);
 
-        // Set up the spreadsheet
-        $this->setupExcelSheet($sheet, $reportType, $filters);
+            // Ensure exports directory exists using native PHP
+            $exportsDir = storage_path('app/exports');
+            if (!is_dir($exportsDir)) {
+                if (!mkdir($exportsDir, 0755, true)) {
+                    throw new \Exception("Failed to create exports directory: {$exportsDir}");
+                }
+                Log::info('Created exports directory', ['path' => $exportsDir]);
+            }
 
-        // Add headers
-        $headers = $this->getHeaders($reportType);
-        $this->addHeaders($sheet, $headers);
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
 
-        // Add data
-        $this->addDataToSheet($sheet, $data, $reportType, count($headers));
+            // Set up the spreadsheet
+            $this->setupExcelSheet($sheet, $reportType, $filters);
 
-        // Apply styling
-        $this->applyExcelStyling($sheet, count($data), count($headers));
+            // Add headers
+            $headers = $this->getHeaders($reportType);
+            $this->addHeaders($sheet, $headers);
 
-        // Save file
-        $writer = new Xlsx($spreadsheet);
-        $fullPath = storage_path('app/' . $filePath);
+            // Add data
+            $this->addDataToSheet($sheet, $data, $reportType, count($headers));
 
-        // Ensure directory exists
-        $directory = dirname($fullPath);
-        if (!is_dir($directory)) {
-            mkdir($directory, 0755, true);
+            // Apply styling
+            $this->applyExcelStyling($sheet, count($data), count($headers));
+
+            // Save file directly
+            $writer = new Xlsx($spreadsheet);
+            $writer->save($fullPath);
+
+            // Verify file exists
+            if (!file_exists($fullPath)) {
+                throw new \Exception("Excel file was not created successfully at: {$fullPath}");
+            }
+
+            $fileSize = filesize($fullPath);
+            if ($fileSize === 0) {
+                throw new \Exception("Excel file was created but is empty at: {$fullPath}");
+            }
+
+            Log::info('Excel export completed', [
+                'file_path' => $filePath,
+                'file_size' => $fileSize,
+                'full_path' => $fullPath
+            ]);
+
+            return $filePath;
+
+        } catch (\Exception $e) {
+            Log::error('Excel export failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'report_type' => $reportType,
+                'data_count' => count($data),
+                'full_path' => isset($fullPath) ? $fullPath : 'not set'
+            ]);
+            throw $e;
         }
-
-        $writer->save($fullPath);
-
-        return $filePath;
-    }
-
-    /**
+    }    /**
      * Export data to JSON format
      */
     public function exportToJson(array $data, string $reportType, array $filters = []): string
@@ -106,32 +204,49 @@ class DectaExportService
      */
     private function generateCsvContent(array $data, string $reportType, array $filters): string
     {
-        $headers = $this->getHeaders($reportType);
-        $rows = [];
+        try {
+            $headers = $this->getHeaders($reportType);
+            $rows = [];
 
-        // Add metadata header
-        $rows[] = "# Decta {$reportType} Report";
-        $rows[] = "# Generated: " . Carbon::now()->format('Y-m-d H:i:s');
-        if (!empty($filters)) {
-            $rows[] = "# Filters: " . json_encode($filters);
+            // Add metadata header
+            $rows[] = "# Decta {$reportType} Report";
+            $rows[] = "# Generated: " . Carbon::now()->format('Y-m-d H:i:s');
+            if (!empty($filters)) {
+                $rows[] = "# Filters: " . json_encode($filters);
+            }
+            $rows[] = "# Total Records: " . count($data);
+            $rows[] = ""; // Empty line
+
+            // Add column headers
+            $rows[] = '"' . implode('","', $headers) . '"';
+
+            // Add data rows
+            foreach ($data as $item) {
+                $rowData = $this->formatRowForCsv($item, $reportType);
+                $rows[] = '"' . implode('","', array_map(function($value) {
+                        return str_replace('"', '""', (string)$value); // Ensure string and escape quotes
+                    }, $rowData)) . '"';
+            }
+
+            $content = implode("\n", $rows);
+
+            Log::info('CSV content generated', [
+                'content_length' => strlen($content),
+                'row_count' => count($rows),
+                'data_rows' => count($data)
+            ]);
+
+            return $content;
+
+        } catch (\Exception $e) {
+            Log::error('CSV content generation failed', [
+                'error' => $e->getMessage(),
+                'report_type' => $reportType,
+                'data_count' => count($data)
+            ]);
+            throw new \Exception("Failed to generate CSV content: " . $e->getMessage());
         }
-        $rows[] = "# Total Records: " . count($data);
-        $rows[] = ""; // Empty line
-
-        // Add column headers
-        $rows[] = '"' . implode('","', $headers) . '"';
-
-        // Add data rows
-        foreach ($data as $item) {
-            $rowData = $this->formatRowForCsv($item, $reportType);
-            $rows[] = '"' . implode('","', array_map(function($value) {
-                    return str_replace('"', '""', $value); // Escape quotes
-                }, $rowData)) . '"';
-        }
-
-        return implode("\n", $rows);
     }
-
     /**
      * Get headers based on report type
      */
@@ -143,6 +258,12 @@ class DectaExportService
                     'Payment ID', 'Transaction Date', 'Amount', 'Currency', 'Merchant Name',
                     'Merchant ID', 'Terminal ID', 'Card Type', 'Transaction Type', 'Status',
                     'Is Matched', 'Matched At', 'Gateway Transaction ID', 'Error Message'
+                ];
+
+            case 'scheme':
+                return [
+                    'Card Type', 'Transaction Type', 'Currency', 'Amount', 'Transaction Count',
+                    'Fee', 'Merchant Legal Name'
                 ];
 
             case 'daily_summary':
@@ -173,79 +294,99 @@ class DectaExportService
                 ];
 
             default:
+                Log::warning('Unknown report type for headers', ['report_type' => $reportType]);
                 return ['Data'];
         }
     }
-
     /**
      * Format row data for CSV export
      */
     private function formatRowForCsv(array $item, string $reportType): array
     {
-        switch ($reportType) {
-            case 'transactions':
-                return [
-                    $item['payment_id'] ?? '',
-                    $item['transaction_date'] ?? '',
-                    $item['amount'] ?? 0,
-                    $item['currency'] ?? '',
-                    $item['merchant_name'] ?? '',
-                    $item['merchant_id'] ?? '',
-                    $item['terminal_id'] ?? '',
-                    $item['card_type'] ?? '',
-                    $item['transaction_type'] ?? '',
-                    $item['status'] ?? '',
-                    $item['is_matched'] ? 'Yes' : 'No',
-                    $item['matched_at'] ?? '',
-                    $item['gateway_info']['transaction_id'] ?? '',
-                    $item['error_message'] ?? ''
-                ];
+        try {
+            switch ($reportType) {
+                case 'transactions':
+                    return [
+                        $item['payment_id'] ?? '',
+                        $item['transaction_date'] ?? '',
+                        $item['amount'] ?? 0,
+                        $item['currency'] ?? '',
+                        $item['merchant_name'] ?? '',
+                        $item['merchant_id'] ?? '',
+                        $item['terminal_id'] ?? '',
+                        $item['card_type'] ?? '',
+                        $item['transaction_type'] ?? '',
+                        $item['status'] ?? '',
+                        isset($item['is_matched']) && $item['is_matched'] ? 'Yes' : 'No',
+                        $item['matched_at'] ?? '',
+                        $item['gateway_info']['transaction_id'] ?? '',
+                        $item['error_message'] ?? ''
+                    ];
 
-            case 'daily_summary':
-                return [
-                    $item['date'] ?? '',
-                    $item['total_transactions'] ?? 0,
-                    $item['matched_count'] ?? 0,
-                    $item['unmatched_count'] ?? 0,
-                    $item['failed_count'] ?? 0,
-                    $item['total_amount'] ?? 0,
-                    $item['matched_amount'] ?? 0,
-                    $item['unique_merchants'] ?? 0,
-                    $item['avg_transaction_amount'] ?? 0,
-                    $item['match_rate'] ?? 0
-                ];
+                case 'scheme':
+                    return [
+                        $item['card_type'] ?? '',
+                        $item['transaction_type'] ?? '',
+                        $item['currency'] ?? '',
+                        $item['amount'] ?? 0,
+                        $item['count'] ?? 0,
+                        $item['fee'] ?? 0,
+                        $item['merchant_legal_name'] ?? ''
+                    ];
 
-            case 'merchant_breakdown':
-                return [
-                    $item['merchant_id'] ?? '',
-                    $item['merchant_name'] ?? '',
-                    $item['total_transactions'] ?? 0,
-                    $item['matched_transactions'] ?? 0,
-                    $item['failed_transactions'] ?? 0,
-                    $item['total_amount'] ?? 0,
-                    $item['matched_amount'] ?? 0,
-                    $item['avg_amount'] ?? 0,
-                    $item['match_rate'] ?? 0,
-                    $item['first_transaction'] ?? '',
-                    $item['last_transaction'] ?? '',
-                    $item['currencies_used'] ?? 0,
-                    $item['terminals_used'] ?? 0
-                ];
+                case 'daily_summary':
+                    return [
+                        $item['date'] ?? '',
+                        $item['total_transactions'] ?? 0,
+                        $item['matched_count'] ?? 0,
+                        $item['unmatched_count'] ?? 0,
+                        $item['failed_count'] ?? 0,
+                        $item['total_amount'] ?? 0,
+                        $item['matched_amount'] ?? 0,
+                        $item['unique_merchants'] ?? 0,
+                        $item['avg_transaction_amount'] ?? 0,
+                        $item['match_rate'] ?? 0
+                    ];
 
-            case 'matching':
-                return [
-                    $item['status'] ?? '',
-                    $item['is_matched'] ? 'Yes' : 'No',
-                    $item['count'] ?? 0,
-                    $item['avg_matching_time_minutes'] ?? '',
-                    $item['has_matching_attempts'] ?? 0
-                ];
+                case 'merchant_breakdown':
+                    return [
+                        $item['merchant_id'] ?? '',
+                        $item['merchant_name'] ?? '',
+                        $item['total_transactions'] ?? 0,
+                        $item['matched_transactions'] ?? 0,
+                        $item['failed_transactions'] ?? 0,
+                        $item['total_amount'] ?? 0,
+                        $item['matched_amount'] ?? 0,
+                        $item['avg_amount'] ?? 0,
+                        $item['match_rate'] ?? 0,
+                        $item['first_transaction'] ?? '',
+                        $item['last_transaction'] ?? '',
+                        $item['currencies_used'] ?? 0,
+                        $item['terminals_used'] ?? 0
+                    ];
 
-            default:
-                return array_values($item);
+                case 'matching':
+                    return [
+                        $item['status'] ?? '',
+                        isset($item['is_matched']) && $item['is_matched'] ? 'Yes' : 'No',
+                        $item['count'] ?? 0,
+                        $item['avg_matching_time_minutes'] ?? '',
+                        $item['has_matching_attempts'] ?? 0
+                    ];
+
+                default:
+                    return array_values($item);
+            }
+        } catch (\Exception $e) {
+            Log::error('Row formatting failed', [
+                'error' => $e->getMessage(),
+                'report_type' => $reportType,
+                'item' => $item
+            ]);
+            // Return safe default
+            return array_fill(0, count($this->getHeaders($reportType)), '');
         }
     }
-
     /**
      * Setup Excel sheet with metadata
      */
@@ -517,5 +658,52 @@ class DectaExportService
 
         $lastAttempt = end($attempts);
         return $lastAttempt['error_message'] ?? $lastAttempt['result'] ?? '';
+    }
+    /**
+     * Test export functionality - DEBUGGING METHOD
+     */
+    public function testExport(): array
+    {
+        try {
+            $testData = [
+                [
+                    'card_type' => 'VISA',
+                    'transaction_type' => '05',
+                    'currency' => 'EUR',
+                    'amount' => 100.50,
+                    'count' => 5,
+                    'fee' => 2.50,
+                    'merchant_legal_name' => 'Test Merchant Ltd'
+                ],
+                [
+                    'card_type' => 'MC',
+                    'transaction_type' => '06',
+                    'currency' => 'USD',
+                    'amount' => 75.25,
+                    'count' => 3,
+                    'fee' => 1.88,
+                    'merchant_legal_name' => 'Another Merchant Inc'
+                ]
+            ];
+
+            $filePath = $this->exportToCsv($testData, 'scheme', ['test' => true]);
+            $fullPath = storage_path('app/' . $filePath);
+
+            return [
+                'success' => true,
+                'file_path' => $filePath,
+                'full_path' => $fullPath,
+                'file_exists' => file_exists($fullPath),
+                'file_size' => file_exists($fullPath) ? filesize($fullPath) : 0,
+                'file_content' => file_exists($fullPath) ? substr(file_get_contents($fullPath), 0, 500) : null
+            ];
+
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ];
+        }
     }
 }
