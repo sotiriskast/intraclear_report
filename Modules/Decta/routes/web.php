@@ -54,12 +54,8 @@ Route::middleware(['auth', 'verified'])->prefix('decta')->group(function () {
         Route::get('/decline-analysis', [DectaReportController::class, 'getDeclineAnalysis'])->name('decta.reports.decline-analysis');
         Route::post('/compare-decline-rates', [DectaReportController::class, 'compareDeclineRates'])->name('decta.reports.compare-decline-rates');
         Route::post('/volume-breakdown', [DectaReportController::class, 'getVolumeBreakdown'])->name('decta.reports.volume-breakdown');
-        // Debug routes
-        Route::get('/debug-dashboard-data', [DectaReportController::class, 'debugDashboardData'])->name('decta.reports.debug-dashboard');
-        Route::get('/debug-merchants', [DectaReportController::class, 'debugMerchantData'])->name('decta.reports.debug-merchants');
-        Route::get('/test-merchant-grouping', [DectaReportController::class, 'testMerchantGrouping'])->name('decta.reports.test-merchant-grouping');
-
         // Merchants API endpoint
         Route::get('/merchants', [DectaReportController::class, 'getMerchants'])->name('decta.reports.merchants');
+//        Route::get('/debug-unmatched', [DectaReportController::class, 'debugUnmatchedTransactions'])->name('decta.reports.debug-unmatched');
     });
 });
