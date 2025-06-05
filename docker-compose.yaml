@@ -3,6 +3,7 @@ services:
   # ---
   redis:
     image: redis:bookworm
+    restart: always
     networks:
     - backend
     ports:
