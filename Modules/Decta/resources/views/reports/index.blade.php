@@ -290,10 +290,10 @@
                                     <input type="radio" name="export_format" value="json" class="form-radio" checked>
                                     <span class="ml-2 text-sm text-gray-700">View Online</span>
                                 </label>
-                                {{--                                <label class="inline-flex items-center">--}}
-                                {{--                                    <input type="radio" name="export_format" value="csv" class="form-radio">--}}
-                                {{--                                    <span class="ml-2 text-sm text-gray-700">CSV Download</span>--}}
-                                {{--                                </label>--}}
+                                <label class="inline-flex items-center">
+                                    <input type="radio" name="export_format" value="csv" class="form-radio">
+                                    <span class="ml-2 text-sm text-gray-700">CSV Download</span>
+                                </label>
                                 {{--                                <label class="inline-flex items-center">--}}
                                 {{--                                    <input type="radio" name="export_format" value="excel" class="form-radio">--}}
                                 {{--                                    <span class="ml-2 text-sm text-gray-700">Excel Download</span>--}}
@@ -525,6 +525,7 @@
                 const generateBtn = document.getElementById('generateBtn');
                 const generateText = generateBtn.querySelector('.generate-text');
                 const loadingSpinner = generateBtn.querySelector('.loading-spinner');
+                const exportFormat = formData.get('export_format');
 
                 // Show loading state
                 generateBtn.disabled = true;
@@ -550,12 +551,27 @@
                     body: params
                 })
                     .then(response => {
-                        if (response.headers.get('content-type')?.includes('application/json')) {
-                            return response.json();
-                        } else {
-                            // Handle file downloads (CSV/Excel)
-                            const filename = response.headers.get('content-disposition')?.split('filename=')[1]?.replace(/"/g, '') || 'export.csv';
+                        // Check if this is a file download (CSV/Excel)
+                        if (exportFormat === 'csv' || exportFormat === 'excel') {
+                            if (!response.ok) {
+                                return response.json().then(err => {
+                                    throw new Error(err.message || 'Export failed');
+                                });
+                            }
+
+                            // Handle file download
+                            const contentDisposition = response.headers.get('content-disposition');
+                            let filename = 'export.csv';
+
+                            if (contentDisposition) {
+                                const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                                if (filenameMatch && filenameMatch[1]) {
+                                    filename = filenameMatch[1].replace(/['"]/g, '');
+                                }
+                            }
+
                             return response.blob().then(blob => {
+                                // Create download link
                                 const url = window.URL.createObjectURL(blob);
                                 const a = document.createElement('a');
                                 a.href = url;
@@ -564,23 +580,33 @@
                                 a.click();
                                 window.URL.revokeObjectURL(url);
                                 document.body.removeChild(a);
-                                return {success: true, download: true};
+
+                                return { success: true, download: true };
                             });
+                        } else {
+                            // Handle JSON response for online viewing
+                            if (!response.ok) {
+                                return response.json().then(err => {
+                                    throw new Error(err.message || 'Report generation failed');
+                                });
+                            }
+                            return response.json();
                         }
                     })
                     .then(data => {
                         if (data.success) {
                             if (!data.download) {
+                                // Show results for online viewing
                                 displayResults(data.data, formData.get('report_type'));
                             }
+                            // For downloads, no additional action needed
                         } else {
-                            console.log(data)
                             showError(formatErrorMessage(data));
                         }
                     })
                     .catch(error => {
                         console.error('Error:', error);
-                        showError('Network error occurred. Please try again.');
+                        showError(error.message || 'Network error occurred. Please try again.');
                     })
                     .finally(() => {
                         // Reset button state
@@ -1661,7 +1687,7 @@
                 const helpTexts = {
                     'volume_breakdown': 'Enhanced Volume Breakdown shows transaction amounts grouped by Continent (Europe/Non-Europe), Card Brand (Visa/Mastercard/etc.), and Card Type (Personal/Commercial). Perfect for calculating different MDR rates for EU vs Non-EU cards and Personal vs Commercial cards.',
                     'scheme': 'Scheme Report groups transactions by card type, transaction type, currency, and merchant to provide an overview of transaction patterns and fee calculations.',
-                    // 'transactions': 'Transaction Details provides a detailed view of individual transactions with their matching status.',
+                    'transactions': 'Transaction Details provides a detailed view of individual transactions with their matching status.',
                     // 'daily_summary': 'Daily Summary shows aggregated transaction data grouped by date.',
                     // 'merchant_breakdown': 'Merchant Breakdown shows transaction statistics grouped by merchant.',
                     // 'matching': 'Matching Analysis shows statistics about transaction matching success rates.',
