@@ -3,9 +3,6 @@
 namespace Modules\Decta\Services;
 
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
@@ -179,76 +176,41 @@ class DectaLargeExportService
             // Core identifiers
             'ID',
             'Payment ID',
-            'File ID',
-
-            // Transaction details
-            'Transaction Date',
-            'Transaction Type',
-            'Amount',
-            'Currency',
-            'Processing Date',
-            'Batch ID',
-            'Batch Open Date',
-
+            'Card',
             // Merchant information
             'Merchant Name',
             'Merchant ID',
-            'Merchant Legal Name',
-            'Merchant IBAN',
-            'Merchant Country',
             'Terminal ID',
-
-            // Card information
-            'Card (Masked)',
-            'Card Type',
-            'Card Product Type',
-            'Card Product Class',
-            'Issuer Country',
-
-            // Transaction codes and references
-            'Approval ID',
-            'Return Reference Number',
+            'Card Type Name',
+            // Transaction details
             'ACQ Reference Number',
+            'Transaction Batch ID',
+            'Transaction Batch Open Date',
+            'Transaction Date Time',
+            'Transaction Type',
+            'Transaction Amount',
+            'Transaction CCY',
             'MSC',
-            'MCC',
+            'Transaction Return Reference Number',
+            'Transaction Approval ID',
+            'Transaction Processing Date',
+            'Merchant IBAN',
             'Proc Code',
+            'Issuer Country',
             'Proc Region',
+            'MCC',
+            'Merchant Country',
             'Tran Region',
-
-            // Security and compliance
-            'ECI/SLI',
-            'SCA Exemption',
-            'Point Code',
-            'POS Environment Indicator',
-            'PAR',
-
-            // User defined fields
+            'Card Product Type',
             'User Define Field 1',
             'User Define Field 2',
             'User Define Field 3',
-
-            // Gateway matching data
-            'Gateway Transaction ID',
-            'Gateway Account ID',
-            'Gateway Shop ID',
-            'Gateway TRX ID',
-            'Gateway Transaction Status',
-            'Gateway Transaction Date',
-            'Gateway Bank Response Date',
-
-            // Status and matching
-            'Status',
-            'Is Matched',
-            'Matched At',
-            'Error Message',
-            'Matching Attempts Count',
-
-            // Timestamps
-            'Created At',
-            'Updated At',
-
-            // Source file
-            'Source Filename'
+            'Merchant Legal Name',
+            'Card Product Class',
+            'ECI/SLI',
+            'SCA Exemption',
+            'Point Code',
+            'Issuer Country',
         ];
     }
 
@@ -258,60 +220,42 @@ class DectaLargeExportService
     private function getTransactionChunk(array $filters, int $limit, int $offset): array
     {
         $query = DB::table('decta_transactions as dt')
-            ->leftJoin('decta_files as df', 'dt.decta_file_id', '=', 'df.id') // FIXED: Added missing JOIN
             ->select([
-                'dt.id',
-                'dt.payment_id',
-                'dt.decta_file_id',
-                'dt.tr_date_time',
-                'dt.tr_type',
-                'dt.tr_amount',
-                'dt.tr_ccy',
-                'dt.tr_processing_date',
-                'dt.tr_batch_id',
-                'dt.tr_batch_open_date',
-                'dt.merchant_name',
-                'dt.merchant_id',
-                'dt.merchant_legal_name',
-                'dt.merchant_iban_code',
-                'dt.merchant_country',
-                'dt.terminal_id',
-                'dt.card',
-                'dt.card_type_name',
-                'dt.card_product_type',
-                'dt.card_product_class',
-                'dt.issuer_country',
-                'dt.tr_approval_id',
-                'dt.tr_ret_ref_nr',
-                'dt.acq_ref_nr',
-                'dt.msc',
-                'dt.mcc',
-                'dt.proc_code',
-                'dt.proc_region',
-                'dt.tran_region',
-                'dt.eci_sli',
-                'dt.sca_exemption',
-                'dt.point_code',
-                'dt.pos_env_indicator',
-                'dt.par',
-                'dt.user_define_field1',
-                'dt.user_define_field2',
-                'dt.user_define_field3',
-                'dt.gateway_transaction_id',
-                'dt.gateway_account_id',
-                'dt.gateway_shop_id',
-                'dt.gateway_trx_id',
-                'dt.gateway_transaction_status',
-                'dt.gateway_transaction_date',
-                'dt.gateway_bank_response_date',
-                'dt.status',
-                'dt.is_matched',
-                'dt.matched_at',
-                'dt.error_message',
-                'dt.matching_attempts',
-                'dt.created_at',
-                'dt.updated_at',
-                'df.filename'
+                'dt.id',                        // ID
+                'dt.payment_id',                // Payment ID
+                'dt.card',                      // Card
+                'dt.merchant_name',             // Merchant Name
+                'dt.merchant_id',               // Merchant ID
+                'dt.terminal_id',               // Terminal ID
+                'dt.card_type_name',            // Card Type Name
+                'dt.acq_ref_nr',                // ACQ Reference Number
+                'dt.tr_batch_id',               // Transaction Batch ID
+                'dt.tr_batch_open_date',        // Transaction Batch Open Date
+                'dt.tr_date_time',              // Transaction Date Time
+                'dt.tr_type',                   // Transaction Type
+                'dt.tr_amount',                 // Transaction Amount
+                'dt.tr_ccy',                    // Transaction CCY
+                'dt.msc',                       // MSC
+                'dt.tr_ret_ref_nr',             // Transaction Return Reference Number
+                'dt.tr_approval_id',            // Transaction Approval ID
+                'dt.tr_processing_date',        // Transaction Processing Date
+                'dt.merchant_iban_code',        // Merchant IBAN
+                'dt.proc_code',                 // Proc Code
+                'dt.issuer_country',            // Issuer Country
+                'dt.proc_region',               // Proc Region
+                'dt.mcc',                       // MCC
+                'dt.merchant_country',          // Merchant Country
+                'dt.tran_region',               // Tran Region
+                'dt.card_product_type',         // Card Product Type
+                'dt.user_define_field1',        // User Define Field 1
+                'dt.user_define_field2',        // User Define Field 2
+                'dt.user_define_field3',        // User Define Field 3
+                'dt.merchant_legal_name',       // Merchant Legal Name
+                'dt.card_product_class',        // Card Product Class
+                'dt.eci_sli',                   // ECI/SLI
+                'dt.sca_exemption',             // SCA Exemption
+                'dt.point_code',                // Point Code
+                'dt.issuer_country as issuer_country_duplicate', // Issuer Country (duplicate)
             ]);
 
         // Apply filters
@@ -353,65 +297,42 @@ class DectaLargeExportService
      */
     private function formatCompleteTransactionRow($transaction): array
     {
-        $matchingAttempts = null;
-        if (!empty($transaction->matching_attempts)) {
-            $attempts = json_decode($transaction->matching_attempts, true);
-            $matchingAttempts = is_array($attempts) ? count($attempts) : 0;
-        }
-
         return [
-            $transaction->id,
-            $transaction->payment_id,
-            $transaction->decta_file_id,
-            $transaction->tr_date_time,
-            $transaction->tr_type,
-            $transaction->tr_amount ? $transaction->tr_amount / 100 : 0, // Convert from cents
-            $transaction->tr_ccy,
-            $transaction->tr_processing_date,
-            $transaction->tr_batch_id,
-            $transaction->tr_batch_open_date,
-            $transaction->merchant_name,
-            $transaction->merchant_id,
-            $transaction->merchant_legal_name,
-            $transaction->merchant_iban_code,
-            $transaction->merchant_country,
-            $transaction->terminal_id,
-            $transaction->card,
-            $transaction->card_type_name,
-            $transaction->card_product_type,
-            $transaction->card_product_class,
-            $transaction->issuer_country,
-            $transaction->tr_approval_id,
-            $transaction->tr_ret_ref_nr,
-            $transaction->acq_ref_nr,
-            $transaction->msc,
-            $transaction->mcc,
-            $transaction->proc_code,
-            $transaction->proc_region,
-            $transaction->tran_region,
-            $transaction->eci_sli,
-            $transaction->sca_exemption,
-            $transaction->point_code,
-            $transaction->pos_env_indicator,
-            $transaction->par,
-            $transaction->user_define_field1,
-            $transaction->user_define_field2,
-            $transaction->user_define_field3,
-            $transaction->gateway_transaction_id,
-            $transaction->gateway_account_id,
-            $transaction->gateway_shop_id,
-            $transaction->gateway_trx_id,
-            $transaction->gateway_transaction_status,
-            $transaction->gateway_transaction_date,
-            $transaction->gateway_bank_response_date,
-            $transaction->status,
-            $transaction->is_matched ? 'Yes' : 'No',
-            $transaction->matched_at,
-            $transaction->error_message,
-            $matchingAttempts,
-            $transaction->created_at,
-            $transaction->updated_at,
-            $transaction->filename
+            $transaction->id,                                           // ID
+            $transaction->payment_id,                                   // Payment ID
+            $transaction->card,                                         // Card
+            $transaction->merchant_name,                                // Merchant Name
+            $transaction->merchant_id,                                  // Merchant ID
+            $transaction->terminal_id,                                  // Terminal ID
+            $transaction->card_type_name,                               // Card Type Name
+            $transaction->acq_ref_nr,                                   // ACQ Reference Number
+            $transaction->tr_batch_id,                                  // Transaction Batch ID
+            $transaction->tr_batch_open_date,                           // Transaction Batch Open Date
+            $transaction->tr_date_time,                                 // Transaction Date Time
+            $transaction->tr_type,                                      // Transaction Type
+            $transaction->tr_amount ? $transaction->tr_amount / 100 : 0, // Transaction Amount (convert from cents)
+            $transaction->tr_ccy,                                       // Transaction CCY
+            $transaction->msc,                                          // MSC
+            $transaction->tr_ret_ref_nr,                                // Transaction Return Reference Number
+            $transaction->tr_approval_id,                               // Transaction Approval ID
+            $transaction->tr_processing_date,                           // Transaction Processing Date
+            $transaction->merchant_iban_code,                           // Merchant IBAN
+            $transaction->proc_code,                                    // Proc Code
+            $transaction->issuer_country,                               // Issuer Country
+            $transaction->proc_region,                                  // Proc Region
+            $transaction->mcc,                                          // MCC
+            $transaction->merchant_country,                             // Merchant Country
+            $transaction->tran_region,                                  // Tran Region
+            $transaction->card_product_type,                            // Card Product Type
+            $transaction->user_define_field1,                           // User Define Field 1
+            $transaction->user_define_field2,                           // User Define Field 2
+            $transaction->user_define_field3,                           // User Define Field 3
+            $transaction->merchant_legal_name,                          // Merchant Legal Name
+            $transaction->card_product_class,                           // Card Product Class
+            $transaction->eci_sli,                                      // ECI/SLI
+            $transaction->sca_exemption,                                // SCA Exemption
+            $transaction->point_code,                                   // Point Code
+            $transaction->issuer_country,                               // Issuer Country (duplicate)
         ];
     }
 
