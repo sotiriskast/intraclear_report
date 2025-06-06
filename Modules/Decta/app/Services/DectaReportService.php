@@ -549,50 +549,60 @@ class DectaReportService
         $joinClause = implode(' ', $joins);
 
         // Use a CTE (Common Table Expression) for better PostgreSQL compatibility
+        // Fixed to handle sales vs refunds correctly
         $query = "
-            WITH grouped_data AS (
-                SELECT
-                    COALESCE(dt.card_type_name, 'Unknown') as card_type,
-                    COALESCE(dt.tr_type, 'Unknown') as transaction_type,
-                    COALESCE(dt.tr_ccy, 'Unknown') as currency,
-                    COALESCE(dt.merchant_legal_name, dt.merchant_name, 'Unknown') as merchant_legal_name,
-                    dt.tr_amount
-                FROM decta_transactions dt
-                {$joinClause}
-                WHERE {$whereClause}
-                  AND dt.card_type_name IS NOT NULL
-                  AND dt.tr_type IS NOT NULL
-                  AND dt.tr_ccy IS NOT NULL
-            )
+        WITH grouped_data AS (
             SELECT
-                card_type,
-                transaction_type,
-                currency,
-                merchant_legal_name,
-                SUM(tr_amount) as total_amount,
-                COUNT(*) as transaction_count,
-                SUM(CASE
-                    WHEN tr_amount IS NOT NULL THEN
-                        CASE
-                            WHEN card_type = 'VISA' AND transaction_type = '05' THEN tr_amount * 0.025
-                            WHEN card_type = 'MC' AND transaction_type = '05' THEN tr_amount * 0.02
-                            WHEN transaction_type = '06' THEN tr_amount * 0.015
-                            ELSE tr_amount * 0.02
-                        END
-                    ELSE 0
-                END) as total_fees
-            FROM grouped_data
-            GROUP BY
-                card_type,
-                transaction_type,
-                currency,
-                merchant_legal_name
-            ORDER BY
-                merchant_legal_name,
-                card_type,
-                transaction_type,
-                currency
-        ";
+                COALESCE(dt.card_type_name, 'Unknown') as card_type,
+                COALESCE(dt.tr_type, 'Unknown') as transaction_type,
+                COALESCE(dt.tr_ccy, 'Unknown') as currency,
+                COALESCE(dt.merchant_legal_name, dt.merchant_name, 'Unknown') as merchant_legal_name,
+                -- Handle sales vs refunds: refunds (06) should be negative
+                CASE
+                    WHEN dt.tr_type = '06' THEN -dt.tr_amount
+                    ELSE dt.tr_amount
+                END as adjusted_amount,
+                dt.tr_amount as original_amount,
+                dt.tr_type
+            FROM decta_transactions dt
+            {$joinClause}
+            WHERE {$whereClause}
+              AND dt.card_type_name IS NOT NULL
+              AND dt.tr_type IS NOT NULL
+              AND dt.tr_ccy IS NOT NULL
+        )
+        SELECT
+            card_type,
+            transaction_type,
+            currency,
+            merchant_legal_name,
+            -- For individual rows, show original amounts (positive for both sales and refunds)
+            SUM(original_amount) as total_amount,
+            COUNT(*) as transaction_count,
+            -- For net calculations, use adjusted amounts
+            SUM(adjusted_amount) as net_amount,
+            SUM(CASE
+                WHEN original_amount IS NOT NULL THEN
+                    CASE
+                        WHEN card_type = 'VISA' AND transaction_type = '05' THEN adjusted_amount * 0.025
+                        WHEN card_type = 'MC' AND transaction_type = '05' THEN adjusted_amount * 0.02
+                        WHEN transaction_type = '06' THEN adjusted_amount * 0.015
+                        ELSE adjusted_amount * 0.02
+                    END
+                ELSE 0
+            END) as total_fees
+        FROM grouped_data
+        GROUP BY
+            card_type,
+            transaction_type,
+            currency,
+            merchant_legal_name
+        ORDER BY
+            merchant_legal_name,
+            card_type,
+            transaction_type,
+            currency
+    ";
 
         try {
             $results = DB::select($query, $params);
@@ -601,10 +611,12 @@ class DectaReportService
                 return [
                     'card_type' => $row->card_type,
                     'transaction_type' => $row->transaction_type,
+                    'transaction_type_name' => $row->transaction_type === '05' ? 'Sales' : ($row->transaction_type === '06' ? 'Refunds' : $row->transaction_type),
                     'currency' => $row->currency,
-                    'amount' => $row->total_amount ? $row->total_amount / 100 : 0, // Convert from cents
+                    'amount' => $row->total_amount ? $row->total_amount / 100 : 0, // Original amount for display
+                    'net_amount' => $row->net_amount ? $row->net_amount / 100 : 0, // Net amount (sales - refunds)
                     'count' => $row->transaction_count,
-                    'fee' => $row->total_fees ? round($row->total_fees / 100, 2) : 0, // Convert from cents
+                    'fee' => $row->total_fees ? round($row->total_fees / 100, 2) : 0,
                     'merchant_legal_name' => $row->merchant_legal_name
                 ];
             }, $results);
