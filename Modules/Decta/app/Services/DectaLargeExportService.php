@@ -185,6 +185,7 @@ class DectaLargeExportService
             // Transaction details
             'ACQ Reference Number',
             'Transaction Batch ID',
+            'Transaction Batch Open Date',
             'Transaction Date Time',
             'Transaction Type',
             'Transaction Amount',
@@ -229,6 +230,7 @@ class DectaLargeExportService
                 'dt.card_type_name',            // Card Type Name
                 'dt.acq_ref_nr',                // ACQ Reference Number
                 'dt.tr_batch_id',               // Transaction Batch ID
+                'dt.tr_batch_open_date',        // Transaction Batch Open Date
                 'dt.tr_date_time',              // Transaction Date Time
                 'dt.tr_type',                   // Transaction Type
                 'dt.tr_amount',                 // Transaction Amount
@@ -305,6 +307,7 @@ class DectaLargeExportService
             $transaction->card_type_name,                               // Card Type Name
             $transaction->acq_ref_nr,                                   // ACQ Reference Number
             $transaction->tr_batch_id,                                  // Transaction Batch ID
+            $transaction->tr_batch_open_date,                           // Transaction Batch Open Date
             $transaction->tr_date_time,                                 // Transaction Date Time
             $transaction->tr_type,                                      // Transaction Type
             $transaction->tr_amount ? $transaction->tr_amount / 100 : 0, // Transaction Amount (convert from cents)
