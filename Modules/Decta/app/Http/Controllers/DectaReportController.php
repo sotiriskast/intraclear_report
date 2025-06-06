@@ -3,6 +3,8 @@
 namespace Modules\Decta\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Log;
+use Modules\Decta\Services\DectaExportService;
 use Modules\Decta\Services\DectaReportService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -13,10 +15,12 @@ use Illuminate\Support\Facades\DB;
 class DectaReportController extends Controller
 {
     protected $reportService;
+    protected $exportService;
 
-    public function __construct(DectaReportService $reportService)
+    public function __construct(DectaReportService $reportService, DectaExportService $exportService)
     {
         $this->reportService = $reportService;
+        $this->exportService = $exportService;
     }
 
     /**
@@ -37,7 +41,7 @@ class DectaReportController extends Controller
     /**
      * Generate transaction report based on filters
      */
-    public function generateReport(Request $request): JsonResponse
+    public function generateReport(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'date_from' => 'required|date',
@@ -67,27 +71,29 @@ class DectaReportController extends Controller
             $reportType = $request->input('report_type');
             $exportFormat = $request->input('export_format', 'json');
 
-            // Handle volume_breakdown specially for better error handling
+            Log::info('Generating report', [
+                'report_type' => $reportType,
+                'export_format' => $exportFormat,
+                'filters' => $filters
+            ]);
+
+            // Generate the report data
             if ($reportType === 'volume_breakdown') {
                 $data = $this->reportService->getDetailedVolumeBreakdown($filters);
 
-                // Check if we have data
                 if (!$data['has_data']) {
                     if ($exportFormat === 'csv' || $exportFormat === 'excel') {
-                        // For exports, still generate a file but with a message
+                        // Create empty export file
                         $emptyData = [
-                            ['message' => 'No data found for the selected criteria'],
-                            ['date_from' => $filters['date_from']],
-                            ['date_to' => $filters['date_to']],
-                            ['report_type' => $reportType],
-                            ['generated_at' => Carbon::now()->toISOString()]
+                            [
+                                'message' => 'No data found for the selected criteria',
+                                'date_from' => $filters['date_from'],
+                                'date_to' => $filters['date_to'],
+                                'report_type' => $reportType,
+                                'generated_at' => Carbon::now()->toISOString()
+                            ]
                         ];
-
-                        if ($exportFormat === 'csv') {
-                            return $this->exportToCsv($emptyData, $reportType);
-                        } else {
-                            return $this->exportToExcel($emptyData, $reportType);
-                        }
+                        return $this->handleExport($emptyData, $reportType, $exportFormat, $filters);
                     }
 
                     return response()->json([
@@ -99,16 +105,15 @@ class DectaReportController extends Controller
                     ]);
                 }
             } else {
-                // Handle other report types normally
                 $data = $this->reportService->generateReport($reportType, $filters);
             }
 
-            if ($exportFormat === 'csv') {
-                return $this->exportToCsv($data, $reportType);
-            } elseif ($exportFormat === 'excel') {
-                return $this->exportToExcel($data, $reportType);
+            // Handle export formats
+            if ($exportFormat === 'csv' || $exportFormat === 'excel') {
+                return $this->handleExport($data, $reportType, $exportFormat, $filters);
             }
 
+            // Return JSON for online viewing
             return response()->json([
                 'success' => true,
                 'data' => $data,
@@ -117,7 +122,7 @@ class DectaReportController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            \Log::error('Report generation failed', [
+            Log::error('Report generation failed', [
                 'report_type' => $request->input('report_type'),
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
@@ -135,21 +140,91 @@ class DectaReportController extends Controller
             ], 500);
         }
     }
-    public function debugUnmatchedTransactions(): JsonResponse
+
+    /**
+     * Handle export generation and download
+     */
+    private function handleExport($data, $reportType, $exportFormat, $filters)
     {
         try {
-            $data = $this->reportService->debugUnmatchedTransactions();
+            // For volume breakdown, we need to flatten the data structure for CSV
+            if ($reportType === 'volume_breakdown') {
+                $data = $this->flattenVolumeBreakdownForExport($data);
+            }
+
+            if ($exportFormat === 'csv') {
+                $filePath = $this->exportService->exportToCsv($data, $reportType, $filters);
+            } else {
+                $filePath = $this->exportService->exportToExcel($data, $reportType, $filters);
+            }
+
+            $fullPath = storage_path('app/' . $filePath);
+
+            if (!file_exists($fullPath)) {
+                throw new \Exception("Export file was not created successfully");
+            }
+
+            $filename = basename($filePath);
+
+            Log::info('Export completed successfully', [
+                'file_path' => $filePath,
+                'file_size' => filesize($fullPath)
+            ]);
+
+            return response()->download($fullPath, $filename)->deleteFileAfterSend();
+
+        } catch (\Exception $e) {
+            Log::error('Export generation failed', [
+                'error' => $e->getMessage(),
+                'report_type' => $reportType,
+                'export_format' => $exportFormat
+            ]);
 
             return response()->json([
-                'success' => true,
-                'data' => $data
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
                 'success' => false,
-                'message' => 'Debug failed: ' . $e->getMessage()
+                'message' => 'Export failed: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Flatten volume breakdown data for CSV export
+     */
+    private function flattenVolumeBreakdownForExport($data)
+    {
+        if (!isset($data['continent_breakdown']) || empty($data['continent_breakdown'])) {
+            return [];
+        }
+
+        $flatData = [];
+
+        foreach ($data['continent_breakdown'] as $continent => $continentData) {
+            if (!isset($continentData['card_brands'])) continue;
+
+            foreach ($continentData['card_brands'] as $cardBrand => $brandData) {
+                if (!isset($brandData['card_types'])) continue;
+
+                foreach ($brandData['card_types'] as $cardType => $typeData) {
+                    if (!isset($typeData['currencies'])) continue;
+
+                    foreach ($typeData['currencies'] as $currency => $amount) {
+                        $flatData[] = [
+                            'continent' => $continent,
+                            'card_brand' => $cardBrand,
+                            'card_type' => $cardType,
+                            'currency' => $currency,
+                            'amount' => $amount,
+                            'transaction_count' => $typeData['total_transactions'] ?? 0,
+                            'percentage_of_total' => $data['totals']['total_volume'] > 0
+                                ? round(($amount / $data['totals']['total_volume']) * 100, 2)
+                                : 0
+                        ];
+                    }
+                }
+            }
+        }
+
+        return $flatData;
     }
     /**
      * Get volume breakdown report specifically
@@ -396,209 +471,6 @@ class DectaReportController extends Controller
             }
         }
     }
-    public function debugMerchantData(): JsonResponse
-    {
-        try {
-            // Get raw merchant data to see duplications
-            $rawMerchantData = DB::select("
-                SELECT
-                    dt.merchant_id,
-                    dt.merchant_name,
-                    m.name as merchant_db_name,
-                    m.legal_name as merchant_legal_name,
-                    m.account_id,
-                    COUNT(*) as transaction_count,
-                    COUNT(DISTINCT dt.tr_ccy) as currency_count,
-                    array_agg(DISTINCT dt.tr_ccy) as currencies
-                FROM decta_transactions dt
-                LEFT JOIN merchants m ON dt.gateway_account_id = m.account_id
-                WHERE dt.merchant_id IS NOT NULL
-                    AND dt.created_at >= CURRENT_DATE - INTERVAL '30 days'
-                    AND dt.tr_ccy IS NOT NULL
-                GROUP BY dt.merchant_id, dt.merchant_name, m.name, m.legal_name, m.account_id
-                ORDER BY transaction_count DESC
-                LIMIT 20
-            ");
-
-            // Find potential duplicates by name similarity
-            $merchantNames = [];
-            foreach ($rawMerchantData as $merchant) {
-                $normalizedName = strtolower(trim($merchant->merchant_db_name ?: $merchant->merchant_legal_name ?: $merchant->merchant_name));
-                if (!isset($merchantNames[$normalizedName])) {
-                    $merchantNames[$normalizedName] = [];
-                }
-                $merchantNames[$normalizedName][] = $merchant;
-            }
-
-            $duplicates = array_filter($merchantNames, function($merchants) {
-                return count($merchants) > 1;
-            });
-
-            // Get specific data for "fintzero"
-            $fintzeroData = DB::select("
-                SELECT
-                    dt.merchant_id,
-                    dt.merchant_name,
-                    m.name as merchant_db_name,
-                    m.legal_name as merchant_legal_name,
-                    m.account_id,
-                    dt.tr_ccy,
-                    COUNT(*) as transaction_count,
-                    SUM(dt.tr_amount) as total_amount
-                FROM decta_transactions dt
-                LEFT JOIN merchants m ON dt.gateway_account_id = m.account_id
-                WHERE (
-                    LOWER(dt.merchant_name) LIKE '%fintzero%'
-                    OR LOWER(m.name) LIKE '%fintzero%'
-                    OR LOWER(m.legal_name) LIKE '%fintzero%'
-                )
-                AND dt.created_at >= CURRENT_DATE - INTERVAL '30 days'
-                GROUP BY dt.merchant_id, dt.merchant_name, m.name, m.legal_name, m.account_id, dt.tr_ccy
-                ORDER BY transaction_count DESC
-            ");
-
-            return response()->json([
-                'success' => true,
-                'debug_data' => [
-                    'raw_merchant_count' => count($rawMerchantData),
-                    'raw_merchants' => array_slice($rawMerchantData, 0, 10), // First 10 for inspection
-                    'duplicate_groups' => $duplicates,
-                    'fintzero_specific' => $fintzeroData,
-                    'total_duplicate_groups' => count($duplicates)
-                ]
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Debug failed: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-    public function testMerchantGrouping(): JsonResponse
-    {
-        try {
-            $originalMethod = $this->reportService->getTopMerchantsSimple(10);
-            $improvedMethod = $this->reportService->getTopMerchants(10);
-
-            return response()->json([
-                'success' => true,
-                'comparison' => [
-                    'original_method' => [
-                        'count' => count($originalMethod),
-                        'merchants' => array_map(function($m) {
-                            return [
-                                'id' => $m['merchant_id'],
-                                'name' => $m['merchant_name'],
-                                'transactions' => $m['total_transactions'],
-                                'currencies' => $m['currency_count']
-                            ];
-                        }, $originalMethod)
-                    ],
-                    'improved_method' => [
-                        'count' => count($improvedMethod),
-                        'merchants' => array_map(function($m) {
-                            return [
-                                'id' => $m['merchant_id'],
-                                'name' => $m['merchant_name'],
-                                'transactions' => $m['total_transactions'],
-                                'currencies' => $m['currency_count']
-                            ];
-                        }, $improvedMethod)
-                    ]
-                ]
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Test failed: ' . $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ], 500);
-        }
-    }
-    public function debugDashboardData(): JsonResponse
-    {
-        $results = [];
-        $errors = [];
-
-        // Test each component individually
-        try {
-            $results['summary'] = $this->reportService->getSummaryStats();
-            \Log::info('Summary stats loaded successfully');
-        } catch (\Exception $e) {
-            $errors['summary'] = $e->getMessage();
-            \Log::error('Summary stats failed: ' . $e->getMessage());
-        }
-
-        try {
-            $results['recent_files'] = $this->reportService->getRecentFiles(10);
-            \Log::info('Recent files loaded successfully');
-        } catch (\Exception $e) {
-            $errors['recent_files'] = $e->getMessage();
-            \Log::error('Recent files failed: ' . $e->getMessage());
-        }
-
-        try {
-            $results['processing_status'] = $this->reportService->getProcessingStatus();
-            \Log::info('Processing status loaded successfully');
-        } catch (\Exception $e) {
-            $errors['processing_status'] = $e->getMessage();
-            \Log::error('Processing status failed: ' . $e->getMessage());
-        }
-
-        try {
-            $results['matching_trends'] = $this->reportService->getMatchingTrends(7);
-            \Log::info('Matching trends loaded successfully');
-        } catch (\Exception $e) {
-            $errors['matching_trends'] = $e->getMessage();
-            \Log::error('Matching trends failed: ' . $e->getMessage());
-        }
-
-        try {
-            $results['approval_trends'] = $this->reportService->getApprovalTrends(7);
-            \Log::info('Approval trends loaded successfully');
-        } catch (\Exception $e) {
-            $errors['approval_trends'] = $e->getMessage();
-            \Log::error('Approval trends failed: ' . $e->getMessage());
-        }
-
-        try {
-            $results['top_merchants'] = $this->reportService->getTopMerchantsSimple(5);
-            \Log::info('Top merchants loaded successfully');
-        } catch (\Exception $e) {
-            $errors['top_merchants'] = $e->getMessage();
-            \Log::error('Top merchants failed: ' . $e->getMessage());
-        }
-
-        try {
-            $results['currency_breakdown'] = $this->reportService->getCurrencyBreakdown();
-            \Log::info('Currency breakdown loaded successfully');
-        } catch (\Exception $e) {
-            $errors['currency_breakdown'] = $e->getMessage();
-            \Log::error('Currency breakdown failed: ' . $e->getMessage());
-        }
-
-        try {
-            $results['decline_reasons'] = $this->reportService->getDeclineReasons(7);
-            \Log::info('Decline reasons loaded successfully');
-        } catch (\Exception $e) {
-            $errors['decline_reasons'] = $e->getMessage();
-            \Log::error('Decline reasons failed: ' . $e->getMessage());
-        }
-
-        return response()->json([
-            'success' => empty($errors),
-            'results' => $results,
-            'errors' => $errors,
-            'component_count' => count($results),
-            'error_count' => count($errors),
-            'debug_info' => [
-                'service_class' => get_class($this->reportService),
-                'available_methods' => get_class_methods($this->reportService)
-            ]
-        ]);
-    }
 
     /**
      * Get transaction details for a specific payment ID
@@ -650,126 +522,6 @@ class DectaReportController extends Controller
                 'success' => false,
                 'message' => 'Failed to get unmatched transactions: ' . $e->getMessage()
             ], 500);
-        }
-    }
-
-    /**
-     * Get CSV headers for different report types
-     */
-    protected function getCsvHeaders($reportType): array
-    {
-        switch ($reportType) {
-            case 'volume_breakdown':
-                return [
-                    'Continent', 'Card Brand', 'Card Type', 'Currency', 'Volume', 'Transaction Count',
-                    'Percentage of Total', 'Percentage of Continent', 'Percentage of Brand'
-                ];
-            case 'transactions':
-                return [
-                    'Payment ID', 'Date', 'Amount', 'Currency', 'Merchant', 'Status', 'Gateway Status', 'Matched'
-                ];
-            case 'declined_transactions':
-                return [
-                    'Payment ID', 'Date', 'Amount', 'Currency', 'Merchant', 'Gateway Status', 'Reason'
-                ];
-            case 'approval_analysis':
-                return [
-                    'Merchant ID', 'Merchant Name', 'Approved Count', 'Declined Count',
-                    'Approved Amount', 'Declined Amount', 'Total with Status', 'Approval Rate %'
-                ];
-            case 'settlements':
-                return [
-                    'Date', 'Merchant', 'Total Transactions', 'Total Amount',
-                    'Matched Transactions', 'Unmatched Transactions', 'Match Rate'
-                ];
-            case 'daily_summary':
-                return [
-                    'Date', 'Total Transactions', 'Total Amount', 'Matched', 'Match Rate',
-                    'Approved', 'Declined', 'Approval Rate'
-                ];
-            case 'scheme':
-                return [
-                    'Card Type', 'Transaction Type', 'Currency', 'Amount',
-                    'Count', 'Fee', 'Merchant Legal Name'
-                ];
-            default:
-                return ['Data'];
-        }
-    }
-
-    /**
-     * Format row data for CSV export
-     */
-    protected function formatRowForCsv($row, $reportType): array
-    {
-        switch ($reportType) {
-            case 'volume_breakdown':
-                return [
-                    $row['continent'] ?? '',
-                    $row['card_brand'] ?? '',
-                    $row['card_type'] ?? '',
-                    $row['currency'] ?? '',
-                    $row['volume'] ?? 0,
-                    $row['transaction_count'] ?? 0,
-                    round($row['percentage_of_total'] ?? 0, 2),
-                    round($row['percentage_of_continent'] ?? 0, 2),
-                    round($row['percentage_of_brand'] ?? 0, 2)
-                ];
-            case 'transactions':
-                return [
-                    $row['payment_id'] ?? '',
-                    $row['tr_date_time'] ?? '',
-                    ($row['tr_amount'] ?? 0) / 100,
-                    $row['tr_ccy'] ?? '',
-                    $row['merchant_name'] ?? '',
-                    $row['status'] ?? '',
-                    $row['gateway_transaction_status'] ?? '',
-                    $row['is_matched'] ? 'Yes' : 'No'
-                ];
-            case 'declined_transactions':
-                return [
-                    $row['payment_id'] ?? '',
-                    $row['transaction_date'] ?? '',
-                    $row['amount'] ?? 0,
-                    $row['currency'] ?? '',
-                    $row['merchant_name'] ?? '',
-                    $row['gateway_status'] ?? '',
-                    $row['error_message'] ?? ''
-                ];
-            case 'approval_analysis':
-                return [
-                    $row['merchant_id'] ?? '',
-                    $row['merchant_name'] ?? '',
-                    $row['approved_count'] ?? 0,
-                    $row['declined_count'] ?? 0,
-                    $row['approved_amount'] ?? 0,
-                    $row['declined_amount'] ?? 0,
-                    $row['total_with_status'] ?? 0,
-                    round($row['approval_rate'] ?? 0, 2)
-                ];
-            case 'daily_summary':
-                return [
-                    $row['date'] ?? '',
-                    $row['total_transactions'] ?? 0,
-                    $row['total_amount'] ?? 0,
-                    $row['matched_count'] ?? 0,
-                    round($row['match_rate'] ?? 0, 2),
-                    $row['approved_count'] ?? 0,
-                    $row['declined_count'] ?? 0,
-                    round($row['approval_rate'] ?? 0, 2)
-                ];
-            case 'scheme':
-                return [
-                    $row['card_type'] ?? '',
-                    $row['transaction_type'] ?? '',
-                    $row['currency'] ?? '',
-                    $row['amount'] ?? 0,
-                    $row['count'] ?? 0,
-                    $row['fee'] ?? 0,
-                    $row['merchant_legal_name'] ?? ''
-                ];
-            default:
-                return array_values((array)$row);
         }
     }
 
@@ -865,80 +617,5 @@ class DectaReportController extends Controller
                 'message' => 'Failed to load merchants: ' . $e->getMessage()
             ], 500);
         }
-    }
-
-    /**
-     * Export data to CSV
-     */
-    protected function exportToCsv($data, $reportType)
-    {
-        if ($reportType === 'volume_breakdown') {
-            $data = $this->prepareVolumeBreakdownForCsv($data);
-        }
-
-        $filename = "decta_{$reportType}_" . Carbon::now()->format('Y-m-d_H-i-s') . '.csv';
-        $headers = [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
-        ];
-
-        $callback = function () use ($data, $reportType) {
-            $file = fopen('php://output', 'w');
-
-            // Add headers based on report type
-            $csvHeaders = $this->getCsvHeaders($reportType);
-            fputcsv($file, $csvHeaders);
-
-            // Add data rows
-            foreach ($data as $row) {
-                fputcsv($file, $this->formatRowForCsv($row, $reportType));
-            }
-
-            fclose($file);
-        };
-
-        return response()->stream($callback, 200, $headers);
-    }
-    /**
-     * Prepare volume breakdown data for CSV export
-     */
-    private function prepareVolumeBreakdownForCsv($data): array
-    {
-        $csvData = [];
-
-        foreach ($data['continent_breakdown'] as $continent => $continentData) {
-            foreach ($continentData['card_brands'] as $cardBrand => $brandData) {
-                foreach ($brandData['card_types'] as $cardType => $typeData) {
-                    foreach ($typeData['currencies'] as $currency => $volume) {
-                        $csvData[] = [
-                            'continent' => $continent,
-                            'card_brand' => $cardBrand,
-                            'card_type' => $cardType,
-                            'currency' => $currency,
-                            'volume' => $volume,
-                            'transaction_count' => $typeData['total_transactions'],
-                            'percentage_of_total' => $data['totals']['total_volume'] > 0
-                                ? ($volume / $data['totals']['total_volume']) * 100
-                                : 0,
-                            'percentage_of_continent' => $continentData['total_amount'] > 0
-                                ? ($volume / $continentData['total_amount']) * 100
-                                : 0,
-                            'percentage_of_brand' => $brandData['total_amount'] > 0
-                                ? ($volume / $brandData['total_amount']) * 100
-                                : 0
-                        ];
-                    }
-                }
-            }
-        }
-
-        return $csvData;
-    }
-    /**
-     * Export data to Excel (placeholder - would need PhpSpreadsheet)
-     */
-    protected function exportToExcel($data, $reportType)
-    {
-        return $this->exportToCsv($data, $reportType);
     }
 }

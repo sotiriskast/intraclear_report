@@ -16,6 +16,7 @@ use Modules\Decta\Console\DectaStatusCommand;
 use Modules\Decta\Console\DectaTestNotificationCommand;
 use Modules\Decta\Console\DectaSetupCommand;
 use Modules\Decta\Console\DectaCheckDeclinedTransactionsCommand; // New command
+use Modules\Decta\Services\DectaExportService;
 use Nwidart\Modules\Traits\PathNamespace;
 use Illuminate\Console\Scheduling\Schedule;
 use Modules\Decta\Console\DectaDownloadFilesCommand;
@@ -86,6 +87,9 @@ class DectaServiceProvider extends ServiceProvider
         // Register the report service
         $this->app->bind(DectaReportService::class, function ($app) {
             return new DectaReportService();
+        });
+        $this->app->bind(DectaExportService::class, function ($app) {
+            return new DectaExportService();
         });
     }
 
@@ -215,6 +219,7 @@ class DectaServiceProvider extends ServiceProvider
             DectaTransactionService::class,
             DectaReportService::class,
             DectaNotificationService::class,
+            DectaExportService::class,
         ];
     }
 
