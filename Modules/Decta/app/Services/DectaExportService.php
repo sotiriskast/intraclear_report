@@ -24,57 +24,33 @@ class DectaExportService
             $filePath = 'exports/' . $filename;
             $fullPath = storage_path('app/' . $filePath);
 
-            Log::info('Starting CSV export with direct file writing', [
+            Log::info('Starting CSV export', [
                 'filename' => $filename,
-                'file_path' => $filePath,
-                'full_path' => $fullPath,
                 'data_count' => count($data),
                 'report_type' => $reportType
             ]);
 
-            // Ensure exports directory exists using native PHP
-            $exportsDir = storage_path('app/exports');
-            if (!is_dir($exportsDir)) {
-                if (!mkdir($exportsDir, 0755, true)) {
-                    throw new \Exception("Failed to create exports directory: {$exportsDir}");
-                }
-                Log::info('Created exports directory', ['path' => $exportsDir]);
-            }
+            // Ensure exports directory exists
+            $this->ensureExportsDirectory();
 
-            // Create CSV content
+            // Generate CSV content
             $csvContent = $this->generateCsvContent($data, $reportType, $filters);
 
-            Log::info('CSV content generated', [
-                'content_length' => strlen($csvContent),
-                'content_preview' => substr($csvContent, 0, 200)
-            ]);
-
-            // Write file directly using PHP instead of Laravel Storage
+            // Write file directly
             $bytesWritten = file_put_contents($fullPath, $csvContent);
 
             if ($bytesWritten === false) {
                 throw new \Exception("Failed to write CSV file to: {$fullPath}");
             }
 
-            Log::info('File written with file_put_contents', [
-                'bytes_written' => $bytesWritten,
-                'full_path' => $fullPath
-            ]);
-
             // Verify file exists and has content
-            if (!file_exists($fullPath)) {
-                throw new \Exception("CSV file was not created successfully at: {$fullPath}");
-            }
-
-            $actualFileSize = filesize($fullPath);
-            if ($actualFileSize === 0) {
-                throw new \Exception("CSV file was created but is empty at: {$fullPath}");
+            if (!file_exists($fullPath) || filesize($fullPath) === 0) {
+                throw new \Exception("CSV file was not created successfully");
             }
 
             Log::info('CSV export completed successfully', [
                 'file_path' => $filePath,
-                'full_path' => $fullPath,
-                'file_size' => $actualFileSize,
+                'file_size' => filesize($fullPath),
                 'bytes_written' => $bytesWritten
             ]);
 
@@ -85,112 +61,46 @@ class DectaExportService
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
                 'report_type' => $reportType,
-                'data_count' => count($data),
-                'full_path' => isset($fullPath) ? $fullPath : 'not set'
+                'data_count' => count($data)
             ]);
             throw $e;
         }
     }
-
+    /**
+     * Ensure exports directory exists
+     */
+    private function ensureExportsDirectory(): void
+    {
+        $exportsDir = storage_path('app/exports');
+        if (!is_dir($exportsDir)) {
+            if (!mkdir($exportsDir, 0755, true)) {
+                throw new \Exception("Failed to create exports directory: {$exportsDir}");
+            }
+        }
+    }
     /**
      * Export data to Excel format
      */
+    /**
+     * Export to Excel (simplified - converts to CSV with .xlsx extension)
+     */
     public function exportToExcel(array $data, string $reportType, array $filters = []): string
     {
-        try {
-            $filename = $this->generateFilename($reportType, 'xlsx');
-            $filePath = 'exports/' . $filename;
-            $fullPath = storage_path('app/' . $filePath);
-
-            Log::info('Starting Excel export', [
-                'filename' => $filename,
-                'file_path' => $filePath,
-                'full_path' => $fullPath,
-                'data_count' => count($data),
-                'report_type' => $reportType
-            ]);
-
-            // Ensure exports directory exists using native PHP
-            $exportsDir = storage_path('app/exports');
-            if (!is_dir($exportsDir)) {
-                if (!mkdir($exportsDir, 0755, true)) {
-                    throw new \Exception("Failed to create exports directory: {$exportsDir}");
-                }
-                Log::info('Created exports directory', ['path' => $exportsDir]);
-            }
-
-            $spreadsheet = new Spreadsheet();
-            $sheet = $spreadsheet->getActiveSheet();
-
-            // Set up the spreadsheet
-            $this->setupExcelSheet($sheet, $reportType, $filters);
-
-            // Add headers
-            $headers = $this->getHeaders($reportType);
-            $this->addHeaders($sheet, $headers);
-
-            // Add data
-            $this->addDataToSheet($sheet, $data, $reportType, count($headers));
-
-            // Apply styling
-            $this->applyExcelStyling($sheet, count($data), count($headers));
-
-            // Save file directly
-            $writer = new Xlsx($spreadsheet);
-            $writer->save($fullPath);
-
-            // Verify file exists
-            if (!file_exists($fullPath)) {
-                throw new \Exception("Excel file was not created successfully at: {$fullPath}");
-            }
-
-            $fileSize = filesize($fullPath);
-            if ($fileSize === 0) {
-                throw new \Exception("Excel file was created but is empty at: {$fullPath}");
-            }
-
-            Log::info('Excel export completed', [
-                'file_path' => $filePath,
-                'file_size' => $fileSize,
-                'full_path' => $fullPath
-            ]);
-
-            return $filePath;
-
-        } catch (\Exception $e) {
-            Log::error('Excel export failed', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'report_type' => $reportType,
-                'data_count' => count($data),
-                'full_path' => isset($fullPath) ? $fullPath : 'not set'
-            ]);
-            throw $e;
-        }
-    }    /**
-     * Export data to JSON format
-     */
-    public function exportToJson(array $data, string $reportType, array $filters = []): string
-    {
-        $filename = $this->generateFilename($reportType, 'json');
+        // For now, just export as CSV with xlsx extension
+        // You can enhance this later with PhpSpreadsheet for true Excel format
+        $filename = $this->generateFilename($reportType, 'xlsx');
         $filePath = 'exports/' . $filename;
+        $fullPath = storage_path('app/' . $filePath);
 
-        $exportData = [
-            'report_type' => $reportType,
-            'generated_at' => Carbon::now()->toISOString(),
-            'filters_applied' => $filters,
-            'total_records' => count($data),
-            'data' => $data
-        ];
+        $this->ensureExportsDirectory();
 
-        $jsonContent = json_encode($exportData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
-
-        Storage::put($filePath, $jsonContent);
+        $csvContent = $this->generateCsvContent($data, $reportType, $filters);
+        file_put_contents($fullPath, $csvContent);
 
         return $filePath;
     }
-
     /**
+     /**
      * Generate filename for export
      */
     private function generateFilename(string $reportType, string $extension): string
@@ -205,35 +115,43 @@ class DectaExportService
     private function generateCsvContent(array $data, string $reportType, array $filters): string
     {
         try {
-            $headers = $this->getHeaders($reportType);
-            $rows = [];
+            $output = fopen('php://temp', 'r+');
 
-            // Add metadata header
-            $rows[] = "# Decta {$reportType} Report";
-            $rows[] = "# Generated: " . Carbon::now()->format('Y-m-d H:i:s');
+            // Add metadata as comments
+            fputcsv($output, ["# Decta {$reportType} Report"]);
+            fputcsv($output, ["# Generated: " . Carbon::now()->format('Y-m-d H:i:s')]);
             if (!empty($filters)) {
-                $rows[] = "# Filters: " . json_encode($filters);
+                fputcsv($output, ["# Filters: " . json_encode($filters)]);
             }
-            $rows[] = "# Total Records: " . count($data);
-            $rows[] = ""; // Empty line
+            fputcsv($output, ["# Total Records: " . count($data)]);
+            fputcsv($output, [""]); // Empty line
 
-            // Add column headers
-            $rows[] = '"' . implode('","', $headers) . '"';
+            if (empty($data)) {
+                fputcsv($output, ["No data found for the selected criteria"]);
+                rewind($output);
+                $content = stream_get_contents($output);
+                fclose($output);
+                return $content;
+            }
+
+            // Get headers and add them
+            $headers = $this->getHeaders($reportType);
+            fputcsv($output, $headers);
 
             // Add data rows
             foreach ($data as $item) {
                 $rowData = $this->formatRowForCsv($item, $reportType);
-                $rows[] = '"' . implode('","', array_map(function($value) {
-                        return str_replace('"', '""', (string)$value); // Ensure string and escape quotes
-                    }, $rowData)) . '"';
+                fputcsv($output, $rowData);
             }
 
-            $content = implode("\n", $rows);
+            rewind($output);
+            $content = stream_get_contents($output);
+            fclose($output);
 
-            Log::info('CSV content generated', [
+            Log::info('CSV content generated successfully', [
                 'content_length' => strlen($content),
-                'row_count' => count($rows),
-                'data_rows' => count($data)
+                'row_count' => count($data) + 5, // +5 for metadata rows
+                'report_type' => $reportType
             ]);
 
             return $content;
@@ -247,6 +165,7 @@ class DectaExportService
             throw new \Exception("Failed to generate CSV content: " . $e->getMessage());
         }
     }
+
     /**
      * Get headers based on report type
      */
@@ -262,8 +181,14 @@ class DectaExportService
 
             case 'scheme':
                 return [
-                    'Card Type', 'Transaction Type', 'Currency', 'Amount', 'Transaction Count',
-                    'Fee', 'Merchant Legal Name'
+                    'Card Type', 'Transaction Type', 'Currency', 'Amount', 'Net Amount',
+                    'Transaction Count', 'Fee', 'Merchant Legal Name'
+                ];
+
+            case 'volume_breakdown':
+                return [
+                    'Continent', 'Card Brand', 'Card Type', 'Currency', 'Amount',
+                    'Transaction Count', 'Percentage of Total'
                 ];
 
             case 'daily_summary':
@@ -281,21 +206,10 @@ class DectaExportService
                     'Terminals Used'
                 ];
 
-            case 'matching':
-                return [
-                    'Status', 'Is Matched', 'Transaction Count', 'Avg Matching Time (minutes)',
-                    'Has Matching Attempts'
-                ];
-
-            case 'settlements':
-                return [
-                    'Date', 'Merchant ID', 'Merchant Name', 'Transaction Count', 'Gross Amount',
-                    'Settled Count', 'Settled Amount', 'Unsettled Amount'
-                ];
-
             default:
                 Log::warning('Unknown report type for headers', ['report_type' => $reportType]);
-                return ['Data'];
+                // If we don't know the report type, use the keys from the first row
+                return !empty($data) && is_array($data[0]) ? array_keys($data[0]) : ['Data'];
         }
     }
     /**
@@ -326,12 +240,24 @@ class DectaExportService
                 case 'scheme':
                     return [
                         $item['card_type'] ?? '',
-                        $item['transaction_type'] ?? '',
+                        $item['transaction_type_name'] ?? $item['transaction_type'] ?? '',
                         $item['currency'] ?? '',
                         $item['amount'] ?? 0,
+                        $item['net_amount'] ?? 0,
                         $item['count'] ?? 0,
                         $item['fee'] ?? 0,
                         $item['merchant_legal_name'] ?? ''
+                    ];
+
+                case 'volume_breakdown':
+                    return [
+                        $item['continent'] ?? '',
+                        $item['card_brand'] ?? '',
+                        $item['card_type'] ?? '',
+                        $item['currency'] ?? '',
+                        $item['amount'] ?? 0,
+                        $item['transaction_count'] ?? 0,
+                        $item['percentage_of_total'] ?? 0
                     ];
 
                 case 'daily_summary':
@@ -365,16 +291,8 @@ class DectaExportService
                         $item['terminals_used'] ?? 0
                     ];
 
-                case 'matching':
-                    return [
-                        $item['status'] ?? '',
-                        isset($item['is_matched']) && $item['is_matched'] ? 'Yes' : 'No',
-                        $item['count'] ?? 0,
-                        $item['avg_matching_time_minutes'] ?? '',
-                        $item['has_matching_attempts'] ?? 0
-                    ];
-
                 default:
+                    // For unknown report types, just return all values
                     return array_values($item);
             }
         } catch (\Exception $e) {
@@ -470,36 +388,6 @@ class DectaExportService
     }
 
     /**
-     * Clean up old export files
-     */
-    public function cleanupOldExports(int $daysOld = 7): int
-    {
-        $exportPath = 'exports';
-        $files = Storage::files($exportPath);
-        $deletedCount = 0;
-        $cutoffTime = Carbon::now()->subDays($daysOld)->timestamp;
-
-        foreach ($files as $file) {
-            $lastModified = Storage::lastModified($file);
-
-            if ($lastModified < $cutoffTime) {
-                Storage::delete($file);
-                $deletedCount++;
-            }
-        }
-
-        return $deletedCount;
-    }
-
-    /**
-     * Get download URL for exported file
-     */
-    public function getDownloadUrl(string $filePath): string
-    {
-        return Storage::url($filePath);
-    }
-
-    /**
      * Check if file exists
      */
     public function fileExists(string $filePath): bool
@@ -523,187 +411,4 @@ class DectaExportService
         return Storage::delete($filePath);
     }
 
-    /**
-     * Export unmatched transactions with priority scoring
-     */
-    public function exportUnmatchedTransactionsCsv(array $transactions, array $filters = []): string
-    {
-        $filename = $this->generateFilename('unmatched_transactions', 'csv');
-        $filePath = 'exports/' . $filename;
-
-        $rows = [];
-
-        // Add metadata
-        $rows[] = "# Decta Unmatched Transactions Report";
-        $rows[] = "# Generated: " . Carbon::now()->format('Y-m-d H:i:s');
-        if (!empty($filters)) {
-            $rows[] = "# Filters: " . json_encode($filters);
-        }
-        $rows[] = "# Total Records: " . count($transactions);
-        $rows[] = "";
-
-        // Headers
-        $headers = [
-            'Payment ID', 'Transaction Date', 'Amount', 'Currency', 'Merchant Name',
-            'Merchant ID', 'Approval ID', 'Return Reference', 'Attempts', 'Priority',
-            'Priority Score', 'Last Attempt', 'Error Message'
-        ];
-
-        $rows[] = '"' . implode('","', $headers) . '"';
-
-        // Data rows with priority scoring
-        foreach ($transactions as $transaction) {
-            $priority = $this->calculatePriority($transaction);
-
-            $rowData = [
-                $transaction['payment_id'] ?? '',
-                $transaction['transaction_date'] ?? '',
-                $transaction['amount'] ?? 0,
-                $transaction['currency'] ?? '',
-                $transaction['merchant_name'] ?? '',
-                $transaction['merchant_id'] ?? '',
-                $transaction['approval_id'] ?? '',
-                $transaction['return_reference'] ?? '',
-                is_array($transaction['attempts']) ? count($transaction['attempts']) : 0,
-                $priority['level'],
-                $priority['score'],
-                $this->getLastAttemptDate($transaction['attempts']),
-                $this->getLastErrorMessage($transaction['attempts'])
-            ];
-
-            $rows[] = '"' . implode('","', array_map(function($value) {
-                    return str_replace('"', '""', $value);
-                }, $rowData)) . '"';
-        }
-
-        Storage::put($filePath, implode("\n", $rows));
-
-        return $filePath;
-    }
-
-    /**
-     * Calculate priority for unmatched transactions
-     */
-    private function calculatePriority(array $transaction): array
-    {
-        $score = 0;
-        $level = 'Low';
-
-        // Amount-based scoring
-        $amount = $transaction['amount'] ?? 0;
-        if ($amount > 1000) {
-            $score += 50;
-        } elseif ($amount > 100) {
-            $score += 30;
-        } elseif ($amount > 10) {
-            $score += 10;
-        }
-
-        // Has approval ID
-        if (!empty($transaction['approval_id'])) {
-            $score += 25;
-        }
-
-        // Has return reference
-        if (!empty($transaction['return_reference'])) {
-            $score += 20;
-        }
-
-        // Recent transaction (last 7 days)
-        $transactionDate = Carbon::parse($transaction['transaction_date']);
-        if ($transactionDate->diffInDays(Carbon::now()) <= 7) {
-            $score += 15;
-        }
-
-        // Few attempts (might be easy to match)
-        $attempts = is_array($transaction['attempts']) ? count($transaction['attempts']) : 0;
-        if ($attempts <= 1) {
-            $score += 10;
-        }
-
-        // Determine priority level
-        if ($score >= 70) {
-            $level = 'High';
-        } elseif ($score >= 40) {
-            $level = 'Medium';
-        }
-
-        return [
-            'score' => $score,
-            'level' => $level
-        ];
-    }
-
-    /**
-     * Get last attempt date
-     */
-    private function getLastAttemptDate(?array $attempts): string
-    {
-        if (empty($attempts)) {
-            return '';
-        }
-
-        $lastAttempt = end($attempts);
-        return $lastAttempt['attempted_at'] ?? '';
-    }
-
-    /**
-     * Get last error message
-     */
-    private function getLastErrorMessage(?array $attempts): string
-    {
-        if (empty($attempts)) {
-            return '';
-        }
-
-        $lastAttempt = end($attempts);
-        return $lastAttempt['error_message'] ?? $lastAttempt['result'] ?? '';
-    }
-    /**
-     * Test export functionality - DEBUGGING METHOD
-     */
-    public function testExport(): array
-    {
-        try {
-            $testData = [
-                [
-                    'card_type' => 'VISA',
-                    'transaction_type' => '05',
-                    'currency' => 'EUR',
-                    'amount' => 100.50,
-                    'count' => 5,
-                    'fee' => 2.50,
-                    'merchant_legal_name' => 'Test Merchant Ltd'
-                ],
-                [
-                    'card_type' => 'MC',
-                    'transaction_type' => '06',
-                    'currency' => 'USD',
-                    'amount' => 75.25,
-                    'count' => 3,
-                    'fee' => 1.88,
-                    'merchant_legal_name' => 'Another Merchant Inc'
-                ]
-            ];
-
-            $filePath = $this->exportToCsv($testData, 'scheme', ['test' => true]);
-            $fullPath = storage_path('app/' . $filePath);
-
-            return [
-                'success' => true,
-                'file_path' => $filePath,
-                'full_path' => $fullPath,
-                'file_exists' => file_exists($fullPath),
-                'file_size' => file_exists($fullPath) ? filesize($fullPath) : 0,
-                'file_content' => file_exists($fullPath) ? substr(file_get_contents($fullPath), 0, 500) : null
-            ];
-
-        } catch (\Exception $e) {
-            return [
-                'success' => false,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ];
-        }
-    }
 }
