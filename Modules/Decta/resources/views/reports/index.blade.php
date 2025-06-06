@@ -675,12 +675,13 @@
                         ];
                         break;
                     case 'scheme':
-                        headers = ['Card Type', 'Tr Type', 'Tr Ccy', 'Amount', 'Count', 'Fee', 'Merchant Legal Name'];
+                        headers = ['Card Type', 'Tr Type', 'Tr Ccy', 'Amount', 'Net Amount', 'Count', 'Fee', 'Merchant Legal Name'];
                         rowFormatter = (row) => [
                             row.card_type || '-',
-                            row.transaction_type || '-',
+                            row.transaction_type_name || row.transaction_type || '-', // Use friendly name
                             row.currency || '-',
                             row.amount ? row.amount.toLocaleString() : '0',
+                            row.net_amount ? row.net_amount.toLocaleString() : '0', // Show net amount
                             row.count ? row.count.toLocaleString() : '0',
                             row.fee ? (row.fee >= 0 ? row.fee.toLocaleString() : `(${Math.abs(row.fee).toLocaleString()})`) : '0',
                             row.merchant_legal_name || '-'
@@ -734,97 +735,355 @@
             function calculateSchemeSummary(data) {
                 const summary = {
                     totalTransactions: 0,
-                    totalAmount: 0,
                     totalFees: 0,
                     uniqueCardTypes: new Set(),
                     uniqueCurrencies: new Set(),
                     uniqueMerchants: new Set(),
                     byCardType: {},
-                    byCurrency: {}
+                    byCurrency: {},
+                    isMultiCurrency: false,
+                    currencyTotals: {} // Store totals by currency
                 };
 
+                // First pass: collect all currencies and check if multi-currency
+                data.forEach(row => {
+                    if (row.currency) summary.uniqueCurrencies.add(row.currency);
+                });
+
+                summary.isMultiCurrency = summary.uniqueCurrencies.size > 1;
+
+                // Initialize currency totals
+                summary.uniqueCurrencies.forEach(currency => {
+                    summary.currencyTotals[currency] = {
+                        salesAmount: 0,
+                        refundsAmount: 0,
+                        netAmount: 0,
+                        totalFees: 0,
+                        totalTransactions: 0
+                    };
+                });
+
+                // Second pass: calculate totals
                 data.forEach(row => {
                     summary.totalTransactions += row.count || 0;
-                    summary.totalAmount += row.amount || 0;
                     summary.totalFees += row.fee || 0;
 
                     if (row.card_type) summary.uniqueCardTypes.add(row.card_type);
                     if (row.currency) summary.uniqueCurrencies.add(row.currency);
                     if (row.merchant_legal_name) summary.uniqueMerchants.add(row.merchant_legal_name);
 
-                    // Group by card type
-                    if (!summary.byCardType[row.card_type]) {
-                        summary.byCardType[row.card_type] = {count: 0, amount: 0, fee: 0};
-                    }
-                    summary.byCardType[row.card_type].count += row.count || 0;
-                    summary.byCardType[row.card_type].amount += row.amount || 0;
-                    summary.byCardType[row.card_type].fee += row.fee || 0;
+                    const currency = row.currency || 'Unknown';
 
-                    // Group by currency
-                    if (!summary.byCurrency[row.currency]) {
-                        summary.byCurrency[row.currency] = {count: 0, amount: 0, fee: 0};
+                    // Update currency totals
+                    if (summary.currencyTotals[currency]) {
+                        summary.currencyTotals[currency].totalTransactions += row.count || 0;
+                        summary.currencyTotals[currency].totalFees += row.fee || 0;
+
+                        if (row.transaction_type === '05') {
+                            summary.currencyTotals[currency].salesAmount += row.amount || 0;
+                        } else if (row.transaction_type === '06') {
+                            summary.currencyTotals[currency].refundsAmount += row.amount || 0;
+                        }
+                        summary.currencyTotals[currency].netAmount += row.net_amount || 0;
                     }
-                    summary.byCurrency[row.currency].count += row.count || 0;
-                    summary.byCurrency[row.currency].amount += row.amount || 0;
-                    summary.byCurrency[row.currency].fee += row.fee || 0;
+
+                    // Group by card type - organize by currency
+                    if (!summary.byCardType[row.card_type]) {
+                        summary.byCardType[row.card_type] = {
+                            count: 0,
+                            currencies: {},
+                            totalFee: 0
+                        };
+                    }
+
+                    if (!summary.byCardType[row.card_type].currencies[currency]) {
+                        summary.byCardType[row.card_type].currencies[currency] = {
+                            sales_amount: 0,
+                            refunds_amount: 0,
+                            net_amount: 0,
+                            count: 0,
+                            fee: 0
+                        };
+                    }
+
+                    summary.byCardType[row.card_type].count += row.count || 0;
+                    summary.byCardType[row.card_type].totalFee += row.fee || 0;
+                    summary.byCardType[row.card_type].currencies[currency].count += row.count || 0;
+                    summary.byCardType[row.card_type].currencies[currency].fee += row.fee || 0;
+                    summary.byCardType[row.card_type].currencies[currency].net_amount += row.net_amount || 0;
+
+                    if (row.transaction_type === '05') {
+                        summary.byCardType[row.card_type].currencies[currency].sales_amount += row.amount || 0;
+                    } else if (row.transaction_type === '06') {
+                        summary.byCardType[row.card_type].currencies[currency].refunds_amount += row.amount || 0;
+                    }
+
+                    // Group by currency - this is simpler since we're already grouping by currency
+                    if (!summary.byCurrency[currency]) {
+                        summary.byCurrency[currency] = {
+                            count: 0,
+                            sales_amount: 0,
+                            refunds_amount: 0,
+                            net_amount: 0,
+                            fee: 0
+                        };
+                    }
+
+                    summary.byCurrency[currency].count += row.count || 0;
+                    summary.byCurrency[currency].net_amount += row.net_amount || 0;
+                    summary.byCurrency[currency].fee += row.fee || 0;
+
+                    if (row.transaction_type === '05') {
+                        summary.byCurrency[currency].sales_amount += row.amount || 0;
+                    } else if (row.transaction_type === '06') {
+                        summary.byCurrency[currency].refunds_amount += row.amount || 0;
+                    }
                 });
 
                 return summary;
             }
 
             function getSchemeSummaryHTML(summary) {
+                // Multi-currency top widgets
+                const topWidgetsHTML = summary.isMultiCurrency ?
+                    getMultiCurrencyTopWidgets(summary) :
+                    getSingleCurrencyTopWidgets(summary);
+
+                // Card type and currency breakdowns
+                const cardTypeHTML = summary.isMultiCurrency ?
+                    getMultiCurrencyCardTypeBreakdown(summary) :
+                    getSingleCurrencyCardTypeBreakdown(summary);
+
+                const currencyHTML = summary.isMultiCurrency ?
+                    getMultiCurrencyCurrencyBreakdown(summary) :
+                    getSingleCurrencyCurrencyBreakdown(summary);
+
                 return `
-                    <div class="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div class="bg-blue-50 rounded-lg p-4">
-                            <div class="text-2xl font-bold text-blue-900">${summary.totalTransactions.toLocaleString()}</div>
-                            <div class="text-sm text-blue-600">Total Transactions</div>
-                        </div>
-                        <div class="bg-green-50 rounded-lg p-4">
-                            <div class="text-2xl font-bold text-green-900">${summary.totalAmount.toLocaleString()}</div>
-                            <div class="text-sm text-green-600">Total Amount</div>
-                        </div>
-                        <div class="bg-yellow-50 rounded-lg p-4">
-                            <div class="text-2xl font-bold text-yellow-900">${summary.totalFees >= 0 ? summary.totalFees.toLocaleString() : `(${Math.abs(summary.totalFees).toLocaleString()})`}</div>
-                            <div class="text-sm text-yellow-600">Total Fees</div>
-                        </div>
-                        <div class="bg-purple-50 rounded-lg p-4">
-                            <div class="text-2xl font-bold text-purple-900">${summary.uniqueMerchants.size}</div>
-                            <div class="text-sm text-purple-600">Unique Merchants</div>
-                        </div>
-                    </div>
+        ${topWidgetsHTML}
+        <div class="mb-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+            ${cardTypeHTML}
+            ${currencyHTML}
+        </div>
+    `;
+            }
 
-                    <div class="mb-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div class="bg-white rounded-lg border p-4">
-                            <h4 class="font-semibold text-gray-900 mb-3">By Card Type</h4>
-                            <div class="space-y-2">
-                                ${Object.entries(summary.byCardType).map(([cardType, data]) => `
-                                    <div class="flex justify-between items-center">
-                                        <span class="text-sm font-medium text-gray-700">${cardType}</span>
-                                        <div class="text-right">
-                                            <div class="text-sm font-semibold">${data.count.toLocaleString()} txns</div>
-                                            <div class="text-xs text-gray-500">${data.amount.toLocaleString()} amount</div>
-                                        </div>
-                                    </div>
-                                `).join('')}
+            function getSingleCurrencyTopWidgets(summary) {
+                const currency = Array.from(summary.uniqueCurrencies)[0] || '';
+                const currencyData = summary.currencyTotals[currency] || {
+                    salesAmount: 0, refundsAmount: 0, netAmount: 0, totalTransactions: 0
+                };
+
+                return `
+        <div class="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div class="bg-blue-50 rounded-lg p-4">
+                <div class="text-2xl font-bold text-blue-900">${summary.totalTransactions.toLocaleString()}</div>
+                <div class="text-sm text-blue-600">Total Transactions</div>
+            </div>
+            <div class="bg-green-50 rounded-lg p-4">
+                <div class="text-2xl font-bold text-green-900">${currency} ${currencyData.salesAmount.toLocaleString()}</div>
+                <div class="text-sm text-green-600">Sales Amount</div>
+            </div>
+            <div class="bg-red-50 rounded-lg p-4">
+                <div class="text-2xl font-bold text-red-900">${currency} ${currencyData.refundsAmount.toLocaleString()}</div>
+                <div class="text-sm text-red-600">Refunds Amount</div>
+            </div>
+            <div class="bg-purple-50 rounded-lg p-4">
+                <div class="text-2xl font-bold text-purple-900">${currency} ${currencyData.netAmount.toLocaleString()}</div>
+                <div class="text-sm text-purple-600">Net Amount</div>
+                <div class="text-xs text-purple-500">(Sales - Refunds)</div>
+            </div>
+            <div class="bg-yellow-50 rounded-lg p-4">
+                <div class="text-2xl font-bold text-yellow-900">${summary.totalFees >= 0 ? summary.totalFees.toLocaleString() : `(${Math.abs(summary.totalFees).toLocaleString()})`}</div>
+                <div class="text-sm text-yellow-600">Total Fees</div>
+            </div>
+        </div>
+    `;
+            }
+
+            function getMultiCurrencyTopWidgets(summary) {
+                return `
+        <div class="mb-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-6 border border-blue-200">
+            <div class="text-center mb-4">
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">Multi-Currency Portfolio Summary</h3>
+                <div class="text-sm text-gray-600">${summary.totalTransactions.toLocaleString()} transactions across ${summary.uniqueCurrencies.size} currencies</div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-${Math.min(summary.uniqueCurrencies.size, 4)} gap-4">
+                ${Object.entries(summary.currencyTotals).map(([currency, data]) => `
+                    <div class="bg-white rounded-lg p-4 border shadow-sm">
+                        <div class="text-center">
+                            <div class="text-lg font-bold text-gray-900">${currency}</div>
+                            <div class="space-y-1 text-sm">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Sales:</span>
+                                    <span class="font-medium text-green-600">${data.salesAmount.toLocaleString()}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Refunds:</span>
+                                    <span class="font-medium text-red-600">${data.refundsAmount.toLocaleString()}</span>
+                                </div>
+                                <div class="flex justify-between border-t pt-1">
+                                    <span class="text-gray-800 font-medium">Net:</span>
+                                    <span class="font-bold text-purple-600">${data.netAmount.toLocaleString()}</span>
+                                </div>
+                                <div class="text-xs text-gray-500">${data.totalTransactions.toLocaleString()} txns</div>
                             </div>
                         </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
+            }
 
-                        <div class="bg-white rounded-lg border p-4">
-                            <h4 class="font-semibold text-gray-900 mb-3">By Currency</h4>
-                            <div class="space-y-2">
-                                ${Object.entries(summary.byCurrency).map(([currency, data]) => `
-                                    <div class="flex justify-between items-center">
-                                        <span class="text-sm font-medium text-gray-700">${currency}</span>
-                                        <div class="text-right">
-                                            <div class="text-sm font-semibold">${data.count.toLocaleString()} txns</div>
-                                            <div class="text-xs text-gray-500">${data.amount.toLocaleString()} amount</div>
+            function getSingleCurrencyCardTypeBreakdown(summary) {
+                return `
+        <div class="bg-white rounded-lg border p-4">
+            <h4 class="font-semibold text-gray-900 mb-3">By Card Type</h4>
+            <div class="space-y-2">
+                ${Object.entries(summary.byCardType).map(([cardType, data]) => {
+                    const currency = Object.keys(data.currencies)[0] || '';
+                    const currencyData = data.currencies[currency] || {
+                        sales_amount: 0, refunds_amount: 0, net_amount: 0
+                    };
+
+                    return `
+                        <div class="border-b border-gray-100 pb-2 last:border-b-0">
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="text-sm font-medium text-gray-700">${cardType}</span>
+                                <div class="text-right">
+                                    <div class="text-sm font-semibold">${data.count.toLocaleString()} txns</div>
+                                </div>
+                            </div>
+                            <div class="text-xs text-gray-600 space-y-1">
+                                <div class="flex justify-between">
+                                    <span>Sales:</span>
+                                    <span class="text-green-600">${currency} ${currencyData.sales_amount.toLocaleString()}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span>Refunds:</span>
+                                    <span class="text-red-600">${currency} ${currencyData.refunds_amount.toLocaleString()}</span>
+                                </div>
+                                <div class="flex justify-between font-medium">
+                                    <span>Net:</span>
+                                    <span class="text-purple-600">${currency} ${currencyData.net_amount.toLocaleString()}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        </div>
+    `;
+            }
+
+            function getMultiCurrencyCardTypeBreakdown(summary) {
+                return `
+        <div class="bg-white rounded-lg border p-4">
+            <h4 class="font-semibold text-gray-900 mb-3">By Card Type</h4>
+            <div class="space-y-3">
+                ${Object.entries(summary.byCardType).map(([cardType, data]) => `
+                    <div class="border border-gray-200 rounded-lg p-3">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-sm font-medium text-gray-700">${cardType}</span>
+                            <div class="text-right">
+                                <div class="text-sm font-semibold">${data.count.toLocaleString()} txns</div>
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            ${Object.entries(data.currencies).map(([currency, currencyData]) => `
+                                <div class="bg-gray-50 rounded p-2">
+                                    <div class="font-medium text-xs text-gray-700 mb-1">${currency}</div>
+                                    <div class="grid grid-cols-3 gap-2 text-xs">
+                                        <div class="text-center">
+                                            <div class="text-green-600 font-medium">${currencyData.sales_amount.toLocaleString()}</div>
+                                            <div class="text-gray-500">Sales</div>
+                                        </div>
+                                        <div class="text-center">
+                                            <div class="text-red-600 font-medium">${currencyData.refunds_amount.toLocaleString()}</div>
+                                            <div class="text-gray-500">Refunds</div>
+                                        </div>
+                                        <div class="text-center">
+                                            <div class="text-purple-600 font-medium">${currencyData.net_amount.toLocaleString()}</div>
+                                            <div class="text-gray-500">Net</div>
                                         </div>
                                     </div>
-                                `).join('')}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
+            }
+
+            function getSingleCurrencyCurrencyBreakdown(summary) {
+                return `
+        <div class="bg-white rounded-lg border p-4">
+            <h4 class="font-semibold text-gray-900 mb-3">By Currency</h4>
+            <div class="space-y-2">
+                ${Object.entries(summary.byCurrency).map(([currency, data]) => `
+                    <div class="border-b border-gray-100 pb-2 last:border-b-0">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-sm font-medium text-gray-700">${currency}</span>
+                            <div class="text-right">
+                                <div class="text-sm font-semibold">${data.count.toLocaleString()} txns</div>
+                            </div>
+                        </div>
+                        <div class="text-xs text-gray-600 space-y-1">
+                            <div class="flex justify-between">
+                                <span>Sales:</span>
+                                <span class="text-green-600">${data.sales_amount.toLocaleString()}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>Refunds:</span>
+                                <span class="text-red-600">${data.refunds_amount.toLocaleString()}</span>
+                            </div>
+                            <div class="flex justify-between font-medium">
+                                <span>Net:</span>
+                                <span class="text-purple-600">${data.net_amount.toLocaleString()}</span>
                             </div>
                         </div>
                     </div>
-                `;
+                `).join('')}
+            </div>
+        </div>
+    `;
+            }
+
+            function getMultiCurrencyCurrencyBreakdown(summary) {
+                return `
+        <div class="bg-white rounded-lg border p-4">
+            <h4 class="font-semibold text-gray-900 mb-3">By Currency</h4>
+            <div class="space-y-2">
+                ${Object.entries(summary.byCurrency).map(([currency, data]) => `
+                    <div class="bg-gray-50 rounded-lg p-3 border">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-sm font-medium text-gray-700">${currency}</span>
+                            <div class="text-right">
+                                <div class="text-sm font-semibold">${data.count.toLocaleString()} txns</div>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-3 gap-3 text-sm">
+                            <div class="text-center">
+                                <div class="text-green-600 font-medium">${data.sales_amount.toLocaleString()}</div>
+                                <div class="text-xs text-gray-500">Sales</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-red-600 font-medium">${data.refunds_amount.toLocaleString()}</div>
+                                <div class="text-xs text-gray-500">Refunds</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-purple-600 font-medium">${data.net_amount.toLocaleString()}</div>
+                                <div class="text-xs text-gray-500">Net</div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
             }
 
             function getStatusColor(status) {
