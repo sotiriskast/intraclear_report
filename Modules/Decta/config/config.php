@@ -54,7 +54,7 @@ return [
 
         // Email addresses to receive notifications
         'recipients' => array_filter([
-            env('DECTA_NOTIFICATION_EMAIL_1','skastanas@intraclear.com'),
+            env('DECTA_NOTIFICATION_EMAIL_1','s.kastanas@intraclear.com'),
             env('DECTA_NOTIFICATION_EMAIL_2','l.koniotis@yourcompany.com'),
             env('DECTA_NOTIFICATION_EMAIL_3','d.slobodchikov@intraclear.com'),
             // Add more as needed
