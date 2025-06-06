@@ -52,8 +52,14 @@ class DectaReportController extends Controller
             'status' => 'nullable|in:pending,matched,failed,approved,declined',
             'amount_min' => 'nullable|numeric|min:0',
             'amount_max' => 'nullable|numeric|min:0',
-            'export_format' => 'nullable|in:json,csv,excel'
+            'export_format' => 'nullable|in:json,csv,excel',
+            // Add sorting options
+            'sort_by' => 'nullable|in:merchant_legal_name,currency,card_type,amount,count',
+            'sort_direction' => 'nullable|in:asc,desc'
         ]);
+
+
+
 
         if ($validator->fails()) {
             return response()->json([
@@ -65,7 +71,7 @@ class DectaReportController extends Controller
         try {
             $filters = $request->only([
                 'date_from', 'date_to', 'merchant_id', 'currency',
-                'status', 'amount_min', 'amount_max'
+                'status', 'amount_min', 'amount_max', 'sort_by', 'sort_direction'
             ]);
 
             $reportType = $request->input('report_type');
