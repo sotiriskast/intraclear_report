@@ -57,17 +57,12 @@ class DectaReportController extends Controller
             'sort_by' => 'nullable|in:merchant_legal_name,currency,card_type,amount,count',
             'sort_direction' => 'nullable|in:asc,desc'
         ]);
-
-
-
-
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'errors' => $validator->errors()
             ], 422);
         }
-
         try {
             $filters = $request->only([
                 'date_from', 'date_to', 'merchant_id', 'currency',

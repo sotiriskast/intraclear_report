@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\ServiceProvider;
 use Modules\Decta\Console\DectaBulkHistoricalImportCommand;
 use Modules\Decta\Console\DectaFixFilePathsCommand;
+use Modules\Decta\Console\DectaNotificationStatusCommand;
 use Modules\Decta\Console\DectaTestConnectionCommand;
 use Modules\Decta\Console\DectaTestDeclinedNotificationCommand;
 use Modules\Decta\Console\DectaTestIntegrationCommand;
@@ -113,6 +114,7 @@ class DectaServiceProvider extends ServiceProvider
             DectaCheckDeclinedTransactionsCommand::class,
             DectaTestDeclinedNotificationCommand::class,
             DectaTestIntegrationCommand::class,
+            DectaNotificationStatusCommand::class,
         ]);
     }
 
