@@ -197,46 +197,74 @@ Mock test:
     printf "\n---\n\n"
 
 .production_optimizations: &production_optimizations
-  - |+
+  - |
     printf "\n🚀 Applying production optimizations for \"$BRANCH\" environment.\n"
-    # Install production dependencies only (no dev dependencies)
     $DPFX exec front bash -c "cd ./app && composer install --optimize-autoloader --no-dev --no-interaction"
-
-    # Install NPM dependencies and build production assets with optimizations
     $DPFX exec front bash -c "cd ./app && npm ci --production=false"
     $DPFX exec front bash -c "cd ./app && npm install --save-dev terser"
     $DPFX exec front bash -c "cd ./app && npm run build:prod"
-
-    # Laravel production cache optimizations
     $DPFX exec front bash -c "cd ./app && php artisan config:cache"
     $DPFX exec front bash -c "cd ./app && php artisan route:cache"
     $DPFX exec front bash -c "cd ./app && php artisan view:cache"
     $DPFX exec front bash -c "cd ./app && php artisan event:cache"
-
-    # Clear development caches
     $DPFX exec front bash -c "cd ./app && php artisan clear-compiled"
     $DPFX exec front bash -c "cd ./app && php artisan cache:clear"
-
-    # Optimize Composer autoloader
     $DPFX exec front bash -c "cd ./app && composer dump-autoload --optimize --classmap-authoritative"
-
     printf "✅ Production optimizations completed successfully.\n"
 
 .development_setup: &development_setup
-  - |+
+  - |
     printf "\n🔧 Setting up development environment for \"$BRANCH\".\n"
-    # Install all dependencies (including dev dependencies)
     $DPFX exec front bash -c "cd ./app && composer install"
     $DPFX exec front bash -c "cd ./app && npm install"
     $DPFX exec front bash -c "cd ./app && npm run build"
     printf "✅ Development setup completed.\n"
 
+# Create conditional script blocks
+.conditional_optimizations: &conditional_optimizations
+  - |
+    if [[ "$BRANCH" == "staging" || "$BRANCH" == "master" ]]; then
+      echo "Triggering production optimizations..."
+      export RUN_PRODUCTION=true
+    else
+      echo "Triggering development setup..."
+      export RUN_DEVELOPMENT=true
+    fi
+
+.run_production_if_needed: &run_production_if_needed
+  - |
+    if [[ "$RUN_PRODUCTION" == "true" ]]; then
+      printf "\n🚀 Applying production optimizations for \"$BRANCH\" environment.\n"
+      $DPFX exec front bash -c "cd ./app && composer install --optimize-autoloader --no-dev --no-interaction"
+      $DPFX exec front bash -c "cd ./app && npm ci --production=false"
+      $DPFX exec front bash -c "cd ./app && npm install --save-dev terser"
+      $DPFX exec front bash -c "cd ./app && npm run build:prod"
+      $DPFX exec front bash -c "cd ./app && php artisan config:cache"
+      $DPFX exec front bash -c "cd ./app && php artisan route:cache"
+      $DPFX exec front bash -c "cd ./app && php artisan view:cache"
+      $DPFX exec front bash -c "cd ./app && php artisan event:cache"
+      $DPFX exec front bash -c "cd ./app && php artisan clear-compiled"
+      $DPFX exec front bash -c "cd ./app && php artisan cache:clear"
+      $DPFX exec front bash -c "cd ./app && composer dump-autoload --optimize --classmap-authoritative"
+      printf "✅ Production optimizations completed successfully.\n"
+    fi
+
+.run_development_if_needed: &run_development_if_needed
+  - |
+    if [[ "$RUN_DEVELOPMENT" == "true" ]]; then
+      printf "\n🔧 Setting up development environment for \"$BRANCH\".\n"
+      $DPFX exec front bash -c "cd ./app && composer install"
+      $DPFX exec front bash -c "cd ./app && npm install"
+      $DPFX exec front bash -c "cd ./app && npm run build"
+      printf "✅ Development setup completed.\n"
+    fi
+
 .full_deploy_script: &full_deploy_script
-  - |+
+  - |
     printf "\n---\nDeploy containers on the \"$ENVIRONMENT\" environment.\n---\n"
     $DPFX up --force-recreate -d
     printf "\n---\n\n"
-  - |+
+  - |
     printf "\n---\nDeploy application on the \"$ENVIRONMENT\" environment.\n---\n"
     $DPFX cp $GIT_CONFIG front://var/lib/www-data/.gitconfig
     $DPFX cp $SERVER_CRT front:/etc/nginx/certs/server.crt
@@ -258,18 +286,14 @@ Mock test:
     $DPFX exec front bash -c "chmod 600 /var/www/app/storage/app/private/decta_rsa"
     $DPFX cp $(eval "echo \$ENV_$ENVIRONMENT") front:/var/www/app/.env
     $DPFX exec front bash -c "cd ./app && git checkout $BRANCH"
-
-    # Apply appropriate optimizations based on environment
-    if [[ "$BRANCH" == "staging" || "$BRANCH" == "master" ]]; then
-      - *production_optimizations
-    else
-      - *development_setup
-    fi
-
+  - *conditional_optimizations
+  - *run_production_if_needed
+  - *run_development_if_needed
+  - |
     $DPFX exec front bash -c "supervisorctl restart all"
     $DPFX exec front bash -c "ln -sf /var/www/app/storage/logs /var/lib/www-data/log/laravel/logs"
   - $DPFX exec front bash -c "supervisorctl restart all"
-    printf "\n---\n\n"
+  - printf "\n---\n\n"
 
 .partial_deploy_script: &partial_deploy_script
   - printf "\n---\nPartial deploy application on the \"$ENVIRONMENT\" environment.\n---\n"
