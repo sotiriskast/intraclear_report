@@ -86,6 +86,8 @@ return [
         'health_check' => [
             'enabled' => env('DECTA_NOTIFY_HEALTH_CHECK', true),
         ],
+        'allowed_environments' => env('DECTA_NOTIFICATION_ENVIRONMENTS', 'staging,production,prod'),
+
     ],
 
     /*
