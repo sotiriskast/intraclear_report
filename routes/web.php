@@ -1,9 +1,6 @@
 <?php
 
-use App\Http\Controllers\EmailTestController;
 use App\Http\Controllers\MerchantController;
-use App\Http\Controllers\MerchantFeeController;
-use App\Http\Controllers\MerchantSettingController;
 use App\Http\Controllers\ShopController;
 use App\Http\Controllers\ShopFeeController;
 use App\Http\Controllers\ShopSettingController;
@@ -11,10 +8,12 @@ use App\Http\Controllers\SettlementController;
 use App\Livewire\MerchantAnalytics;
 use App\Livewire\MerchantManagement;
 use App\Livewire\MerchantView;
-use App\Livewire\RoleManagement;
-use App\Livewire\ShopManagement;
 use Illuminate\Support\Facades\Route;
-
+use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Redis;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Cache;
 
 Route::middleware(['auth:web', 'verified', '2fa.required'
 ])->group(function () {
@@ -131,4 +130,102 @@ Route::middleware(['auth:web', 'verified', '2fa.required'
             });
         });
     });
+    Route::get('/health', function () {
+        $healthChecks = [
+            'status' => 'ok',
+            'timestamp' => now()->toISOString(),
+            'environment' => app()->environment(),
+            'version' => config('app.version', '1.0.0'),
+            'services' => []
+        ];
+
+        // Database connectivity check
+        try {
+            DB::connection()->getPdo();
+            $healthChecks['services']['database'] = 'ok';
+        } catch (\Exception $e) {
+            $healthChecks['services']['database'] = 'error';
+            $healthChecks['status'] = 'degraded';
+        }
+
+        // Payment Database connectivity check
+        try {
+            DB::connection('payment_gateway_mysql')->getPdo();
+            $healthChecks['services']['payment_database'] = 'ok';
+        } catch (\Exception $e) {
+            $healthChecks['services']['payment_database'] = 'error';
+            $healthChecks['status'] = 'degraded';
+        }
+
+        // Redis connectivity check
+        try {
+            Redis::connection()->ping();
+            $healthChecks['services']['redis'] = 'ok';
+        } catch (\Exception $e) {
+            $healthChecks['services']['redis'] = 'error';
+            $healthChecks['status'] = 'degraded';
+        }
+
+        // S3 storage check
+        try {
+            Storage::disk('s3')->exists('health-check');
+            $healthChecks['services']['s3_storage'] = 'ok';
+        } catch (\Exception $e) {
+            $healthChecks['services']['s3_storage'] = 'error';
+            $healthChecks['status'] = 'degraded';
+        }
+
+        // Cache check
+        try {
+            Cache::put('health_check', 'ok', 10);
+            $healthChecks['services']['cache'] = Cache::get('health_check') === 'ok' ? 'ok' : 'error';
+        } catch (\Exception $e) {
+            $healthChecks['services']['cache'] = 'error';
+            $healthChecks['status'] = 'degraded';
+        }
+
+        // Queue check (simplified)
+        try {
+            $healthChecks['services']['queue'] = config('queue.default') === 'redis' &&
+            $healthChecks['services']['redis'] === 'ok' ? 'ok' : 'degraded';
+        } catch (\Exception $e) {
+            $healthChecks['services']['queue'] = 'error';
+        }
+
+        // Third-party services status
+        $healthChecks['services']['cesop'] = env('CESOP_PSP_NAME') ? 'configured' : 'not_configured';
+        $healthChecks['services']['decta'] = env('DECTA_SFTP_HOST') ? 'configured' : 'not_configured';
+
+        // Overall status
+        $errorCount = count(array_filter($healthChecks['services'], fn($status) => $status === 'error'));
+        if ($errorCount > 0) {
+            $healthChecks['status'] = $errorCount > 2 ? 'critical' : 'degraded';
+        }
+
+        $statusCode = match($healthChecks['status']) {
+            'ok' => Response::HTTP_OK,
+            'degraded' => Response::HTTP_OK, // Still return 200 for degraded
+            'critical' => Response::HTTP_SERVICE_UNAVAILABLE,
+            default => Response::HTTP_INTERNAL_SERVER_ERROR
+        };
+
+        return response()->json($healthChecks, $statusCode);
+    });
+
+// Readiness check (for Kubernetes/Docker health checks)
+    Route::get('/ready', function () {
+        try {
+            // Quick essential checks only
+            DB::connection()->getPdo();
+            return response()->json(['status' => 'ready'], Response::HTTP_OK);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'not_ready', 'error' => $e->getMessage()], Response::HTTP_SERVICE_UNAVAILABLE);
+        }
+    });
+
+// Liveness check (for Kubernetes/Docker health checks)
+    Route::get('/live', function () {
+        return response()->json(['status' => 'alive'], Response::HTTP_OK);
+    });
+
 });
