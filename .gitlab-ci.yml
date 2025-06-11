@@ -199,6 +199,7 @@ Mock test:
 # ----------------------
 Build production assets:
   stage: build_assets
+  image: node:20-alpine
   tags:
     - cds-rep-app
   dependencies:
@@ -220,9 +221,18 @@ Build production assets:
     paths:
       - public/build/
     expire_in: 1 hour
+  cache:
+    key: npm-cache-$CI_COMMIT_REF_SLUG
+    paths:
+      - node_modules/
+    policy: pull-push
+  before_script:
+    - printf "\n---\nSetting up Node.js environment for \"$ENVIRONMENT\".\n---\n"
+    - node --version
+    - npm --version
   script:
     - printf "\n---\nBuilding production assets for \"$ENVIRONMENT\" environment.\n---\n"
-    # Install Node.js dependencies with exact versions for production
+    # Clean install with exact versions for production
     - npm ci --production=false
     # Install Terser for production builds
     - npm install --save-dev terser
@@ -230,6 +240,7 @@ Build production assets:
     - npm run build:prod
     # Verify build artifacts
     - ls -la public/build/ || echo "Build directory not found"
+    - du -sh public/build/ || echo "No build directory size info"
 
 # ------------------------------
 # --- Building and Deployment --
@@ -332,13 +343,15 @@ Build production assets:
 
     # Apply production optimizations for staging and production
     if [[ "$BRANCH" == "staging" || "$BRANCH" == "master" ]]; then
+      printf "\n🚀 Applying production deployment with optimizations\n"
       # Production deployment with optimizations
       - *production_optimization
     else
+      printf "\n🔧 Applying development deployment\n"
       # Development deployment
       $DPFX exec front bash -c "cd ./app && composer install"
-      $DPFX exec front bash -c "cd ./app && npm install"
-      $DPFX exec front bash -c "cd ./app && npm run build"
+      # Only try to build assets if npm is available
+      $DPFX exec front bash -c "cd ./app && command -v npm >/dev/null 2>&1 && (npm install && npm run build) || echo 'NPM not available, skipping asset build'"
     fi
 
     $DPFX exec front bash -c "supervisorctl restart all"
@@ -356,7 +369,14 @@ Build production assets:
     if [[ "$BRANCH" == "staging" || "$BRANCH" == "master" ]]; then
       # Quick production optimizations for partial deploy
       $DPFX exec front bash -c "cd ./app && composer install --optimize-autoloader --no-dev"
-      $DPFX exec front bash -c "cd ./app && npm run build:prod"
+      # Check if we have pre-built assets, otherwise build them
+      if [ -d "public/build" ]; then
+        printf "✓ Using pre-built assets from CI\n"
+        $DPFX cp public/build/. front:/var/www/app/public/build/
+      else
+        printf "⚠ Building assets in container\n"
+        $DPFX exec front bash -c "cd ./app && npm ci && npm run build:prod"
+      fi
       $DPFX exec front bash -c "cd ./app && php artisan config:cache"
       $DPFX exec front bash -c "cd ./app && php artisan route:cache"
       $DPFX exec front bash -c "cd ./app && php artisan view:cache"
