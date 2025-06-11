@@ -220,14 +220,6 @@ Mock test:
     # Optimize Composer autoloader
     $DPFX exec front bash -c "cd ./app && composer dump-autoload --optimize --classmap-authoritative"
 
-    # Set proper file permissions for production
-    $DPFX exec front bash -c "chown -R www-data:www-data /var/www/app/storage /var/www/app/bootstrap/cache"
-    $DPFX exec front bash -c "chmod -R 775 /var/www/app/storage /var/www/app/bootstrap/cache"
-
-    # Remove unnecessary files to reduce container size
-    $DPFX exec front bash -c "cd ./app && rm -rf node_modules/.cache"
-    $DPFX exec front bash -c "cd ./app && rm -rf storage/logs/*.log"
-
     printf "✅ Production optimizations completed successfully.\n"
 
 .development_setup: &development_setup
