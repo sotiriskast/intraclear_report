@@ -5,10 +5,10 @@ stages:
   - unit_test
   - integration_test
   - mock_test
-  - build_assets
   - deploy
-  - health_check
   - cleanup
+# - rollback
+
 
 variables:
   CI: "true"
@@ -19,6 +19,8 @@ variables:
   GITLAB_OWNER: "Intraclear Ltd."
   OWNER: "d.slobodchikov@intraclear.com"
   NODE_VERSION: "--lts"
+
+
 
 # ---------------------
 # --- Code Analysis ---
@@ -42,8 +44,14 @@ Code analysis:
       variables:
         ENVIRONMENT: prod
       when: always
+  # artifacts:
+  #   expose_as: 'ENV_NAME'
+  #   paths: ['ENVIRONMENT.txt']
   script:
+    # - echo $CI_MERGE_REQUEST_TARGET_BRANCH_NAME > ENVIRONMENT.txt
     - printf "\n---\nAnalyze the code on the \"$ENVIRONMENT\" environment. Publish a report.\n---\n"
+
+
 
 Code analysis uat:
   stage: code_analysis
@@ -70,8 +78,19 @@ Code analysis uat:
       when: always
       variables:
         ENVIRONMENT: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+  # when: always
   script:
     - printf "\n---\nAnalyze the code on the \"$CI_COMMIT_BRANCH\" branch. Publish a report.\n---\n"
+  # only:
+  #   refs:
+  #   - /^issue-\d+$/is
+  #   - dev
+
+
+
+
+
+
 
 # --------------------------
 # --- Vulnerability scan ---
@@ -91,16 +110,8 @@ Vulnerability scan:
         ENVIRONMENT: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
   script:
     - printf "\n---\nRun vulnerability scan on the \"$ENVIRONMENT\" environment.\n---\n"
-    # Add actual vulnerability scanning tools here
-    - |
-      if command -v npm &> /dev/null; then
-        npm audit --audit-level high
-      fi
-    # Add PHP security checker if available
-    - |
-      if command -v security-checker &> /dev/null; then
-        security-checker security:check composer.lock
-      fi
+
+
 
 # ---------------
 # --- Linting ---
@@ -120,17 +131,10 @@ Prettier and linting:
         ENVIRONMENT: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
   script:
     - printf "\n---\nRun linting code on the \"$ENVIRONMENT\" environment. Make the code prettier.\n---\n"
-    # Add actual linting commands
-    - |
-      if [ -f "package.json" ]; then
-        npm run lint || echo "No lint script found"
-        npm run prettier || echo "No prettier script found"
-      fi
-    # Add PHP linting
-    - |
-      if command -v ./vendor/bin/pint &> /dev/null; then
-        ./vendor/bin/pint --test || echo "Laravel Pint not configured"
-      fi
+
+
+
+
 
 # -------------
 # --- Tests ---
@@ -150,13 +154,9 @@ Unit test:
         ENVIRONMENT: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
   script:
     - printf "\n---\nRun unit test on the \"$ENVIRONMENT\" environment.\n---\n"
-    # Add actual unit tests
-    - |
-      if [ -f "phpunit.xml" ]; then
-        ./vendor/bin/phpunit --testsuite=Unit || echo "No unit tests configured"
-      fi
 
-Integration test:
+
+Intergation test:
   stage: integration_test
   tags:
     - cds-rep-uat-app
@@ -171,11 +171,7 @@ Integration test:
         ENVIRONMENT: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
   script:
     - printf "\n---\nRun integration test on the \"$ENVIRONMENT\" environment.\n---\n"
-    # Add actual integration tests
-    - |
-      if [ -f "phpunit.xml" ]; then
-        ./vendor/bin/phpunit --testsuite=Feature || echo "No integration tests configured"
-      fi
+
 
 Mock test:
   stage: mock_test
@@ -183,7 +179,7 @@ Mock test:
     - cds-rep-uat-app
   dependencies:
     - Unit test
-    - Integration test
+    - Intergation test
   rules:
     - if: |+
         $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "testing" &&
@@ -194,59 +190,13 @@ Mock test:
   script:
     - printf "\n---\nRun mock test on the \"$ENVIRONMENT\" environment.\n---\n"
 
-# ----------------------
-# --- Build Assets ---
-# ----------------------
-# ----------------------
-# --- Build Assets ---
-# ----------------------
-Build production assets:
-  stage: build_assets
-  image: node:20-alpine  # This ensures Node.js is available
-  tags:
-    - cds-rep-app
-  dependencies:
-    - Code analysis
-  rules:
-    - if: |+
-        $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "staging" &&
-        $CI_PIPELINE_SOURCE == "merge_request_event" &&
-        $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "testing"
-      variables:
-        ENVIRONMENT: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
-    - if: |+
-        $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master" &&
-        $CI_PIPELINE_SOURCE == "merge_request_event" &&
-        $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "staging"
-      variables:
-        ENVIRONMENT: prod
-  artifacts:
-    paths:
-      - public/build/
-    expire_in: 1 hour
-  cache:
-    key: npm-cache-$CI_COMMIT_REF_SLUG
-    paths:
-      - node_modules/
-    policy: pull-push
-  before_script:
-    - printf "\n---\nSetting up Node.js environment for \"$ENVIRONMENT\".\n---\n"
-    - node --version
-    - npm --version
-    # Install any system dependencies if needed
-    - apk add --no-cache git
-  script:
-    - printf "\n---\nBuilding production assets for \"$ENVIRONMENT\" environment.\n---\n"
-    # Clean install with exact versions for production
-    - npm ci --production=false
-    # Build assets for production
-    - npm run build:prod
-    # Verify build artifacts
-    - ls -la public/build/ || echo "Build directory not found"
-    - du -sh public/build/ || echo "No build directory size info"
-# ------------------------------
-# --- Building and Deployment --
-# ------------------------------
+
+
+
+
+# # ------------------------------
+# # --- Building and Deployment --
+# # ------------------------------
 
 .prepare_config: &prepare_config
   - printf "\n---\nRun deployment on the \"$ENVIRONMENT\" environment.\n---\n"
@@ -262,6 +212,7 @@ Build production assets:
     sed -i "s/####DB_EXTRA_HOST####/extra_hosts:\n    - \\\"files.decta.com:172.18.1.14\\\"\n/g" ./docker-compose.yaml
     cat ./docker-compose.yaml
     printf "\n---\n\n"
+
 
 .prepare_config_uat: &prepare_config_uat
   - printf "\n---\nRun deployment on the \"$ENVIRONMENT\" environment.\n---\n"
@@ -279,40 +230,6 @@ Build production assets:
     cat ./docker-compose.yaml
     printf "\n---\n\n"
 
-.production_optimization: &production_optimization
-  - |+
-    printf "\n---\nApplying production optimizations.\n---\n"
-    # Install production dependencies only
-    $DPFX exec front bash -c "cd ./app && composer install --optimize-autoloader --no-dev --no-interaction"
-
-    # Copy pre-built assets if available
-  - |
-    if [ -d "public/build" ]; then
-      printf "✓ Using pre-built assets from CI\n"
-      $DPFX cp public/build/. front:/var/www/app/public/build/
-    else
-      printf "⚠ Building assets in container\n"
-      $DPFX exec front bash -c "cd ./app && npm ci && npm install --save-dev terser && npm run build:prod"
-    fi
-
-    # Laravel production optimizations
-    $DPFX exec front bash -c "cd ./app && php artisan config:cache"
-    $DPFX exec front bash -c "cd ./app && php artisan route:cache"
-    $DPFX exec front bash -c "cd ./app && php artisan view:cache"
-    $DPFX exec front bash -c "cd ./app && php artisan event:cache"
-
-    # Clear unnecessary caches
-    $DPFX exec front bash -c "cd ./app && php artisan clear-compiled"
-    $DPFX exec front bash -c "cd ./app && php artisan cache:clear"
-
-    # Optimize autoloader
-    $DPFX exec front bash -c "cd ./app && composer dump-autoload --optimize"
-
-    # Set proper permissions
-    $DPFX exec front bash -c "chown -R www-data:www-data /var/www/app/storage /var/www/app/bootstrap/cache"
-    $DPFX exec front bash -c "chmod -R 775 /var/www/app/storage /var/www/app/bootstrap/cache"
-
-    printf "✓ Production optimizations complete\n"
 
 .full_deploy_script: &full_deploy_script
   - |+
@@ -341,59 +258,40 @@ Build production assets:
     $DPFX exec front bash -c "chmod 600 /var/www/app/storage/app/private/decta_rsa"
     $DPFX cp $(eval "echo \$ENV_$ENVIRONMENT") front:/var/www/app/.env
     $DPFX exec front bash -c "cd ./app && git checkout $BRANCH"
-
-    # Apply production optimizations for staging and production
     if [[ "$BRANCH" == "staging" || "$BRANCH" == "master" ]]; then
-      printf "\n🚀 Applying production deployment with optimizations\n"
-      # Production deployment with optimizations
-      - *production_optimization
+      $DPFX exec front bash -c "cd ./app && composer i"
+      $DPFX exec front bash -c "cd ./app && php artisan config:cache"
+      $DPFX exec front bash -c "cd ./app && php artisan route:cache"
+      $DPFX exec front bash -c "cd ./app && php artisan view:cache"
+      $DPFX exec front bash -c "cd ./app && php artisan clear-compiled"
+      $DPFX exec front bash -c "cd ./app && php artisan cache:clear"
     else
-      printf "\n🔧 Applying development deployment\n"
-      # Development deployment
-      $DPFX exec front bash -c "cd ./app && composer install"
-      # Only try to build assets if npm is available
-      $DPFX exec front bash -c "cd ./app && command -v npm >/dev/null 2>&1 && (npm install && npm run build) || echo 'NPM not available, skipping asset build'"
+      $DPFX exec front bash -c "cd ./app && composer i"
     fi
-
+    $DPFX exec front bash -c "cd ./app && npm install"
+    $DPFX exec front bash -c "cd ./app && npm run build"
     $DPFX exec front bash -c "supervisorctl restart all"
     $DPFX exec front bash -c "ln -sf /var/www/app/storage/logs /var/lib/www-data/log/laravel/logs"
   - $DPFX exec front bash -c "supervisorctl restart all"
     printf "\n---\n\n"
 
+
 .partial_deploy_script: &partial_deploy_script
   - printf "\n---\nPartial deploy application on the \"$ENVIRONMENT\" environment.\n---\n"
   - $DPFX exec front bash -c "cd ./app && git checkout $BRANCH"
   - $DPFX exec front bash -c "cd ./app && git stash && git pull"
-
-  # Apply optimizations for production environments
-  - |
-    if [[ "$BRANCH" == "staging" || "$BRANCH" == "master" ]]; then
-      # Quick production optimizations for partial deploy
-      $DPFX exec front bash -c "cd ./app && composer install --optimize-autoloader --no-dev"
-      # Check if we have pre-built assets, otherwise build them
-      if [ -d "public/build" ]; then
-        printf "✓ Using pre-built assets from CI\n"
-        $DPFX cp public/build/. front:/var/www/app/public/build/
-      else
-        printf "⚠ Building assets in container\n"
-        $DPFX exec front bash -c "cd ./app && npm ci && npm run build:prod"
-      fi
-      $DPFX exec front bash -c "cd ./app && php artisan config:cache"
-      $DPFX exec front bash -c "cd ./app && php artisan route:cache"
-      $DPFX exec front bash -c "cd ./app && php artisan view:cache"
-    fi
-
   - $DPFX exec front bash -c "supervisorctl restart all"
   - printf "\n---\n\n"
 
-# Deployment Jobs
+
+
+
 Full deploy application on the Lives:
   stage: deploy
   tags:
     - cds-rep-app-deploy
   dependencies:
     - Code analysis
-    - Build production assets
   rules:
     - if: |+
         $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "staging" &&
@@ -411,9 +309,14 @@ Full deploy application on the Lives:
       variables:
         ENVIRONMENT: prod
         BRANCH: master
+  # when: manual
   script:
     - *prepare_config
     - *full_deploy_script
+
+
+
+
 
 Full deploy application on UAT:
   stage: deploy
@@ -449,6 +352,8 @@ Full deploy application on UAT:
     - *prepare_config_uat
     - *full_deploy_script
 
+
+
 Partial deploy application on the Lives:
   stage: deploy
   tags:
@@ -475,6 +380,8 @@ Partial deploy application on the Lives:
   script:
     - *prepare_config
     - *partial_deploy_script
+
+
 
 Partial deploy application on UAT:
   stage: deploy
@@ -510,68 +417,9 @@ Partial deploy application on UAT:
     - *prepare_config_uat
     - *partial_deploy_script
 
-# -----------------------
-# --- Health Checks ---
-# -----------------------
-Health check staging:
-  stage: health_check
-  tags:
-    - cds-rep-app-deploy
-  dependencies:
-    - Full deploy application on the Lives
-  rules:
-    - if: |+
-        $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "staging" &&
-        $CI_PIPELINE_SOURCE == "merge_request_event" &&
-        $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "testing"
-      variables:
-        ENVIRONMENT: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
-  script:
-    - *prepare_config
-    - |+
-      printf "\n---\nRunning health checks on \"$ENVIRONMENT\" environment.\n---\n"
-      # Test S3 connectivity
-      $DPFX exec front bash -c "cd ./app && php artisan storage:s3-check"
 
-      # Test database connectivity
-      $DPFX exec front bash -c "cd ./app && php artisan migrate:status"
 
-      # Test queue workers
-      $DPFX exec front bash -c "supervisorctl status"
 
-      # Test application health endpoint
-      sleep 10  # Wait for services to be ready
-      curl -f "http://localhost:$(eval "echo \$HTTP_PORT_$ENVIRONMENT")/health" || echo "Health check endpoint failed"
-
-      # Test third-party services
-      $DPFX exec front bash -c "cd ./app && php artisan tinker --execute=\"echo 'Testing third-party connections...';\""
-
-      printf "✓ Health checks completed\n"
-
-Health check production:
-  stage: health_check
-  tags:
-    - cds-rep-app-deploy
-  dependencies:
-    - Full deploy application on the Lives
-  rules:
-    - if: |+
-        $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master" &&
-        $CI_PIPELINE_SOURCE == "merge_request_event" &&
-        $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "staging"
-      variables:
-        ENVIRONMENT: prod
-  script:
-    - *prepare_config
-    - |+
-      printf "\n---\nRunning health checks on \"$ENVIRONMENT\" environment.\n---\n"
-      # Same health checks as staging
-      $DPFX exec front bash -c "cd ./app && php artisan storage:s3-check"
-      $DPFX exec front bash -c "cd ./app && php artisan migrate:status"
-      $DPFX exec front bash -c "supervisorctl status"
-      sleep 10
-      curl -f "http://localhost:$(eval "echo \$HTTP_PORT_$ENVIRONMENT")/health" || echo "Health check endpoint failed"
-      printf "✓ Production health checks completed\n"
 
 # ---------------
 # --- Cleanup ---
@@ -603,6 +451,9 @@ Clear cache on the Lives:
       printf "\n---\nRemove containers on the \"$ENVIRONMENT\" environment.\n---\n"
       $DPFX down
       printf "\n---\n\n"
+
+
+
 
 Clear cache on UAT:
   stage: cleanup
