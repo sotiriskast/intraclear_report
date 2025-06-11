@@ -197,9 +197,12 @@ Mock test:
 # ----------------------
 # --- Build Assets ---
 # ----------------------
+# ----------------------
+# --- Build Assets ---
+# ----------------------
 Build production assets:
   stage: build_assets
-  image: node:20-alpine
+  image: node:20-alpine  # This ensures Node.js is available
   tags:
     - cds-rep-app
   dependencies:
@@ -230,18 +233,17 @@ Build production assets:
     - printf "\n---\nSetting up Node.js environment for \"$ENVIRONMENT\".\n---\n"
     - node --version
     - npm --version
+    # Install any system dependencies if needed
+    - apk add --no-cache git
   script:
     - printf "\n---\nBuilding production assets for \"$ENVIRONMENT\" environment.\n---\n"
     # Clean install with exact versions for production
     - npm ci --production=false
-    # Install Terser for production builds
-    - npm install --save-dev terser
     # Build assets for production
     - npm run build:prod
     # Verify build artifacts
     - ls -la public/build/ || echo "Build directory not found"
     - du -sh public/build/ || echo "No build directory size info"
-
 # ------------------------------
 # --- Building and Deployment --
 # ------------------------------
@@ -284,14 +286,13 @@ Build production assets:
     $DPFX exec front bash -c "cd ./app && composer install --optimize-autoloader --no-dev --no-interaction"
 
     # Copy pre-built assets if available
+  - |
     if [ -d "public/build" ]; then
+      printf "✓ Using pre-built assets from CI\n"
       $DPFX cp public/build/. front:/var/www/app/public/build/
-      printf "✓ Pre-built assets copied\n"
     else
-      # Build assets in container if not pre-built
-      $DPFX exec front bash -c "cd ./app && npm ci"
-      $DPFX exec front bash -c "cd ./app && npm install --save-dev terser"
-      $DPFX exec front bash -c "cd ./app && npm run build:prod"
+      printf "⚠ Building assets in container\n"
+      $DPFX exec front bash -c "cd ./app && npm ci && npm install --save-dev terser && npm run build:prod"
     fi
 
     # Laravel production optimizations
