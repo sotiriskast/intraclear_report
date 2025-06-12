@@ -196,29 +196,6 @@ Mock test:
     cat ./docker-compose.yaml
     printf "\n---\n\n"
 
-.production_optimizations: &production_optimizations
-  - |
-    printf "\n🚀 Applying production optimizations for \"$BRANCH\" environment.\n"
-    $DPFX exec front bash -c "cd ./app && composer install --optimize-autoloader --no-dev --no-interaction"
-    $DPFX exec front bash -c "cd ./app && npm ci --production=false"
-    $DPFX exec front bash -c "cd ./app && npm install --save-dev terser"
-    $DPFX exec front bash -c "cd ./app && npm run build:prod"
-    $DPFX exec front bash -c "cd ./app && php artisan config:cache"
-    $DPFX exec front bash -c "cd ./app && php artisan route:cache"
-    $DPFX exec front bash -c "cd ./app && php artisan view:cache"
-    $DPFX exec front bash -c "cd ./app && php artisan event:cache"
-    $DPFX exec front bash -c "cd ./app && php artisan clear-compiled"
-    $DPFX exec front bash -c "cd ./app && php artisan cache:clear"
-    $DPFX exec front bash -c "cd ./app && composer dump-autoload --optimize --classmap-authoritative"
-    printf "✅ Production optimizations completed successfully.\n"
-
-.development_setup: &development_setup
-  - |
-    printf "\n🔧 Setting up development environment for \"$BRANCH\".\n"
-    $DPFX exec front bash -c "cd ./app && composer install"
-    $DPFX exec front bash -c "cd ./app && npm install"
-    $DPFX exec front bash -c "cd ./app && npm run build"
-    printf "✅ Development setup completed.\n"
 
 # Create conditional script blocks
 .conditional_optimizations: &conditional_optimizations
