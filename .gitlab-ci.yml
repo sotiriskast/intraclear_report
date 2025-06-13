@@ -395,12 +395,13 @@ Full deploy application on UAT:
     - *prepare_config_uat
     - *full_deploy_script
 
-Partial deploy application on the Lives:
+Partial deploy MR on the Lives:
   stage: deploy
   tags:
     - cds-rep-app-deploy
+  dependencies:
+    - Code analysis
   rules:
-    # For merge requests (existing logic)
     - if: |+
         $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "staging" &&
         $CI_PIPELINE_SOURCE == "merge_request_event" &&
@@ -409,8 +410,6 @@ Partial deploy application on the Lives:
       variables:
         ENVIRONMENT: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
         BRANCH: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
-      dependencies:
-        - Code analysis
     - if: |+
         $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master" &&
         $CI_PIPELINE_SOURCE == "merge_request_event" &&
@@ -419,9 +418,18 @@ Partial deploy application on the Lives:
       variables:
         ENVIRONMENT: prod
         BRANCH: master
-      dependencies:
-        - Code analysis
-    # For post-merge deployment
+  script:
+    - *prepare_config
+    - *partial_deploy_script
+
+# For post-merge staging - depends on Code analysis post-merge staging
+Partial deploy staging on the Lives:
+  stage: deploy
+  tags:
+    - cds-rep-app-deploy
+  dependencies:
+    - Code analysis post-merge staging
+  rules:
     - if: |+
         $CI_COMMIT_REF_NAME == "staging" &&
         $CI_PIPELINE_SOURCE == "push"
@@ -429,8 +437,18 @@ Partial deploy application on the Lives:
       variables:
         ENVIRONMENT: staging
         BRANCH: staging
-      dependencies:
-        - Code analysis post-merge staging
+  script:
+    - *prepare_config
+    - *partial_deploy_script
+
+# For post-merge master - depends on Code analysis post-merge master
+Partial deploy master on the Lives:
+  stage: deploy
+  tags:
+    - cds-rep-app-deploy
+  dependencies:
+    - Code analysis post-merge master
+  rules:
     - if: |+
         $CI_COMMIT_REF_NAME == "master" &&
         $CI_PIPELINE_SOURCE == "push"
@@ -438,12 +456,9 @@ Partial deploy application on the Lives:
       variables:
         ENVIRONMENT: prod
         BRANCH: master
-      dependencies:
-        - Code analysis post-merge master
   script:
     - *prepare_config
     - *partial_deploy_script
-
 
 Partial deploy application on UAT:
   stage: deploy
