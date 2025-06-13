@@ -70,7 +70,33 @@ Code analysis uat:
         ENVIRONMENT: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
   script:
     - printf "\n---\nAnalyze the code on the \"$CI_COMMIT_BRANCH\" branch. Publish a report.\n---\n"
+Code analysis post-merge staging:
+  stage: code_analysis
+  tags:
+    - cds-rep-app
+  rules:
+    - if: |+
+        $CI_COMMIT_REF_NAME == "staging" &&
+        $CI_PIPELINE_SOURCE == "push"
+      variables:
+        ENVIRONMENT: staging
+      when: always
+  script:
+    - printf "\n---\nAnalyze the code after merge to staging. Publish a report.\n---\n"
 
+Code analysis post-merge master:
+  stage: code_analysis
+  tags:
+    - cds-rep-app
+  rules:
+    - if: |+
+        $CI_COMMIT_REF_NAME == "master" &&
+        $CI_PIPELINE_SOURCE == "push"
+      variables:
+        ENVIRONMENT: prod
+      when: always
+  script:
+    - printf "\n---\nAnalyze the code after merge to master. Publish a report.\n---\n"
 # --------------------------
 # --- Vulnerability scan ---
 # --------------------------
@@ -282,7 +308,7 @@ Mock test:
     if [[ "$BRANCH" == "staging" || "$BRANCH" == "master" ]]; then
       printf "\n🚀 Applying quick production optimizations for partial deploy.\n"
       # Quick production updates
-      $DPFX exec front bash -c "cd ./app && composer install --optimize-autoloader --no-dev"
+      $DPFX exec front bash -c "cd ./app && composer install --optimize-autoloader --no-dev  --no-interaction"
       $DPFX exec front bash -c "cd ./app && npm ci --production=false && npm run build:prod"
 
       # Update Laravel caches
@@ -297,6 +323,11 @@ Mock test:
       printf "\n🔧 Updating development environment.\n"
       $DPFX exec front bash -c "cd ./app && composer install"
       $DPFX exec front bash -c "cd ./app && npm install && npm run build"
+      $DPFX exec front bash -c "cd ./app && php artisan cache:clear"
+      $DPFX exec front bash -c "cd ./app && php artisan config:clear"
+      $DPFX exec front bash -c "cd ./app && php artisan route:clear"
+      $DPFX exec front bash -c "cd ./app && php artisan view:clear"
+
     fi
 
   - $DPFX exec front bash -c "supervisorctl restart all"
@@ -364,7 +395,7 @@ Full deploy application on UAT:
     - *prepare_config_uat
     - *full_deploy_script
 
-Partial deploy application on the Lives:
+Partial deploy MR on the Lives:
   stage: deploy
   tags:
     - cds-rep-app-deploy
@@ -383,6 +414,44 @@ Partial deploy application on the Lives:
         $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master" &&
         $CI_PIPELINE_SOURCE == "merge_request_event" &&
         $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "staging"
+      when: always
+      variables:
+        ENVIRONMENT: prod
+        BRANCH: master
+  script:
+    - *prepare_config
+    - *partial_deploy_script
+
+# For post-merge staging - depends on Code analysis post-merge staging
+Partial deploy staging on the Lives:
+  stage: deploy
+  tags:
+    - cds-rep-app-deploy
+  dependencies:
+    - Code analysis post-merge staging
+  rules:
+    - if: |+
+        $CI_COMMIT_REF_NAME == "staging" &&
+        $CI_PIPELINE_SOURCE == "push"
+      when: always
+      variables:
+        ENVIRONMENT: staging
+        BRANCH: staging
+  script:
+    - *prepare_config
+    - *partial_deploy_script
+
+# For post-merge master - depends on Code analysis post-merge master
+Partial deploy master on the Lives:
+  stage: deploy
+  tags:
+    - cds-rep-app-deploy
+  dependencies:
+    - Code analysis post-merge master
+  rules:
+    - if: |+
+        $CI_COMMIT_REF_NAME == "master" &&
+        $CI_PIPELINE_SOURCE == "push"
       when: always
       variables:
         ENVIRONMENT: prod
