@@ -5,7 +5,7 @@
         </x-slot>
 
         <x-validation-errors class="mb-4" />
-
+         <x-flash-messages />
         @session('status')
         <div class="mb-4 font-medium text-sm text-green-600">
             {{ $value }}
