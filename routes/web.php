@@ -14,8 +14,20 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Cache;
-
-Route::middleware(['auth:web', 'verified', '2fa.required'
+// Default redirect for root - check user type
+Route::get('/', function () {
+    if (auth()->check()) {
+        $user = auth()->user();
+        if ($user->user_type === 'merchant') {
+            return redirect('/merchant/dashboard');
+        }
+        if (in_array($user->user_type, ['admin', 'super-admin'])) {
+            return redirect('/admin/dashboard');
+        }
+    }
+    return redirect('/login');
+})->name('home');
+Route::middleware(['auth:web', 'verified', '2fa.required','admin.access'
 ])->group(function () {
     Route::get('/', function () {
         return redirect('/admin/dashboard');
@@ -260,19 +272,4 @@ Route::prefix('merchant')->name('merchant.')->group(function () {
     });
 });
 
-// Default redirect for root - check user type
-Route::get('/', function () {
-    if (auth()->check()) {
-        $user = auth()->user();
 
-        if ($user->user_type === 'merchant') {
-            return redirect('/merchant/dashboard');
-        }
-
-        if (in_array($user->user_type, ['admin', 'super-admin'])) {
-            return redirect('/admin/dashboard');
-        }
-    }
-
-    return redirect('/login');
-})->name('home');
