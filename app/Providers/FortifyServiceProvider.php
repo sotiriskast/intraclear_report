@@ -2,7 +2,6 @@
 
 namespace App\Providers;
 
-use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
 use App\Actions\Fortify\UpdateUserPassword;
 use App\Actions\Fortify\UpdateUserProfileInformation;
@@ -30,8 +29,8 @@ class FortifyServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-//        Fortify::registerView(fn () => abort(404));
-        //        Fortify::createUsersUsing(CreateNewUser::class);
+        //Fortify::registerView(fn () => abort(404));
+        //Fortify::createUsersUsing(CreateNewUser::class);
         Fortify::updateUserProfileInformationUsing(UpdateUserProfileInformation::class);
         Fortify::updateUserPasswordsUsing(UpdateUserPassword::class);
         Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
@@ -59,10 +58,15 @@ class FortifyServiceProvider extends ServiceProvider
                     'route' => $request->route()?->getName()
                 ]);
 
-                // Check if this is admin login route and user is merchant
-                if ($user->user_type === 'merchant' && $request->routeIs('login')) {
-                    // Allow authentication but will be redirected by AuthenticatedSessionController
-                    return $user;
+                // For merchant users, redirect directly to merchant dashboard
+                if ($user->user_type === 'merchant') {
+                    // Store a value in the session to indicate this is a merchant login
+                    // This will be used by the 2FA middleware to bypass 2FA for merchants
+                    session(['is_merchant_user' => true]);
+
+                    // After successful login, redirect to merchant dashboard
+                    redirect('/merchant/dashboard')
+                        ->with('success', 'Welcome! You have been redirected to your merchant portal.');
                 }
 
                 // Allow authentication for all user types
