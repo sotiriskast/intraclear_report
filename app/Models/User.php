@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -81,6 +82,9 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'user_type',
+        'merchant_id'
+
     ];
 
     /**
@@ -115,5 +119,45 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    /**
+     * Get the merchant that owns the user (for merchant users).
+     */
+    public function merchant(): BelongsTo
+    {
+        return $this->belongsTo(Merchant::class);
+    }
+
+    /**
+     * Scope to filter users by type.
+     */
+    public function scopeOfType($query, string $type)
+    {
+        return $query->where('user_type', $type);
+    }
+
+    /**
+     * Check if user is a merchant user.
+     */
+    public function isMerchant(): bool
+    {
+        return $this->user_type === 'merchant';
+    }
+
+    /**
+     * Check if user is an admin user.
+     */
+    public function isAdmin(): bool
+    {
+        return in_array($this->user_type, ['admin', 'super-admin']);
+    }
+
+    /**
+     * Check if user is a super admin.
+     */
+    public function isSuperAdmin(): bool
+    {
+        return $this->user_type === 'super-admin';
     }
 }

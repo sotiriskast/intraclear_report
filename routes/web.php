@@ -67,7 +67,18 @@ Route::middleware(['auth:web', 'verified', '2fa.required'
             Route::put('/shops/{shop}', [ShopController::class, 'update'])->name('admin.shops.update');
             Route::get('/shops/{shop}/settings', [ShopController::class, 'settings'])->name('admin.shops.settings');
         });
-
+        Route::middleware(['can:create-merchant-users'])->group(function () {
+            Route::resource('merchant-users', \App\Http\Controllers\MerchantUserController::class)
+                ->names([
+                    'index' => 'admin.merchant-users.index',
+                    'create' => 'admin.merchant-users.create',
+                    'store' => 'admin.merchant-users.store',
+                    'show' => 'admin.merchant-users.show',
+                    'edit' => 'admin.merchant-users.edit',
+                    'update' => 'admin.merchant-users.update',
+                    'destroy' => 'admin.merchant-users.destroy',
+                ]);
+        });
         // Merchant Fees and Settings
         Route::middleware(['can:manage-merchants-fees'])->group(function () {
             // Shop Fees and Settings
@@ -229,3 +240,39 @@ Route::middleware(['auth:web', 'verified', '2fa.required'
     });
 
 });
+Route::prefix('merchant')->name('merchant.')->group(function () {
+    // Guest routes (not authenticated)
+    Route::middleware('guest')->group(function () {
+        Route::get('/login', [\App\Http\Controllers\Auth\MerchantAuthController::class, 'showLoginForm'])
+            ->name('login');
+        Route::post('/login', [\App\Http\Controllers\Auth\MerchantAuthController::class, 'login'])
+            ->name('login.submit');
+    });
+
+    // Authenticated merchant routes - ISOLATED from admin
+    Route::middleware(['auth:web', 'merchant.access'])->group(function () {
+        Route::post('/logout', [\App\Http\Controllers\Auth\MerchantAuthController::class, 'logout'])
+            ->name('logout');
+
+        Route::get('/dashboard', function () {
+            return view('merchant.dashboard');
+        })->name('dashboard');
+    });
+});
+
+// Default redirect for root - check user type
+Route::get('/', function () {
+    if (auth()->check()) {
+        $user = auth()->user();
+
+        if ($user->user_type === 'merchant') {
+            return redirect('/merchant/dashboard');
+        }
+
+        if (in_array($user->user_type, ['admin', 'super-admin'])) {
+            return redirect('/admin/dashboard');
+        }
+    }
+
+    return redirect('/login');
+})->name('home');

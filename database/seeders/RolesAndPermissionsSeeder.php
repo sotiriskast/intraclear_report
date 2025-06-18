@@ -23,9 +23,9 @@ class RolesAndPermissionsSeeder extends Seeder
             'manage-fees',
             'manage-settlements',
             'manage-merchants-api-keys',
-            'manage-cesop'
-
-            // Add more granular permissions
+            'manage-cesop',
+            'create-merchant-users',
+            'view-merchant-portal',
         ];
 
         foreach ($permissions as $permission) {
@@ -40,14 +40,23 @@ class RolesAndPermissionsSeeder extends Seeder
             'manage-settlements',
             'manage-merchants-fees'
         ]);
-
+        // Create Merchant Role (for merchant portal users)
+        $merchantRole = Role::firstOrCreate(['name' => 'merchant']);
+        $merchantRole->givePermissionTo([
+            'view-merchant-portal'
+        ]);
         // Create Super Admin Role
         $superAdminRole = Role::firstOrCreate(['name' => 'super-admin']);
         $superAdminRole->givePermissionTo(Permission::all());
 
         $user = User::firstOrCreate(
             ['email' => 'root@root.com'],
-            ['name' => 'Super Admin', 'password' => Hash::make('password')]
+            [
+                'name' => 'Super Admin',
+                'password' => Hash::make('password'),
+                'user_type' => 'super-admin'
+            ]
+
         );
 
         $user->assignRole($superAdminRole);
