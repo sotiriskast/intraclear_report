@@ -20,34 +20,32 @@ use Illuminate\Support\Facades\Cache;
 Route::get('/', function () {
     if (auth()->check()) {
         $user = auth()->user();
-
         // CRITICAL: Check if user is active before any redirects
         if (!$user->active) {
             auth()->logout();
+            // Flash message to session for login page
             return redirect('/login')->with('error', 'Your account has been deactivated. Please contact support.');
         }
-
         // Redirect based on user type
         if ($user->user_type === 'merchant') {
             // Additional check: ensure merchant account is also active
             if (!$user->merchant || !$user->merchant->active) {
                 auth()->logout();
-                return redirect('/merchant/login')->with('error', 'Merchant account is inactive. Please contact support.');
+                // Flash message to session for merchant login page
+                return redirect('/login')->with('error', 'Merchant account is inactive. Please contact support.');
             }
             return redirect('/merchant/dashboard');
         }
-
         if (in_array($user->user_type, ['admin', 'super-admin'])) {
             return redirect('/admin/dashboard');
         }
-
         // Unknown user type - logout for security
         auth()->logout();
         return redirect('/login')->with('error', 'Invalid account type. Please contact support.');
     }
-
     return redirect('/login');
 })->name('home');
+
 Route::middleware(['auth:web', 'verified', '2fa.required', 'admin.access'
 ])->group(function () {
     Route::get('/', function () {
