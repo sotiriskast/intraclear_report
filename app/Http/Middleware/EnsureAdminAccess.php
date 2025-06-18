@@ -21,6 +21,20 @@ class EnsureAdminAccess
             return redirect('/login')->with('error', 'Please login to continue.');
         }
 
+        // CRITICAL: Check if user account is active FIRST
+        if (!$user->active) {
+            Log::warning('Inactive user attempted admin access', [
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'ip' => $request->ip(),
+                'user_agent' => $request->userAgent()
+            ]);
+
+            auth()->logout();
+
+            return redirect('/login')->with('error', 'Your account has been deactivated. Please contact support.');
+        }
+
         // CRITICAL: Block merchant users from accessing admin portal
         if ($user->user_type === 'merchant') {
             // Rate limit malicious attempts
@@ -50,14 +64,6 @@ class EnsureAdminAccess
                 'referer' => $request->header('referer')
             ]);
 
-            // For AJAX requests, return JSON error
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'error' => 'Admin access denied',
-                    'redirect' => '/merchant/dashboard'
-                ], 403);
-            }
-
             // Redirect to merchant portal instead of showing error
             return redirect('/merchant/dashboard')
                 ->with('error', 'Access denied. You have been redirected to your merchant portal.');
@@ -72,17 +78,6 @@ class EnsureAdminAccess
             ]);
 
             abort(403, 'Admin access required');
-        }
-
-        // Additional security: Check if admin user is active
-        if (method_exists($user, 'isActive') && !$user->isActive()) {
-            Log::warning('Inactive admin user attempted access', [
-                'user_id' => $user->id,
-                'email' => $user->email
-            ]);
-
-            auth()->logout();
-            return redirect('/login')->with('error', 'Account is inactive. Please contact support.');
         }
 
         return $next($request);

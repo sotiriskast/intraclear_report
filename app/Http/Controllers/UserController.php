@@ -6,10 +6,9 @@ use App\Models\User;
 use App\Models\Merchant;
 use App\Repositories\UserRepository;
 use App\Services\DynamicLogger;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Http\JsonResponse;
 use Spatie\Permission\Models\Role;
 use Illuminate\Support\Facades\Hash;
 
@@ -60,6 +59,7 @@ class UserController extends Controller
             'email' => 'required|email|unique:users,email',
             'password' => 'required|min:8',
             'user_type' => 'required|in:admin,merchant',
+            'active' => 'boolean',
         ];
 
         // Add conditional validation rules based on user type
@@ -71,6 +71,7 @@ class UserController extends Controller
         }
 
         $validated = $request->validate($rules);
+        $validated['active'] = $validated['active'] ?? true; // Default to active
 
         try {
             if ($validated['user_type'] === 'admin') {
@@ -84,53 +85,58 @@ class UserController extends Controller
                     $roleId
                 );
 
+                // Update active status if provided
+                if (isset($validated['active'])) {
+                    $user->update(['active' => $validated['active']]);
+                }
+
                 $this->logger->log('info', 'Admin user created successfully', [
                     'user_id' => $user->id,
-                    'email' => $user->email
+                    'email' => $user->email,
+                    'active' => $user->active
                 ]);
 
                 return redirect()->route('admin.users.index')
                     ->with('message', 'Admin user created successfully.');
-            } else {
-                // For merchant users, create with merchant_id and assign merchant role
+
+            } else if ($validated['user_type'] === 'merchant') {
+                // For merchant users, create directly
                 $user = User::create([
                     'name' => $validated['name'],
                     'email' => $validated['email'],
                     'password' => Hash::make($validated['password']),
-                    'user_type' => 'merchant',
+                    'user_type' => $validated['user_type'],
                     'merchant_id' => $validated['merchant_id'],
+                    'active' => $validated['active'],
                 ]);
-
-                // Assign merchant role
-                $merchantRole = Role::findByName('merchant');
-                $user->assignRole($merchantRole);
 
                 $this->logger->log('info', 'Merchant user created successfully', [
                     'user_id' => $user->id,
                     'email' => $user->email,
-                    'merchant_id' => $validated['merchant_id']
+                    'merchant_id' => $user->merchant_id,
+                    'active' => $user->active
                 ]);
 
                 return redirect()->route('admin.users.index')
                     ->with('message', 'Merchant user created successfully.');
             }
+
         } catch (\Exception $e) {
-            $this->logger->log('error', 'Error creating user: '.$e->getMessage(), [
+            $this->logger->log('error', 'Failed to create user', [
+                'error' => $e->getMessage(),
                 'email' => $validated['email']
             ]);
 
-            return redirect()->back()
-                ->with('error', 'Error creating user: '.$e->getMessage())
-                ->withInput();
+            return back()->withInput()
+                ->with('error', 'Failed to create user. Please try again.');
         }
     }
 
     /**
-     * Show the form for editing the user
+     * Show the form for editing the specified user
      */
     public function edit(User $user)
     {
-        $user->load('roles', 'merchant');
         $roles = Role::all();
         $merchants = Merchant::active()->orderBy('name')->get();
 
@@ -138,132 +144,113 @@ class UserController extends Controller
     }
 
     /**
-     * Update the specified user
+     * Update the specified user in storage
      */
     public function update(Request $request, User $user)
     {
-        // Base validation for all user types
         $rules = [
             'name' => 'required|min:3',
-            'email' => [
-                'required',
-                'email',
-                Rule::unique('users')->ignore($user->id),
-            ],
+            'email' => ['required', 'email', Rule::unique('users')->ignore($user)],
+            'password' => 'nullable|min:8',
             'user_type' => 'required|in:admin,merchant',
+            'active' => 'boolean',
         ];
 
-        // Add conditional validation rules based on user type
         if ($request->user_type === 'admin') {
             $rules['role'] = 'required|exists:roles,id';
         } else if ($request->user_type === 'merchant') {
             $rules['merchant_id'] = 'required|exists:merchants,id';
-        }
-
-        // Password is optional during update
-        $rules['password'] = 'nullable|min:8';
-
-        // Only require password confirmation if password is provided
-        if ($request->filled('password') && $request->user_type === 'merchant') {
-            $rules['password_confirmation'] = 'required|same:password';
+            if ($request->filled('password')) {
+                $rules['password_confirmation'] = 'required|same:password';
+            }
         }
 
         $validated = $request->validate($rules);
 
         try {
-            if ($validated['user_type'] === 'admin') {
-                // For admin users, use the repository
-                $roleId = (int)$validated['role'];
+            $updateData = [
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'user_type' => $validated['user_type'],
+                'active' => $validated['active'] ?? $user->active,
+            ];
 
-                // Update user_type if it's changed
-                if ($user->user_type !== 'admin') {
-                    $user->update(['user_type' => 'admin', 'merchant_id' => null]);
-                }
-
-                $this->userRepository->updateUser(
-                    $user,
-                    $validated['name'],
-                    $validated['email'],
-                    $validated['password'] ?? null,
-                    $roleId
-                );
-
-                $this->logger->log('info', 'Admin user updated successfully', [
-                    'user_id' => $user->id,
-                    'email' => $validated['email']
-                ]);
-            } else {
-                // For merchant users, update with merchant_id
-                $updateData = [
-                    'name' => $validated['name'],
-                    'email' => $validated['email'],
-                    'user_type' => 'merchant',
-                    'merchant_id' => $validated['merchant_id'],
-                ];
-
-                // Only update password if provided
-                if (isset($validated['password'])) {
-                    $updateData['password'] = Hash::make($validated['password']);
-                }
-
-                $user->update($updateData);
-
-                // Ensure user has merchant role
-                $merchantRole = Role::findByName('merchant');
-                $user->syncRoles([$merchantRole]);
-
-                $this->logger->log('info', 'Merchant user updated successfully', [
-                    'user_id' => $user->id,
-                    'email' => $validated['email'],
-                    'merchant_id' => $validated['merchant_id']
-                ]);
+            // Update password if provided
+            if ($request->filled('password')) {
+                $updateData['password'] = Hash::make($validated['password']);
             }
+
+            // Handle merchant_id
+            if ($validated['user_type'] === 'merchant') {
+                $updateData['merchant_id'] = $validated['merchant_id'];
+            } else {
+                $updateData['merchant_id'] = null;
+            }
+
+            $user->update($updateData);
+
+            // Handle role assignment for admin users
+            if ($validated['user_type'] === 'admin' && isset($validated['role'])) {
+                $role = Role::findById($validated['role']);
+                $user->syncRoles([$role]);
+            } else {
+                $user->syncRoles([]);
+            }
+
+            $this->logger->log('info', 'User updated successfully', [
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'active' => $user->active
+            ]);
 
             return redirect()->route('admin.users.index')
                 ->with('message', 'User updated successfully.');
+
         } catch (\Exception $e) {
-            $this->logger->log('error', 'Error updating user: '.$e->getMessage(), [
-                'user_id' => $user->id
+            $this->logger->log('error', 'Failed to update user', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage()
             ]);
 
-            return redirect()->back()
-                ->with('error', 'Error updating user: '.$e->getMessage())
-                ->withInput();
+            return back()->withInput()
+                ->with('error', 'Failed to update user. Please try again.');
         }
     }
 
     /**
-     * Remove the specified user
+     * Remove the specified user from storage
      */
     public function destroy(User $user)
     {
         try {
-            $email = $user->email;
-            $userId = $user->id;
-            $userType = $user->user_type;
+            // Prevent self-deletion
+            if ($user->id === auth()->id()) {
+                return back()->with('error', 'You cannot delete your own account.');
+            }
 
-            $this->userRepository->deleteUser($user);
-
-            $this->logger->log('info', 'User deleted successfully', [
-                'user_id' => $userId,
-                'email' => $email,
-                'user_type' => $userType
+            $this->logger->log('info', 'User deleted', [
+                'user_id' => $user->id,
+                'email' => $user->email
             ]);
+
+            $user->delete();
 
             return redirect()->route('admin.users.index')
                 ->with('message', 'User deleted successfully.');
-        } catch (ValidationException $e) {
-            return redirect()->route('admin.users.index')
-                ->with('error', $e->getMessage());
+
         } catch (\Exception $e) {
-            $this->logger->log('error', 'Error deleting user: '.$e->getMessage(), [
-                'user_id' => $user->id
+            $this->logger->log('error', 'Failed to delete user', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage()
             ]);
 
-            return redirect()->route('admin.users.index')
-                ->with('error', 'Error deleting user: '.$e->getMessage());
+            return back()->with('error', 'Failed to delete user. Please try again.');
         }
     }
+
+    /**
+     * Toggle user active status
+     */
     public function toggleStatus(User $user): JsonResponse
     {
         try {
@@ -279,14 +266,13 @@ class UserController extends Controller
             $user->toggleStatus();
 
             // Log the action
-            activity()
-                ->performedOn($user)
-                ->causedBy(auth()->user())
-                ->withProperties([
-                    'old_status' => $oldStatus,
-                    'new_status' => $user->active
-                ])
-                ->log($user->active ? 'User activated' : 'User deactivated');
+            $this->logger->log('info', $user->active ? 'User activated' : 'User deactivated', [
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'old_status' => $oldStatus,
+                'new_status' => $user->active,
+                'changed_by' => auth()->id()
+            ]);
 
             return response()->json([
                 'success' => true,
@@ -297,6 +283,11 @@ class UserController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            $this->logger->log('error', 'Failed to toggle user status', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage()
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to update user status. Please try again.'
@@ -319,10 +310,11 @@ class UserController extends Controller
 
             $user->activate();
 
-            activity()
-                ->performedOn($user)
-                ->causedBy(auth()->user())
-                ->log('User activated');
+            $this->logger->log('info', 'User activated', [
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'changed_by' => auth()->id()
+            ]);
 
             return response()->json([
                 'success' => true,
@@ -333,6 +325,11 @@ class UserController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            $this->logger->log('error', 'Failed to activate user', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage()
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to activate user. Please try again.'
@@ -363,10 +360,11 @@ class UserController extends Controller
 
             $user->deactivate();
 
-            activity()
-                ->performedOn($user)
-                ->causedBy(auth()->user())
-                ->log('User deactivated');
+            $this->logger->log('info', 'User deactivated', [
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'changed_by' => auth()->id()
+            ]);
 
             return response()->json([
                 'success' => true,
@@ -377,6 +375,11 @@ class UserController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            $this->logger->log('error', 'Failed to deactivate user', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage()
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to deactivate user. Please try again.'

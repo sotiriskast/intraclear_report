@@ -15,21 +15,40 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Cache;
+
 // Default redirect for root - check user type
 Route::get('/', function () {
     if (auth()->check()) {
         $user = auth()->user();
+
+        // CRITICAL: Check if user is active before any redirects
+        if (!$user->active) {
+            auth()->logout();
+            return redirect('/login')->with('error', 'Your account has been deactivated. Please contact support.');
+        }
+
+        // Redirect based on user type
         if ($user->user_type === 'merchant') {
+            // Additional check: ensure merchant account is also active
+            if (!$user->merchant || !$user->merchant->active) {
+                auth()->logout();
+                return redirect('/merchant/login')->with('error', 'Merchant account is inactive. Please contact support.');
+            }
             return redirect('/merchant/dashboard');
         }
+
         if (in_array($user->user_type, ['admin', 'super-admin'])) {
             return redirect('/admin/dashboard');
         }
+
+        // Unknown user type - logout for security
+        auth()->logout();
+        return redirect('/login')->with('error', 'Invalid account type. Please contact support.');
     }
+
     return redirect('/login');
 })->name('home');
-
-Route::middleware(['auth:web', 'verified', '2fa.required','admin.access'
+Route::middleware(['auth:web', 'verified', '2fa.required', 'admin.access'
 ])->group(function () {
     Route::get('/', function () {
         return redirect('/admin/dashboard');
@@ -50,9 +69,12 @@ Route::middleware(['auth:web', 'verified', '2fa.required','admin.access'
                     'update' => 'admin.users.update',
                     'destroy' => 'admin.users.destroy',
                 ]);
-            Route::patch('/{user}/toggle-status', [UserController::class, 'toggleStatus'])->name('toggle-status');
-            Route::patch('/{user}/activate', [UserController::class, 'activate'])->name('activate');
-            Route::patch('/{user}/deactivate', [UserController::class, 'deactivate'])->name('deactivate');
+            Route::patch('users/{user}/toggle-status', [UserController::class, 'toggleStatus'])
+                ->name('admin.users.toggle-status');
+            Route::patch('users/{user}/activate', [UserController::class, 'activate'])
+                ->name('admin.users.activate');
+            Route::patch('users/{user}/deactivate', [UserController::class, 'deactivate'])
+                ->name('admin.users.deactivate');
         });
 
         Route::middleware(['can:manage-roles'])->group(function () {
@@ -129,7 +151,8 @@ Route::middleware(['auth:web', 'verified', '2fa.required','admin.access'
                     'edit' => 'admin.fee-types.edit',
                     'update' => 'admin.fee-types.update',
                     'destroy' => 'admin.fee-types.destroy',
-                ]);        });
+                ]);
+        });
 
         //Settlement Report
         Route::middleware(['can:manage-settlements'])->group(function () {
@@ -218,7 +241,7 @@ Route::middleware(['auth:web', 'verified', '2fa.required','admin.access'
             $healthChecks['status'] = $errorCount > 2 ? 'critical' : 'degraded';
         }
 
-        $statusCode = match($healthChecks['status']) {
+        $statusCode = match ($healthChecks['status']) {
             'ok' => Response::HTTP_OK,
             'degraded' => Response::HTTP_OK, // Still return 200 for degraded
             'critical' => Response::HTTP_SERVICE_UNAVAILABLE,
