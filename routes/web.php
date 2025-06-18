@@ -5,6 +5,7 @@ use App\Http\Controllers\ShopController;
 use App\Http\Controllers\ShopFeeController;
 use App\Http\Controllers\ShopSettingController;
 use App\Http\Controllers\SettlementController;
+use App\Http\Controllers\UserController;
 use App\Livewire\MerchantAnalytics;
 use App\Livewire\MerchantManagement;
 use App\Livewire\MerchantView;
@@ -40,7 +41,7 @@ Route::middleware(['auth:web', 'verified', '2fa.required','admin.access'
 
         Route::middleware(['can:manage-users'])->group(function () {
             // User Management Routes
-            Route::resource('users', \App\Http\Controllers\UserController::class)
+            Route::resource('users', UserController::class)
                 ->names([
                     'index' => 'admin.users.index',
                     'create' => 'admin.users.create',
@@ -49,6 +50,9 @@ Route::middleware(['auth:web', 'verified', '2fa.required','admin.access'
                     'update' => 'admin.users.update',
                     'destroy' => 'admin.users.destroy',
                 ]);
+            Route::patch('/{user}/toggle-status', [UserController::class, 'toggleStatus'])->name('toggle-status');
+            Route::patch('/{user}/activate', [UserController::class, 'activate'])->name('activate');
+            Route::patch('/{user}/deactivate', [UserController::class, 'deactivate'])->name('deactivate');
         });
 
         Route::middleware(['can:manage-roles'])->group(function () {

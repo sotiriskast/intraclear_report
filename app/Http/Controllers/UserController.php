@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\Merchant;
 use App\Repositories\UserRepository;
 use App\Services\DynamicLogger;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -261,6 +262,125 @@ class UserController extends Controller
 
             return redirect()->route('admin.users.index')
                 ->with('error', 'Error deleting user: '.$e->getMessage());
+        }
+    }
+    public function toggleStatus(User $user): JsonResponse
+    {
+        try {
+            // Prevent self-deactivation
+            if ($user->id === auth()->id()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You cannot deactivate your own account.'
+                ], 403);
+            }
+
+            $oldStatus = $user->active;
+            $user->toggleStatus();
+
+            // Log the action
+            activity()
+                ->performedOn($user)
+                ->causedBy(auth()->user())
+                ->withProperties([
+                    'old_status' => $oldStatus,
+                    'new_status' => $user->active
+                ])
+                ->log($user->active ? 'User activated' : 'User deactivated');
+
+            return response()->json([
+                'success' => true,
+                'message' => $user->active ? 'User activated successfully.' : 'User deactivated successfully.',
+                'status' => $user->active,
+                'status_text' => $user->status_text,
+                'status_badge_color' => $user->status_badge_color
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update user status. Please try again.'
+            ], 500);
+        }
+    }
+
+    /**
+     * Activate user
+     */
+    public function activate(User $user): JsonResponse
+    {
+        try {
+            if ($user->active) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'User is already active.'
+                ], 400);
+            }
+
+            $user->activate();
+
+            activity()
+                ->performedOn($user)
+                ->causedBy(auth()->user())
+                ->log('User activated');
+
+            return response()->json([
+                'success' => true,
+                'message' => 'User activated successfully.',
+                'status' => true,
+                'status_text' => 'Active',
+                'status_badge_color' => 'bg-green-100 text-green-800'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to activate user. Please try again.'
+            ], 500);
+        }
+    }
+
+    /**
+     * Deactivate user
+     */
+    public function deactivate(User $user): JsonResponse
+    {
+        try {
+            // Prevent self-deactivation
+            if ($user->id === auth()->id()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You cannot deactivate your own account.'
+                ], 403);
+            }
+
+            if (!$user->active) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'User is already inactive.'
+                ], 400);
+            }
+
+            $user->deactivate();
+
+            activity()
+                ->performedOn($user)
+                ->causedBy(auth()->user())
+                ->log('User deactivated');
+
+            return response()->json([
+                'success' => true,
+                'message' => 'User deactivated successfully.',
+                'status' => false,
+                'status_text' => 'Inactive',
+                'status_badge_color' => 'bg-red-100 text-red-800'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to deactivate user. Please try again.'
+            ], 500);
         }
     }
 }
