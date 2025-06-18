@@ -80,18 +80,6 @@ Route::middleware(['auth:web', 'verified', '2fa.required','admin.access'
             Route::put('/shops/{shop}', [ShopController::class, 'update'])->name('admin.shops.update');
             Route::get('/shops/{shop}/settings', [ShopController::class, 'settings'])->name('admin.shops.settings');
         });
-        Route::middleware(['can:create-merchant-users'])->group(function () {
-            Route::resource('merchant-users', \App\Http\Controllers\MerchantUserController::class)
-                ->names([
-                    'index' => 'admin.merchant-users.index',
-                    'create' => 'admin.merchant-users.create',
-                    'store' => 'admin.merchant-users.store',
-                    'show' => 'admin.merchant-users.show',
-                    'edit' => 'admin.merchant-users.edit',
-                    'update' => 'admin.merchant-users.update',
-                    'destroy' => 'admin.merchant-users.destroy',
-                ]);
-        });
         // Merchant Fees and Settings
         Route::middleware(['can:manage-merchants-fees'])->group(function () {
             // Shop Fees and Settings
