@@ -5,283 +5,272 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
-    <title>@yield('title', 'Merchant Portal') - {{ config('app.name') }}</title>
+    <title>@yield('title', 'Merchant Portal') | {{ config('app.name', 'Laravel') }}</title>
 
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.bunny.net">
+    <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700&display=swap" rel="stylesheet" />
+
     <!-- Font Awesome -->
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    {{-- {{ module_vite('build-merchantportal', 'resources/assets/sass/app.scss') }} --}}
-    <style>
-        :root {
-            --merchant-primary: #6366f1;
-            --merchant-secondary: #8b5cf6;
-            --merchant-success: #10b981;
-            --merchant-warning: #f59e0b;
-            --merchant-danger: #ef4444;
-            --merchant-bg: #f8fafc;
-            --merchant-sidebar: #ffffff;
-        }
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-        body {
-            background-color: var(--merchant-bg);
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-        }
-
-        .merchant-sidebar {
-            background: var(--merchant-sidebar);
-            border-right: 1px solid #e5e7eb;
-            min-height: 100vh;
-            width: 280px;
-            position: fixed;
-            left: 0;
-            top: 0;
-            z-index: 1000;
-            box-shadow: 0 0 15px rgba(0, 0, 0, 0.05);
-        }
-
-        .merchant-content {
-            margin-left: 280px;
-            min-height: 100vh;
-            padding: 0;
-        }
-
-        .merchant-header {
-            background: white;
-            border-bottom: 1px solid #e5e7eb;
-            padding: 1rem 2rem;
-            display: flex;
-            justify-content: between;
-            align-items: center;
-        }
-
-        .merchant-nav-link {
-            display: flex;
-            align-items: center;
-            padding: 0.75rem 1.5rem;
-            color: #6b7280;
-            text-decoration: none;
-            transition: all 0.2s;
-        }
-
-        .merchant-nav-link:hover,
-        .merchant-nav-link.active {
-            background-color: #f3f4f6;
-            color: var(--merchant-primary);
-            text-decoration: none;
-        }
-
-        .merchant-nav-link i {
-            margin-right: 0.75rem;
-            width: 20px;
-            text-align: center;
-        }
-
-        .merchant-card {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-            border: 1px solid #e5e7eb;
-        }
-
-        .stats-card {
-            background: linear-gradient(135deg, var(--merchant-primary), var(--merchant-secondary));
-            color: white;
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin-bottom: 1rem;
-        }
-
-        .stats-card .stats-icon {
-            font-size: 2rem;
-            opacity: 0.8;
-        }
-
-        .merchant-badge {
-            font-size: 0.75rem;
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-weight: 500;
-        }
-
-        .merchant-table {
-            border-radius: 8px;
-            overflow: hidden;
-        }
-
-        .merchant-table th {
-            background-color: #f9fafb;
-            border: none;
-            font-weight: 600;
-            color: #374151;
-            padding: 1rem;
-        }
-
-        .merchant-table td {
-            padding: 1rem;
-            border-top: 1px solid #f3f4f6;
-        }
-
-        @media (max-width: 768px) {
-            .merchant-sidebar {
-                transform: translateX(-100%);
-                transition: transform 0.3s;
-            }
-
-            .merchant-sidebar.show {
-                transform: translateX(0);
-            }
-
-            .merchant-content {
-                margin-left: 0;
-            }
-        }
-    </style>
+    <!-- Vite -->
+    @vite(['resources/css/app.css'])
 
     @stack('styles')
 </head>
-<body>
-<div class="d-flex">
+<body class="bg-gray-50 font-sans antialiased">
+<div class="min-h-screen">
+    <!-- Mobile sidebar backdrop -->
+    <div id="sidebar-backdrop" class="fixed inset-0 z-40 bg-gray-900/50 lg:hidden hidden" onclick="toggleSidebar()"></div>
+
     <!-- Sidebar -->
-    <nav class="merchant-sidebar">
-        <div class="p-4 border-bottom">
-            <div class="d-flex align-items-center">
-                <div class="bg-primary rounded-3 p-2 me-3">
-                    <i class="fas fa-store text-white"></i>
+    <aside id="sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform -translate-x-full transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0">
+        <!-- Logo -->
+        <div class="flex items-center h-16 px-6 border-b border-gray-200">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-store text-white text-sm"></i>
+                    </div>
                 </div>
-                <div>
-                    <h6 class="mb-0 fw-bold">Merchant Portal</h6>
-                    <small class="text-muted">{{ auth()->user()->merchant->name ?? 'Merchant' }}</small>
+                <div class="ml-3">
+                    <div class="text-lg font-semibold text-gray-900">Merchant Portal</div>
+                    <div class="text-xs text-gray-500">{{ auth()->user()->merchant->name ?? 'Merchant Dashboard' }}</div>
                 </div>
             </div>
         </div>
 
-        <div class="py-3">
-            <a href="{{ route('merchant.dashboard') }}"
-               class="merchant-nav-link {{ request()->routeIs('merchant.dashboard') ? 'active' : '' }}">
-                <i class="fas fa-chart-line"></i>
-                Dashboard
-            </a>
+        <!-- Navigation -->
+        <nav class="mt-6 px-3">
+            <div class="space-y-1">
+                <!-- Dashboard -->
+                <a href="{{ route('merchant.dashboard') }}"
+                   class="group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-150 {{ request()->routeIs('merchant.dashboard') ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900' }}">
+                    <i class="fas fa-chart-line w-5 h-5 mr-3 {{ request()->routeIs('merchant.dashboard') ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-500' }}"></i>
+                    Dashboard
+                </a>
 
-            <a href="{{ route('merchant.transactions.index') }}"
-               class="merchant-nav-link {{ request()->routeIs('merchant.transactions.*') ? 'active' : '' }}">
-                <i class="fas fa-credit-card"></i>
-                Transactions
-            </a>
+                <!-- Transactions -->
+                <a href="{{ route('merchant.transactions.index') }}"
+                   class="group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-150 {{ request()->routeIs('merchant.transactions.*') ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900' }}">
+                    <i class="fas fa-credit-card w-5 h-5 mr-3 {{ request()->routeIs('merchant.transactions.*') ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-500' }}"></i>
+                    Transactions
+                </a>
 
-            <a href="{{ route('merchant.shops.index') }}"
-               class="merchant-nav-link {{ request()->routeIs('merchant.shops.*') ? 'active' : '' }}">
-                <i class="fas fa-store"></i>
-                Shops
-            </a>
+                <!-- Shops -->
+                <a href="{{ route('merchant.shops.index') }}"
+                   class="group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-150 {{ request()->routeIs('merchant.shops.*') ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900' }}">
+                    <i class="fas fa-store w-5 h-5 mr-3 {{ request()->routeIs('merchant.shops.*') ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-500' }}"></i>
+                    Shops
+                </a>
 
-            <a href="{{ route('merchant.rolling-reserves.index') }}"
-               class="merchant-nav-link {{ request()->routeIs('merchant.rolling-reserves.*') ? 'active' : '' }}">
-                <i class="fas fa-piggy-bank"></i>
-                Rolling Reserves
-            </a>
-
-            <hr class="my-3 mx-3">
-
-            <div class="px-3">
-                <small class="text-muted text-uppercase fw-bold">Account</small>
+                <!-- Rolling Reserves -->
+                <a href="{{ route('merchant.rolling-reserves.index') }}"
+                   class="group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-150 {{ request()->routeIs('merchant.rolling-reserves.*') ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900' }}">
+                    <i class="fas fa-piggy-bank w-5 h-5 mr-3 {{ request()->routeIs('merchant.rolling-reserves.*') ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-500' }}"></i>
+                    Reserves
+                </a>
             </div>
 
-            <a href="#" class="merchant-nav-link">
-                <i class="fas fa-cog"></i>
-                Settings
-            </a>
+        </nav>
 
-            <form method="POST" action="{{ route('logout') }}" class="d-inline w-100">
-                @csrf
-                <button type="submit" class="merchant-nav-link border-0 bg-transparent w-100 text-start">
-                    <i class="fas fa-sign-out-alt"></i>
-                    Logout
-                </button>
-            </form>
-        </div>
-    </nav>
-
-    <!-- Main Content -->
-    <div class="merchant-content flex-grow-1">
-        <!-- Header -->
-        <header class="merchant-header">
-            <div class="d-flex align-items-center">
-                <button class="btn btn-link d-md-none me-3" type="button" data-bs-toggle="offcanvas"
-                        data-bs-target="#merchantSidebar">
-                    <i class="fas fa-bars"></i>
-                </button>
-                <div>
-                    <h5 class="mb-0">@yield('page-title', 'Dashboard')</h5>
-                    <small class="text-muted">@yield('page-subtitle', 'Welcome to your merchant portal')</small>
+        <!-- User menu at bottom -->
+        <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+                        <i class="fas fa-user text-gray-600 text-sm"></i>
+                    </div>
                 </div>
-            </div>
-
-            <div class="d-flex align-items-center">
-                <!-- Security Badge -->
-                <div class="badge bg-success me-3">
-                    <i class="fas fa-shield-alt me-1"></i>
-                    Secure Access
-                </div>
-
-                <!-- User Menu -->
-                <div class="dropdown">
-                    <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                        <i class="fas fa-user me-2"></i>
+                <div class="ml-3 flex-1 min-w-0">
+                    <div class="text-sm font-medium text-gray-900 truncate">
                         {{ auth()->user()->name }}
-                    </button>
-                    <ul class="dropdown-menu dropdown-menu-end">
-                        <li><h6 class="dropdown-header">{{ auth()->user()->email }}</h6></li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li><a class="dropdown-item" href="#"><i class="fas fa-user me-2"></i>Profile</a></li>
-                        <li><a class="dropdown-item" href="#"><i class="fas fa-cog me-2"></i>Settings</a></li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li>
-                            <form method="POST" action="{{ route('logout') }}" class="d-inline">
-                                @csrf
-                                <button type="submit" class="dropdown-item">
-                                    <i class="fas fa-sign-out-alt me-2"></i>Logout
-                                </button>
-                            </form>
-                        </li>
-                    </ul>
+                    </div>
+                    <div class="text-xs text-gray-500 truncate">
+                        {{ auth()->user()->email }}
+                    </div>
+                </div>
+                <div class="ml-2">
+                    <form method="POST" action="{{ route('logout') }}" class="inline">
+                        @csrf
+                        <button type="submit" class="text-gray-400 hover:text-gray-600 transition-colors duration-150" title="Logout">
+                            <i class="fas fa-sign-out-alt"></i>
+                        </button>
+                    </form>
                 </div>
             </div>
-        </header>
+        </div>
+    </aside>
 
-        <!-- Page Content -->
-        <main class="p-4">
-            @if(session('success'))
-                <div class="alert alert-success alert-dismissible fade show" role="alert">
-                    <i class="fas fa-check-circle me-2"></i>
-                    {{ session('success') }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    <!-- Main content -->
+    <div class="lg:pl-64">
+        <!-- Top navigation -->
+        <div class="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
+            <!-- Mobile menu button -->
+            <button type="button" class="-m-2.5 p-2.5 text-gray-700 lg:hidden" onclick="toggleSidebar()">
+                <span class="sr-only">Open sidebar</span>
+                <i class="fas fa-bars h-6 w-6"></i>
+            </button>
+
+            <!-- Separator -->
+            <div class="h-6 w-px bg-gray-200 lg:hidden" aria-hidden="true"></div>
+
+            <!-- Page title and breadcrumb -->
+            <div class="flex flex-1 items-center gap-x-4 self-stretch lg:gap-x-6">
+                <div class="flex-1">
+                    <div class="flex items-center">
+                        <h1 class="text-lg font-semibold leading-6 text-gray-900">
+                            @yield('page-title', 'Dashboard')
+                        </h1>
+                        @hasSection('page-subtitle')
+                            <div class="hidden sm:block ml-3 text-sm text-gray-500">
+                                @yield('page-subtitle')
+                            </div>
+                        @endif
+                    </div>
+                    @hasSection('breadcrumb')
+                        <nav class="flex mt-1" aria-label="Breadcrumb">
+                            <ol class="flex items-center space-x-2 text-sm text-gray-500">
+                                @yield('breadcrumb')
+                            </ol>
+                        </nav>
+                    @endif
                 </div>
-            @endif
 
-            @if(session('error'))
-                <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    <i class="fas fa-exclamation-circle me-2"></i>
-                    {{ session('error') }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                <!-- Right side items -->
+                <div class="flex items-center gap-x-4 lg:gap-x-6">
+                    <!-- Notifications -->
+                    <button type="button" class="-m-2.5 p-2.5 text-gray-400 hover:text-gray-500">
+                        <span class="sr-only">View notifications</span>
+                        <i class="fas fa-bell h-5 w-5"></i>
+                    </button>
+
+                    <!-- Separator -->
+                    <div class="hidden lg:block lg:h-6 lg:w-px lg:bg-gray-200" aria-hidden="true"></div>
+
+                    <!-- Profile dropdown -->
+                    <div class="relative">
+                        <button type="button" class="-m-1.5 flex items-center p-1.5" id="user-menu-button" onclick="toggleUserMenu()">
+                            <span class="sr-only">Open user menu</span>
+                            <div class="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center">
+                                <i class="fas fa-user text-gray-600 text-sm"></i>
+                            </div>
+                            <span class="hidden lg:flex lg:items-center">
+                                    <span class="ml-4 text-sm font-semibold leading-6 text-gray-900">{{ auth()->user()->name }}</span>
+                                    <i class="ml-2 h-5 w-5 text-gray-400 fas fa-chevron-down"></i>
+                                </span>
+                        </button>
+
+                        <!-- Dropdown menu -->
+                        <div id="user-menu" class="hidden absolute right-0 z-10 mt-2.5 w-32 origin-top-right rounded-md bg-white py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none">
+{{--                            <a href="{{ route('merchant.profile.edit') }}" class="block px-3 py-1 text-sm leading-6 text-gray-900 hover:bg-gray-50">Profile</a>--}}
+                            <form method="POST" action="{{ route('logout') }}">
+                                @csrf
+                                <button type="submit" class="block w-full text-left px-3 py-1 text-sm leading-6 text-gray-900 hover:bg-gray-50">Sign out</button>
+                            </form>
+                        </div>
+                    </div>
                 </div>
-            @endif
+            </div>
+        </div>
 
-            @yield('content')
+        <!-- Page content -->
+        <main class="py-6">
+            <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                <!-- Flash messages -->
+                @if (session('success'))
+                    <div class="mb-6 rounded-md bg-green-50 p-4">
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <i class="fas fa-check-circle h-5 w-5 text-green-400"></i>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-sm font-medium text-green-800">{{ session('success') }}</p>
+                            </div>
+                        </div>
+                    </div>
+                @endif
+
+                @if (session('error'))
+                    <div class="mb-6 rounded-md bg-red-50 p-4">
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <i class="fas fa-exclamation-circle h-5 w-5 text-red-400"></i>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-sm font-medium text-red-800">{{ session('error') }}</p>
+                            </div>
+                        </div>
+                    </div>
+                @endif
+
+                @if ($errors->any())
+                    <div class="mb-6 rounded-md bg-red-50 p-4">
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <i class="fas fa-exclamation-triangle h-5 w-5 text-red-400"></i>
+                            </div>
+                            <div class="ml-3">
+                                <h3 class="text-sm font-medium text-red-800">There were errors with your submission</h3>
+                                <div class="mt-2 text-sm text-red-700">
+                                    <ul class="list-disc space-y-1 pl-5">
+                                        @foreach ($errors->all() as $error)
+                                            <li>{{ $error }}</li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                @endif
+
+                <!-- Page content -->
+                @yield('content')
+            </div>
         </main>
     </div>
 </div>
 
-<!-- Bootstrap JS -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<!-- Scripts -->
+@vite(['resources/js/app.js'])
+
+<script>
+    function toggleSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const backdrop = document.getElementById('sidebar-backdrop');
+
+        sidebar.classList.toggle('-translate-x-full');
+        backdrop.classList.toggle('hidden');
+    }
+
+    function toggleUserMenu() {
+        const menu = document.getElementById('user-menu');
+        menu.classList.toggle('hidden');
+    }
+
+    // Close user menu when clicking outside
+    document.addEventListener('click', function(event) {
+        const menu = document.getElementById('user-menu');
+        const button = document.getElementById('user-menu-button');
+
+        if (!menu.contains(event.target) && !button.contains(event.target)) {
+            menu.classList.add('hidden');
+        }
+    });
+
+    // Close mobile sidebar when clicking outside
+    document.addEventListener('click', function(event) {
+        const sidebar = document.getElementById('sidebar');
+        const backdrop = document.getElementById('sidebar-backdrop');
+
+        if (event.target === backdrop) {
+            sidebar.classList.add('-translate-x-full');
+            backdrop.classList.add('hidden');
+        }
+    });
+</script>
+
 @stack('scripts')
-{{-- {{ module_vite('build-merchantportal', 'resources/assets/js/app.js') }} --}}
 </body>
 </html>
