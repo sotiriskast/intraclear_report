@@ -36,9 +36,6 @@ Route::get('/', function () {
             }
             return redirect('/merchant/dashboard');
         }
-        if (in_array($user->user_type, ['admin', 'super-admin'])) {
-            return redirect('/admin/dashboard');
-        }
         // Unknown user type - logout for security
         auth()->logout();
         return redirect('/login')->with('error', 'Invalid account type. Please contact support.');
