@@ -2,260 +2,387 @@
 
 @section('title', 'Transactions')
 @section('page-title', 'Transactions')
-@section('page-subtitle', 'Manage and view your transaction history')
+@section('page-subtitle', 'Manage and monitor all your payment transactions')
 
 @section('breadcrumb')
-    <li class="flex items-center">
-        <a href="{{ route('merchant.dashboard') }}" class="text-gray-400 hover:text-gray-500">Dashboard</a>
-        <i class="fas fa-chevron-right mx-2 text-gray-300"></i>
+    <li>
+        <div class="flex items-center">
+            <i class="fas fa-chevron-right h-3 w-3 text-gray-400 mx-2"></i>
+            <span class="text-sm font-medium text-gray-900">Transactions</span>
+        </div>
     </li>
-    <li class="text-gray-900">Transactions</li>
+@endsection
+
+@section('page-actions')
+    <div class="flex items-center space-x-3">
+        <!-- Export Button -->
+        <button type="button" onclick="exportTransactions()" class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-150">
+            <i class="fas fa-download -ml-1 mr-2 h-4 w-4"></i>
+            Export
+        </button>
+
+        <!-- Refresh Button -->
+        <button type="button" onclick="location.reload()" class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-150">
+            <i class="fas fa-sync-alt -ml-1 mr-2 h-4 w-4"></i>
+            Refresh
+        </button>
+    </div>
 @endsection
 
 @section('content')
-    <!-- Filters and Search -->
-    <div class="bg-white shadow rounded-lg mb-6">
-        <div class="p-6">
-            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                <!-- Search -->
-                <div class="flex-1 max-w-lg">
-                    <div class="relative">
-                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <i class="fas fa-search text-gray-400"></i>
+    <!-- Filters Section -->
+    <div class="bg-white shadow-sm rounded-xl ring-1 ring-gray-900/5 mb-6" x-data="{ filtersOpen: {{ request()->hasAny(['date_from', 'date_to', 'status', 'shop_id', 'amount_min', 'amount_max', 'payment_id']) ? 'true' : 'false' }} }">
+        <div class="p-6 border-b border-gray-200">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900 flex items-center">
+                        <i class="fas fa-filter mr-3 text-blue-500"></i>
+                        Transaction Filters
+                    </h3>
+                    <p class="mt-1 text-sm text-gray-500">Filter and search your transactions</p>
+                </div>
+                <button @click="filtersOpen = !filtersOpen" type="button" class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-colors duration-150">
+                    <span x-text="filtersOpen ? 'Hide Filters' : 'Show Filters'"></span>
+                    <i class="fas fa-chevron-down ml-2 h-4 w-4 transform transition-transform duration-200" :class="{ 'rotate-180': filtersOpen }"></i>
+                </button>
+            </div>
+        </div>
+
+        <div x-show="filtersOpen" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 transform -translate-y-2" x-transition:enter-end="opacity-100 transform translate-y-0" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 transform translate-y-0" x-transition:leave-end="opacity-0 transform -translate-y-2" class="p-6">
+            <form method="GET" action="{{ route('merchant.transactions.index') }}" class="space-y-6">
+                <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                    <!-- Date Range -->
+                    <div class="sm:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Date Range</label>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="relative">
+                                <input type="date" name="date_from" value="{{ request('date_from') }}" class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                <label class="absolute -top-2 left-2 inline-block bg-white px-1 text-xs font-medium text-gray-500">From</label>
+                            </div>
+                            <div class="relative">
+                                <input type="date" name="date_to" value="{{ request('date_to') }}" class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                <label class="absolute -top-2 left-2 inline-block bg-white px-1 text-xs font-medium text-gray-500">To</label>
+                            </div>
                         </div>
-                        <input type="text"
-                               id="search"
-                               name="search"
-                               class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                               placeholder="Search transactions..."
-                               value="{{ request('search') }}">
+                    </div>
+
+                    <!-- Status Filter -->
+                    <div>
+                        <label for="status" class="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                        <select name="status" id="status" class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                            <option value="">All Statuses</option>
+                            <option value="pending" {{ request('status') === 'pending' ? 'selected' : '' }}>Pending</option>
+                            <option value="processing" {{ request('status') === 'processing' ? 'selected' : '' }}>Processing</option>
+                            <option value="matched" {{ request('status') === 'matched' ? 'selected' : '' }}>Completed</option>
+                            <option value="failed" {{ request('status') === 'failed' ? 'selected' : '' }}>Failed</option>
+                        </select>
+                    </div>
+
+                    <!-- Shop Filter -->
+                    <div>
+                        <label for="shop_id" class="block text-sm font-medium text-gray-700 mb-2">Shop</label>
+                        <select name="shop_id" id="shop_id" class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                            <option value="">All Shops</option>
+                            @foreach($shops ?? [] as $shop)
+                                <option value="{{ $shop->id }}" {{ request('shop_id') == $shop->id ? 'selected' : '' }}>
+                                    {{ $shop->name }}
+                                </option>
+                            @endforeach
+                        </select>
                     </div>
                 </div>
 
-                <!-- Filters -->
-                <div class="flex flex-wrap gap-3">
-                    <!-- Status Filter -->
-                    <select class="block px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-                        <option value="">All Statuses</option>
-                        <option value="completed" {{ request('status') === 'completed' ? 'selected' : '' }}>Completed</option>
-                        <option value="pending" {{ request('status') === 'pending' ? 'selected' : '' }}>Pending</option>
-                        <option value="failed" {{ request('status') === 'failed' ? 'selected' : '' }}>Failed</option>
-                        <option value="refunded" {{ request('status') === 'refunded' ? 'selected' : '' }}>Refunded</option>
-                    </select>
+                <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                    <!-- Amount Range -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="relative">
+                            <input type="number" name="amount_min" value="{{ request('amount_min') }}" placeholder="0.00" step="0.01" class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                            <label class="absolute -top-2 left-2 inline-block bg-white px-1 text-xs font-medium text-gray-500">Min Amount (€)</label>
+                        </div>
+                        <div class="relative">
+                            <input type="number" name="amount_max" value="{{ request('amount_max') }}" placeholder="1000.00" step="0.01" class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                            <label class="absolute -top-2 left-2 inline-block bg-white px-1 text-xs font-medium text-gray-500">Max Amount (€)</label>
+                        </div>
+                    </div>
 
-                    <!-- Date Range -->
-                    <input type="date"
-                           class="block px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                           value="{{ request('date_from') }}"
-                           placeholder="From Date">
+                    <!-- Payment ID Search -->
+                    <div class="relative">
+                        <input type="text" name="payment_id" value="{{ request('payment_id') }}" placeholder="Search by Payment ID" class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                        <label class="absolute -top-2 left-2 inline-block bg-white px-1 text-xs font-medium text-gray-500">Payment ID</label>
+                    </div>
 
-                    <input type="date"
-                           class="block px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                           value="{{ request('date_to') }}"
-                           placeholder="To Date">
-
-                    <!-- Export Button -->
-                    <button type="button"
-                            class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                        <i class="fas fa-download mr-2"></i>
-                        Export
-                    </button>
+                    <!-- Merchant Name Search -->
+                    <div class="relative">
+                        <input type="text" name="merchant_name" value="{{ request('merchant_name') }}" placeholder="Search by Merchant Name" class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                        <label class="absolute -top-2 left-2 inline-block bg-white px-1 text-xs font-medium text-gray-500">Merchant Name</label>
+                    </div>
                 </div>
-            </div>
+
+                <!-- Filter Actions -->
+                <div class="flex items-center justify-between pt-4 border-t border-gray-200">
+                    <div class="flex items-center space-x-3">
+                        <button type="submit" class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-150">
+                            <i class="fas fa-search -ml-1 mr-2 h-4 w-4"></i>
+                            Apply Filters
+                        </button>
+
+                        @if(request()->hasAny(['date_from', 'date_to', 'status', 'shop_id', 'amount_min', 'amount_max', 'payment_id', 'merchant_name']))
+                            <a href="{{ route('merchant.transactions.index') }}" class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-150">
+                                <i class="fas fa-times -ml-1 mr-2 h-4 w-4"></i>
+                                Clear Filters
+                            </a>
+                        @endif
+                    </div>
+
+                    <div class="text-sm text-gray-500">
+                        Showing {{ $transactions->count() }} of {{ $transactions->total() }} transactions
+                    </div>
+                </div>
+            </form>
         </div>
     </div>
 
-    <!-- Summary Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        <!-- Total Volume -->
-        <div class="bg-white overflow-hidden shadow rounded-lg">
-            <div class="p-5">
-                <div class="flex items-center">
-                    <div class="flex-shrink-0">
-                        <i class="fas fa-dollar-sign text-2xl text-blue-600"></i>
+    <!-- Transaction Statistics -->
+    <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+        <!-- Total Transactions -->
+        <div class="bg-white shadow-sm rounded-lg ring-1 ring-gray-900/5 p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
+                        <i class="fas fa-credit-card text-blue-600"></i>
                     </div>
-                    <div class="ml-5 w-0 flex-1">
-                        <dl>
-                            <dt class="text-sm font-medium text-gray-500 truncate">Total Volume</dt>
-                            <dd class="text-2xl font-bold text-gray-900">${{ number_format($summary['total_volume'] ?? 0, 2) }}</dd>
-                        </dl>
-                    </div>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">Total Transactions</p>
+                    <p class="text-2xl font-semibold text-gray-900">{{ $transactions->total() }}</p>
                 </div>
             </div>
         </div>
 
-        <!-- Total Count -->
-        <div class="bg-white overflow-hidden shadow rounded-lg">
-            <div class="p-5">
-                <div class="flex items-center">
-                    <div class="flex-shrink-0">
-                        <i class="fas fa-hashtag text-2xl text-green-600"></i>
+        <!-- Total Volume -->
+        <div class="bg-white shadow-sm rounded-lg ring-1 ring-gray-900/5 p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100">
+                        <i class="fas fa-euro-sign text-green-600"></i>
                     </div>
-                    <div class="ml-5 w-0 flex-1">
-                        <dl>
-                            <dt class="text-sm font-medium text-gray-500 truncate">Total Transactions</dt>
-                            <dd class="text-2xl font-bold text-gray-900">{{ number_format($summary['total_count'] ?? 0) }}</dd>
-                        </dl>
-                    </div>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">Total Volume</p>
+                    <p class="text-2xl font-semibold text-gray-900">€{{ number_format($totalVolume ?? 0, 0) }}</p>
                 </div>
             </div>
         </div>
 
         <!-- Success Rate -->
-        <div class="bg-white overflow-hidden shadow rounded-lg">
-            <div class="p-5">
-                <div class="flex items-center">
-                    <div class="flex-shrink-0">
-                        <i class="fas fa-chart-line text-2xl text-yellow-600"></i>
+        <div class="bg-white shadow-sm rounded-lg ring-1 ring-gray-900/5 p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100">
+                        <i class="fas fa-check-circle text-green-600"></i>
                     </div>
-                    <div class="ml-5 w-0 flex-1">
-                        <dl>
-                            <dt class="text-sm font-medium text-gray-500 truncate">Success Rate</dt>
-                            <dd class="text-2xl font-bold text-gray-900">{{ number_format($summary['success_rate'] ?? 0, 1) }}%</dd>
-                        </dl>
-                    </div>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">Success Rate</p>
+                    <p class="text-2xl font-semibold text-gray-900">{{ number_format($successRate ?? 0, 1) }}%</p>
                 </div>
             </div>
         </div>
 
         <!-- Average Amount -->
-        <div class="bg-white overflow-hidden shadow rounded-lg">
-            <div class="p-5">
-                <div class="flex items-center">
-                    <div class="flex-shrink-0">
-                        <i class="fas fa-calculator text-2xl text-purple-600"></i>
+        <div class="bg-white shadow-sm rounded-lg ring-1 ring-gray-900/5 p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100">
+                        <i class="fas fa-chart-line text-purple-600"></i>
                     </div>
-                    <div class="ml-5 w-0 flex-1">
-                        <dl>
-                            <dt class="text-sm font-medium text-gray-500 truncate">Average Amount</dt>
-                            <dd class="text-2xl font-bold text-gray-900">${{ number_format($summary['average_amount'] ?? 0, 2) }}</dd>
-                        </dl>
-                    </div>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">Average Amount</p>
+                    <p class="text-2xl font-semibold text-gray-900">€{{ number_format($averageAmount ?? 0, 0) }}</p>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Transactions Table -->
-    <div class="bg-white shadow overflow-hidden rounded-lg">
+    <div class="bg-white shadow-sm rounded-xl ring-1 ring-gray-900/5 overflow-hidden">
         <div class="px-6 py-4 border-b border-gray-200">
-            <h3 class="text-lg leading-6 font-medium text-gray-900">
-                Transaction History
-            </h3>
-            <p class="mt-1 text-sm text-gray-500">
-                A list of all transactions in your account including their status and details.
-            </p>
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-gray-900">Transactions</h3>
+                <div class="flex items-center space-x-3">
+                    <select onchange="changePerPage(this.value)" class="text-sm border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                        <option value="25" {{ request('per_page') == 25 ? 'selected' : '' }}>25 per page</option>
+                        <option value="50" {{ request('per_page') == 50 ? 'selected' : '' }}>50 per page</option>
+                        <option value="100" {{ request('per_page') == 100 ? 'selected' : '' }}>100 per page</option>
+                    </select>
+                </div>
+            </div>
         </div>
 
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                <tr>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Transaction
-                    </th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Shop
-                    </th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Amount
-                    </th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
-                    </th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Date
-                    </th>
-                    <th scope="col" class="relative px-6 py-3">
-                        <span class="sr-only">Actions</span>
-                    </th>
-                </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
-                @forelse($transactions ?? [] as $transaction)
-                    <tr class="hover:bg-gray-50">
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="flex items-center">
-                                <div class="flex-shrink-0 h-10 w-10">
-                                    <div class="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center">
-                                        <i class="fas fa-credit-card text-gray-600"></i>
-                                    </div>
-                                </div>
-                                <div class="ml-4">
-                                    <div class="text-sm font-medium text-gray-900">
-                                        {{ $transaction->reference ?? 'TX-' . $transaction->id }}
-                                    </div>
-                                    <div class="text-sm text-gray-500">
-                                        {{ $transaction->payment_method ?? 'Card Payment' }}
-                                    </div>
-                                </div>
-                            </div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm text-gray-900">{{ $transaction->shop->name ?? 'N/A' }}</div>
-                            <div class="text-sm text-gray-500">{{ $transaction->shop->domain ?? '' }}</div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm font-medium text-gray-900">
-                                ${{ number_format($transaction->amount ?? 0, 2) }}
-                            </div>
-                            <div class="text-sm text-gray-500">
-                                {{ $transaction->currency ?? 'USD' }}
-                            </div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            @php
-                                $statusClasses = [
-                                    'completed' => 'bg-green-100 text-green-800',
-                                    'pending' => 'bg-yellow-100 text-yellow-800',
-                                    'failed' => 'bg-red-100 text-red-800',
-                                    'refunded' => 'bg-blue-100 text-blue-800',
-                                    'cancelled' => 'bg-gray-100 text-gray-800'
-                                ];
-                                $status = $transaction->status ?? 'pending';
-                                $classes = $statusClasses[$status] ?? 'bg-gray-100 text-gray-800';
-                            @endphp
-                            <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full {{ $classes }}">
-                                    {{ ucfirst($status) }}
-                                </span>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <div>{{ $transaction->created_at->format('M d, Y') ?? 'N/A' }}</div>
-                            <div>{{ $transaction->created_at->format('H:i:s') ?? '' }}</div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <div class="flex items-center justify-end space-x-2">
-                                <a href="{{ route('merchant.transactions.show', $transaction->id) }}"
-                                   class="text-blue-600 hover:text-blue-900 transition-colors duration-150">
-                                    <i class="fas fa-eye"></i>
-                                </a>
-                                <button type="button"
-                                        class="text-gray-600 hover:text-gray-900 transition-colors duration-150"
-                                        onclick="copyToClipboard('{{ $transaction->reference }}')">
-                                    <i class="fas fa-copy"></i>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                @empty
+        @if($transactions->isNotEmpty())
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
                     <tr>
-                        <td colspan="6" class="px-6 py-12 text-center">
-                            <div class="text-gray-500">
-                                <i class="fas fa-credit-card text-4xl mb-4"></i>
-                                <h3 class="text-lg font-medium text-gray-900 mb-2">No transactions found</h3>
-                                <p class="text-sm">Try adjusting your search criteria or check back later.</p>
-                            </div>
-                        </td>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <a href="{{ request()->fullUrlWithQuery(['sort' => 'payment_id', 'direction' => request('direction') === 'asc' ? 'desc' : 'asc']) }}" class="group inline-flex items-center hover:text-gray-900">
+                                Payment ID
+                                <span class="ml-2 flex-none rounded text-gray-400 group-hover:text-gray-500">
+                                        <i class="fas fa-sort h-3 w-3"></i>
+                                    </span>
+                            </a>
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Shop
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <a href="{{ request()->fullUrlWithQuery(['sort' => 'tr_amount', 'direction' => request('direction') === 'asc' ? 'desc' : 'asc']) }}" class="group inline-flex items-center hover:text-gray-900">
+                                Amount
+                                <span class="ml-2 flex-none rounded text-gray-400 group-hover:text-gray-500">
+                                        <i class="fas fa-sort h-3 w-3"></i>
+                                    </span>
+                            </a>
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Status
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <a href="{{ request()->fullUrlWithQuery(['sort' => 'tr_date_time', 'direction' => request('direction') === 'asc' ? 'desc' : 'asc']) }}" class="group inline-flex items-center hover:text-gray-900">
+                                Date & Time
+                                <span class="ml-2 flex-none rounded text-gray-400 group-hover:text-gray-500">
+                                        <i class="fas fa-sort h-3 w-3"></i>
+                                    </span>
+                            </a>
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Actions
+                        </th>
                     </tr>
-                @endforelse
-                </tbody>
-            </table>
-        </div>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                    @foreach($transactions as $transaction)
+                        <tr class="hover:bg-gray-50 transition-colors duration-150">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm font-medium text-gray-900">
+                                    {{ $transaction->payment_id }}
+                                </div>
+                                @if($transaction->merchant_transaction_id)
+                                    <div class="text-xs text-gray-500">
+                                        Merchant: {{ $transaction->merchant_transaction_id }}
+                                    </div>
+                                @endif
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <div class="h-8 w-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center mr-3">
+                                        <span class="text-white text-xs font-bold">{{ substr($transaction->shop->name ?? 'U', 0, 1) }}</span>
+                                    </div>
+                                    <div>
+                                        <div class="text-sm font-medium text-gray-900">{{ $transaction->shop->name ?? 'Unknown Shop' }}</div>
+                                        <div class="text-xs text-gray-500">ID: {{ $transaction->shop_id }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm font-semibold text-gray-900">
+                                    €{{ number_format($transaction->tr_amount / 100, 2) }}
+                                </div>
+                                <div class="text-xs text-gray-500">
+                                    {{ $transaction->tr_currency }}
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                        @switch($transaction->status)
+                                            @case('matched')
+                                                bg-green-100 text-green-800
+                                                @break
+                                            @case('failed')
+                                                bg-red-100 text-red-800
+                                                @break
+                                            @case('pending')
+                                                bg-yellow-100 text-yellow-800
+                                                @break
+                                            @case('processing')
+                                                bg-blue-100 text-blue-800
+                                                @break
+                                            @default
+                                                bg-gray-100 text-gray-800
+                                        @endswitch
+                                    ">
+                                        <i class="fas fa-{{ $transaction->status === 'matched' ? 'check' : ($transaction->status === 'failed' ? 'times' : 'clock') }} mr-1 h-3 w-3"></i>
+                                        {{ ucfirst($transaction->status) }}
+                                    </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm text-gray-900">
+                                    {{ $transaction->tr_date_time->format('M j, Y') }}
+                                </div>
+                                <div class="text-xs text-gray-500">
+                                    {{ $transaction->tr_date_time->format('H:i:s') }}
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                <div class="flex items-center space-x-2">
+                                    <a href="{{ route('merchant.transactions.show', $transaction->id) }}" class="text-blue-600 hover:text-blue-900 transition-colors duration-150">
+                                        <i class="fas fa-eye h-4 w-4"></i>
+                                        <span class="sr-only">View</span>
+                                    </a>
+                                    <button type="button" onclick="copyToClipboard('{{ $transaction->payment_id }}')" class="text-gray-400 hover:text-gray-600 transition-colors duration-150">
+                                        <i class="fas fa-copy h-4 w-4"></i>
+                                        <span class="sr-only">Copy ID</span>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    @endforeach
+                    </tbody>
+                </table>
+            </div>
 
-        <!-- Pagination -->
-        @if(isset($transactions) && method_exists($transactions, 'links'))
-            <div class="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
-                {{ $transactions->links() }}
+            <!-- Pagination -->
+            <div class="bg-white px-6 py-4 border-t border-gray-200">
+                <div class="flex items-center justify-between">
+                    <div class="flex-1 flex justify-between sm:hidden">
+                        @if($transactions->hasPages())
+                            {{ $transactions->appends(request()->query())->links() }}
+                        @endif
+                    </div>
+                    <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                        <div>
+                            <p class="text-sm text-gray-700">
+                                Showing <span class="font-medium">{{ $transactions->firstItem() }}</span> to
+                                <span class="font-medium">{{ $transactions->lastItem() }}</span> of
+                                <span class="font-medium">{{ $transactions->total() }}</span> results
+                            </p>
+                        </div>
+                        @if($transactions->hasPages())
+                            <div>
+                                {{ $transactions->appends(request()->query())->links() }}
+                            </div>
+                        @endif
+                    </div>
+                </div>
+            </div>
+        @else
+            <!-- Empty State -->
+            <div class="text-center py-12">
+                <i class="fas fa-credit-card text-4xl text-gray-300 mb-4"></i>
+                <h3 class="text-lg font-medium text-gray-900 mb-2">No transactions found</h3>
+                <p class="text-gray-500 mb-6">
+                    @if(request()->hasAny(['date_from', 'date_to', 'status', 'shop_id', 'amount_min', 'amount_max', 'payment_id', 'merchant_name']))
+                        No transactions match your current filters. Try adjusting your search criteria.
+                    @else
+                        You haven't received any transactions yet. Once you start processing payments, they'll appear here.
+                    @endif
+                </p>
+                @if(request()->hasAny(['date_from', 'date_to', 'status', 'shop_id', 'amount_min', 'amount_max', 'payment_id', 'merchant_name']))
+                    <a href="{{ route('merchant.transactions.index') }}" class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-150">
+                        <i class="fas fa-times -ml-1 mr-2 h-4 w-4"></i>
+                        Clear Filters
+                    </a>
+                @endif
             </div>
         @endif
     </div>
@@ -263,85 +390,54 @@
 
 @push('scripts')
     <script>
-        // Copy to clipboard functionality
+        function changePerPage(value) {
+            const url = new URL(window.location.href);
+            url.searchParams.set('per_page', value);
+            url.searchParams.delete('page');
+            window.location.href = url.toString();
+        }
+
+        function exportTransactions() {
+            const url = new URL('{{ route("merchant.transactions.index") }}');
+            const params = new URLSearchParams(window.location.search);
+            params.set('export', 'csv');
+
+            // Create a temporary form to submit the export request
+            const form = document.createElement('form');
+            form.method = 'GET';
+            form.action = url.pathname;
+
+            for (const [key, value] of params) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = key;
+                input.value = value;
+                form.appendChild(input);
+            }
+
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+        }
+
         function copyToClipboard(text) {
             navigator.clipboard.writeText(text).then(function() {
-                // Show success message
-                showNotification('Transaction reference copied to clipboard!', 'success');
-            }).catch(function(err) {
-                console.error('Failed to copy: ', err);
-                showNotification('Failed to copy to clipboard', 'error');
+                // You could show a toast notification here
+                console.log('Copied to clipboard: ' + text);
+            }, function(err) {
+                console.error('Could not copy text: ', err);
             });
         }
 
-        // Show notification
-        function showNotification(message, type = 'info') {
-            const notification = document.createElement('div');
-            notification.className = `fixed top-4 right-4 z-50 max-w-sm w-full bg-white border-l-4 p-4 shadow-lg rounded-md transition-all duration-300 ${
-                type === 'success' ? 'border-green-400' :
-                    type === 'error' ? 'border-red-400' : 'border-blue-400'
-            }`;
-
-            notification.innerHTML = `
-                <div class="flex">
-                    <div class="flex-shrink-0">
-                        <i class="fas ${
-                type === 'success' ? 'fa-check-circle text-green-400' :
-                    type === 'error' ? 'fa-exclamation-circle text-red-400' : 'fa-info-circle text-blue-400'
-            }"></i>
-                    </div>
-                    <div class="ml-3">
-                        <p class="text-sm text-gray-700">${message}</p>
-                    </div>
-                    <div class="ml-auto pl-3">
-                        <button class="text-gray-400 hover:text-gray-600" onclick="this.parentElement.parentElement.parentElement.remove()">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                </div>
-            `;
-
-            document.body.appendChild(notification);
-
-            // Auto remove after 3 seconds
-            setTimeout(() => {
-                if (notification.parentNode) {
-                    notification.remove();
-                }
-            }, 3000);
-        }
-
-        // Search functionality
-        document.getElementById('search').addEventListener('input', debounce(function(e) {
-            // Implement search functionality here
-            console.log('Searching for:', e.target.value);
-        }, 300));
-
-        // Debounce function
-        function debounce(func, wait) {
-            let timeout;
-            return function executedFunction(...args) {
-                const later = () => {
-                    clearTimeout(timeout);
-                    func(...args);
-                };
-                clearTimeout(timeout);
-                timeout = setTimeout(later, wait);
-            };
-        }
-
-        // Filter form submission
-        document.querySelectorAll('select, input[type="date"]').forEach(element => {
-            element.addEventListener('change', function() {
-                // You can implement auto-filtering here
-                console.log('Filter changed:', this.name, this.value);
+        // Auto-submit form when date inputs change
+        document.addEventListener('DOMContentLoaded', function() {
+            const dateInputs = document.querySelectorAll('input[type="date"]');
+            dateInputs.forEach(input => {
+                input.addEventListener('change', function() {
+                    // Optional: Auto-submit on date change
+                    // this.form.submit();
+                });
             });
-        });
-
-        // Export functionality
-        document.querySelector('[data-action="export"]')?.addEventListener('click', function() {
-            // Implement export functionality
-            showNotification('Export functionality will be implemented soon', 'info');
         });
     </script>
 @endpush

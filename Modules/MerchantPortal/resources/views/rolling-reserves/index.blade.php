@@ -2,423 +2,765 @@
 
 @section('title', 'Rolling Reserves')
 @section('page-title', 'Rolling Reserves')
+@section('page-subtitle', 'Monitor and track your rolling reserve balances')
+
+@section('breadcrumb')
+    <li>
+        <div class="flex items-center">
+            <i class="fas fa-chevron-right h-3 w-3 text-gray-400 mx-2"></i>
+            <span class="text-sm font-medium text-gray-900">Rolling Reserves</span>
+        </div>
+    </li>
+@endsection
+
+@section('page-actions')
+    <div class="flex items-center space-x-3">
+        <!-- Export Button -->
+        <button type="button" onclick="exportReserves()" class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-150">
+            <i class="fas fa-download -ml-1 mr-2 h-4 w-4"></i>
+            Export
+        </button>
+
+        <!-- Refresh Button -->
+        <button type="button" onclick="location.reload()" class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-150">
+            <i class="fas fa-sync-alt -ml-1 mr-2 h-4 w-4"></i>
+            Refresh
+        </button>
+    </div>
+@endsection
 
 @section('content')
-    <!-- Header with Info -->
-    <div class="mb-8">
-        <div class="md:flex md:items-center md:justify-between">
-            <div class="flex-1 min-w-0">
-                <h1 class="text-2xl font-bold text-gray-900">Rolling Reserves</h1>
-                <p class="mt-1 text-sm text-gray-500">Monitor your reserve funds and release schedule</p>
-            </div>
-
-            <div class="mt-4 flex md:mt-0 md:ml-4">
-                <button type="button"
-                        onclick="downloadReport()"
-                        class="btn-secondary mr-3">
-                    <svg class="-ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    Download Report
-                </button>
-
-                <button type="button"
-                        onclick="refreshData()"
-                        class="btn-primary">
-                    <svg class="-ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    Refresh
-                </button>
-            </div>
-        </div>
-
-        <!-- Info Banner -->
-        <div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div class="flex">
+    <!-- Reserve Summary Cards -->
+    <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+        <!-- Total Reserve Amount -->
+        <div class="bg-white shadow-sm rounded-xl ring-1 ring-gray-900/5 p-6 hover:shadow-lg transition-shadow duration-300">
+            <div class="flex items-center">
                 <div class="flex-shrink-0">
-                    <svg class="h-5 w-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                </div>
-                <div class="ml-3 flex-1 md:flex md:justify-between">
-                    <p class="text-sm text-blue-700">
-                        Rolling reserves are funds held from your transactions as a security measure. These funds are automatically released based on your agreed schedule.
-                    </p>
-                    <p class="mt-3 text-sm md:mt-0 md:ml-6">
-                        <a href="#" class="whitespace-nowrap font-medium text-blue-700 hover:text-blue-600">
-                            Learn more <span aria-hidden="true">&rarr;</span>
-                        </a>
-                    </p>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Summary Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <!-- Total Reserved -->
-        <div class="card">
-            <div class="card-body">
-                <div class="flex items-center">
-                    <div class="flex-shrink-0">
-                        <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                            <svg class="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0012 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3 .52m-3-.52l2.62 10.726c.122.499-.106 1.012-.329 1.243-.329.329-.778.329-1.15.329H19.5m-6 0h-2.25m2.25 0h6m-6 0v1.5c0 .621.504 1.125 1.125 1.125M12 7.5h1.5m-1.5 0h-1.5m1.5 0v2.25" />
-                            </svg>
-                        </div>
+                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-r from-yellow-500 to-yellow-600 shadow-lg">
+                        <i class="fas fa-piggy-bank text-white"></i>
                     </div>
-                    <div class="ml-4 flex-1">
-                        <div class="text-sm font-medium text-gray-500">Total Reserved</div>
-                        <div class="text-2xl font-bold text-gray-900">€{{ number_format($summary['total_reserved'] ?? 0, 2) }}</div>
-                        <div class="text-sm text-gray-500">Current balance</div>
+                </div>
+                <div class="ml-4 flex-1">
+                    <dl>
+                        <dt class="text-sm font-medium text-gray-500">Total Reserve</dt>
+                        <dd class="text-2xl font-bold text-gray-900">€{{ number_format($totalReserve ?? 0, 2) }}</dd>
+                    </dl>
+                    <div class="mt-2 flex items-center text-sm">
+                        <span class="text-yellow-600 font-medium">
+                            Across all shops
+                        </span>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Available for Release -->
-        <div class="card">
-            <div class="card-body">
-                <div class="flex items-center">
-                    <div class="flex-shrink-0">
-                        <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                            <svg class="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                        </div>
+        <!-- Pending Release -->
+        <div class="bg-white shadow-sm rounded-xl ring-1 ring-gray-900/5 p-6 hover:shadow-lg transition-shadow duration-300">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 shadow-lg">
+                        <i class="fas fa-clock text-white"></i>
                     </div>
-                    <div class="ml-4 flex-1">
-                        <div class="text-sm font-medium text-gray-500">Available for Release</div>
-                        <div class="text-2xl font-bold text-green-600">€{{ number_format($summary['available_for_release'] ?? 0, 2) }}</div>
-                        <div class="text-sm text-gray-500">Ready now</div>
+                </div>
+                <div class="ml-4 flex-1">
+                    <dl>
+                        <dt class="text-sm font-medium text-gray-500">Pending Release</dt>
+                        <dd class="text-2xl font-bold text-gray-900">€{{ number_format($pendingRelease ?? 0, 2) }}</dd>
+                    </dl>
+                    <div class="mt-2 flex items-center text-sm">
+                        <span class="text-blue-600 font-medium">
+                            Next 30 days
+                        </span>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Next Release -->
-        <div class="card">
-            <div class="card-body">
-                <div class="flex items-center">
-                    <div class="flex-shrink-0">
-                        <div class="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
-                            <svg class="w-6 h-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                        </div>
+        <!-- Available Balance -->
+        <div class="bg-white shadow-sm rounded-xl ring-1 ring-gray-900/5 p-6 hover:shadow-lg transition-shadow duration-300">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-r from-green-500 to-green-600 shadow-lg">
+                        <i class="fas fa-money-bill-wave text-white"></i>
                     </div>
-                    <div class="ml-4 flex-1">
-                        <div class="text-sm font-medium text-gray-500">Next Release</div>
-                        <div class="text-2xl font-bold text-gray-900">€{{ number_format($summary['next_release_amount'] ?? 0, 2) }}</div>
-                        <div class="text-sm text-gray-500">{{ $summary['next_release_date'] ?? 'TBD' }}</div>
+                </div>
+                <div class="ml-4 flex-1">
+                    <dl>
+                        <dt class="text-sm font-medium text-gray-500">Available Balance</dt>
+                        <dd class="text-2xl font-bold text-gray-900">€{{ number_format($availableBalance ?? 0, 2) }}</dd>
+                    </dl>
+                    <div class="mt-2 flex items-center text-sm">
+                        <span class="text-green-600 font-medium">
+                            Ready for payout
+                        </span>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Reserve Rate -->
-        <div class="card">
-            <div class="card-body">
-                <div class="flex items-center">
-                    <div class="flex-shrink-0">
-                        <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-                            <svg class="w-6 h-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                            </svg>
-                        </div>
+        <!-- Reserve Percentage -->
+        <div class="bg-white shadow-sm rounded-xl ring-1 ring-gray-900/5 p-6 hover:shadow-lg transition-shadow duration-300">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-r from-purple-500 to-purple-600 shadow-lg">
+                        <i class="fas fa-percentage text-white"></i>
                     </div>
-                    <div class="ml-4 flex-1">
-                        <div class="text-sm font-medium text-gray-500">Reserve Rate</div>
-                        <div class="text-2xl font-bold text-gray-900">{{ $summary['reserve_rate'] ?? 0 }}%</div>
-                        <div class="text-sm text-gray-500">Current rate</div>
+                </div>
+                <div class="ml-4 flex-1">
+                    <dl>
+                        <dt class="text-sm font-medium text-gray-500">Avg Reserve Rate</dt>
+                        <dd class="text-2xl font-bold text-gray-900">{{ number_format($averageReserveRate ?? 0, 1) }}%</dd>
+                    </dl>
+                    <div class="mt-2 flex items-center text-sm">
+                        <div class="flex-1 bg-gray-200 rounded-full h-2 mr-2">
+                            <div class="bg-gradient-to-r from-purple-500 to-purple-600 h-2 rounded-full transition-all duration-500"
+                                 style="width: {{ min($averageReserveRate ?? 0, 100) }}%"></div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Charts and Timeline -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        <!-- Reserve Chart -->
-        <div class="lg:col-span-2">
-            <div class="card">
-                <div class="card-header">
-                    <div class="flex items-center justify-between">
-                        <h3 class="text-lg font-semibold text-gray-900">Reserve Balance Over Time</h3>
-                        <div class="flex rounded-lg bg-gray-100 p-1">
-                            <button class="px-3 py-1 text-sm font-medium text-gray-600 rounded-md bg-white shadow-sm">30 Days</button>
-                            <button class="px-3 py-1 text-sm font-medium text-gray-500 rounded-md">90 Days</button>
-                            <button class="px-3 py-1 text-sm font-medium text-gray-500 rounded-md">1 Year</button>
-                        </div>
-                    </div>
+    <!-- Filters Section -->
+    <div class="bg-white shadow-sm rounded-xl ring-1 ring-gray-900/5 mb-6" x-data="{ filtersOpen: {{ request()->hasAny(['shop_id', 'status', 'date_from', 'date_to']) ? 'true' : 'false' }} }">
+        <div class="p-6 border-b border-gray-200">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900 flex items-center">
+                        <i class="fas fa-filter mr-3 text-blue-500"></i>
+                        Reserve Filters
+                    </h3>
+                    <p class="mt-1 text-sm text-gray-500">Filter reserves by shop, status, and date range</p>
                 </div>
-
-                <div class="card-body">
-                    <!-- Chart placeholder -->
-                    <div class="h-80 bg-gray-50 rounded-lg flex items-center justify-center">
-                        <div class="text-center">
-                            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                            </svg>
-                            <h3 class="mt-2 text-sm font-medium text-gray-900">Reserve Balance Chart</h3>
-                            <p class="mt-1 text-sm text-gray-500">Chart will be rendered here with your chart library</p>
-                        </div>
-                    </div>
-                </div>
+                <button @click="filtersOpen = !filtersOpen" type="button" class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-colors duration-150">
+                    <span x-text="filtersOpen ? 'Hide Filters' : 'Show Filters'"></span>
+                    <i class="fas fa-chevron-down ml-2 h-4 w-4 transform transition-transform duration-200" :class="{ 'rotate-180': filtersOpen }"></i>
+                </button>
             </div>
         </div>
 
-        <!-- Upcoming Releases -->
-        <div class="space-y-6">
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="text-lg font-semibold text-gray-900">Upcoming Releases</h3>
+        <div x-show="filtersOpen" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 transform -translate-y-2" x-transition:enter-end="opacity-100 transform translate-y-0" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 transform translate-y-0" x-transition:leave-end="opacity-0 transform -translate-y-2" class="p-6">
+            <form method="GET" action="{{ route('merchant.rolling-reserves.index') }}" class="space-y-6">
+                <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                    <!-- Shop Filter -->
+                    <div>
+                        <label for="shop_id" class="block text-sm font-medium text-gray-700 mb-2">Shop</label>
+                        <select name="shop_id" id="shop_id" class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                            <option value="">All Shops</option>
+                            @foreach($shops ?? [] as $shop)
+                                <option value="{{ $shop->id }}" {{ request('shop_id') == $shop->id ? 'selected' : '' }}>
+                                    {{ $shop->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <!-- Status Filter -->
+                    <div>
+                        <label for="status" class="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                        <select name="status" id="status" class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                            <option value="">All Statuses</option>
+                            <option value="active" {{ request('status') === 'active' ? 'selected' : '' }}>Active</option>
+                            <option value="released" {{ request('status') === 'released' ? 'selected' : '' }}>Released</option>
+                            <option value="pending" {{ request('status') === 'pending' ? 'selected' : '' }}>Pending</option>
+                        </select>
+                    </div>
+
+                    <!-- Date Range -->
+                    <div class="grid grid-cols-2 gap-3 sm:col-span-2">
+                        <div class="relative">
+                            <input type="date" name="date_from" value="{{ request('date_from') }}" class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                            <label class="absolute -top-2 left-2 inline-block bg-white px-1 text-xs font-medium text-gray-500">From Date</label>
+                        </div>
+                        <div class="relative">
+                            <input type="date" name="date_to" value="{{ request('date_to') }}" class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                            <label class="absolute -top-2 left-2 inline-block bg-white px-1 text-xs font-medium text-gray-500">To Date</label>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="card-body p-0">
-                    <div class="divide-y divide-gray-200">
-                        @forelse($upcoming_releases ?? [] as $release)
-                            <div class="p-4 hover:bg-gray-50">
-                                <div class="flex items-center justify-between">
-                                    <div>
-                                        <p class="text-sm font-medium text-gray-900">€{{ number_format($release['amount'], 2) }}</p>
-                                        <p class="text-sm text-gray-500">{{ $release['date'] }}</p>
-                                    </div>
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $release['status'] === 'scheduled' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800' }}">
-                                        {{ ucfirst($release['status']) }}
-                                    </span>
+                <!-- Filter Actions -->
+                <div class="flex items-center justify-between pt-4 border-t border-gray-200">
+                    <div class="flex items-center space-x-3">
+                        <button type="submit" class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-150">
+                            <i class="fas fa-search -ml-1 mr-2 h-4 w-4"></i>
+                            Apply Filters
+                        </button>
+
+                        @if(request()->hasAny(['shop_id', 'status', 'date_from', 'date_to']))
+                            <a href="{{ route('merchant.rolling-reserves.index') }}" class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-150">
+                                <i class="fas fa-times -ml-1 mr-2 h-4 w-4"></i>
+                                Clear Filters
+                            </a>
+                        @endif
+                    </div>
+
+                    <div class="text-sm text-gray-500">
+                        Showing {{ $reserves->count() ?? 0 }} reserves
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Rolling Reserves by Shop -->
+    @if(isset($shopReserves) && $shopReserves->isNotEmpty())
+        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3 mb-8">
+            @foreach($shopReserves as $shopReserve)
+                <div class="bg-white shadow-sm rounded-xl ring-1 ring-gray-900/5 overflow-hidden hover:shadow-lg transition-shadow duration-300">
+                    <!-- Shop Header -->
+                    <div class="p-6 border-b border-gray-200 bg-gradient-to-r from-yellow-50 to-yellow-100">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <div class="h-12 w-12 rounded-xl bg-gradient-to-r from-yellow-500 to-yellow-600 flex items-center justify-center shadow-lg">
+                                    <span class="text-white text-lg font-bold">{{ substr($shopReserve->shop_name, 0, 1) }}</span>
+                                </div>
+                                <div>
+                                    <h3 class="text-lg font-semibold text-gray-900">{{ $shopReserve->shop_name }}</h3>
+                                    <p class="text-sm text-gray-500">Shop ID: {{ $shopReserve->shop_id }}</p>
                                 </div>
                             </div>
-                        @empty
-                            <div class="p-4 text-center text-gray-500">
-                                <p class="text-sm">No upcoming releases scheduled</p>
+
+                            <!-- Reserve Rate Badge -->
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800">
+                                {{ number_format($shopReserve->reserve_percentage, 1) }}% rate
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Reserve Metrics -->
+                    <div class="p-6">
+                        <div class="grid grid-cols-2 gap-4 mb-6">
+                            <!-- Current Reserve -->
+                            <div class="text-center p-4 bg-gray-50 rounded-lg">
+                                <div class="text-2xl font-bold text-gray-900">€{{ number_format($shopReserve->current_reserve ?? 0, 2) }}</div>
+                                <div class="text-xs text-gray-500 uppercase tracking-wide">Current Reserve</div>
                             </div>
-                        @endforelse
+
+                            <!-- Pending Release -->
+                            <div class="text-center p-4 bg-gray-50 rounded-lg">
+                                <div class="text-2xl font-bold text-gray-900">€{{ number_format($shopReserve->pending_release ?? 0, 2) }}</div>
+                                <div class="text-xs text-gray-500 uppercase tracking-wide">Pending Release</div>
+                            </div>
+                        </div>
+
+                        <!-- Reserve Timeline -->
+                        <div class="space-y-3">
+                            <h4 class="text-sm font-medium text-gray-900">Release Schedule</h4>
+
+                            @if(isset($shopReserve->upcoming_releases) && $shopReserve->upcoming_releases->isNotEmpty())
+                                <div class="space-y-2">
+                                    @foreach($shopReserve->upcoming_releases->take(3) as $release)
+                                        <div class="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                                            <div class="flex items-center space-x-3">
+                                                <div class="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                                <div>
+                                                    <div class="text-sm font-medium text-gray-900">
+                                                        {{ $release->release_date->format('M j, Y') }}
+                                                    </div>
+                                                    <div class="text-xs text-gray-500">
+                                                        {{ $release->release_date->diffForHumans() }}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="text-sm font-semibold text-gray-900">
+                                                €{{ number_format($release->amount, 2) }}
+                                            </div>
+                                        </div>
+                                    @endforeach
+
+                                    @if($shopReserve->upcoming_releases->count() > 3)
+                                        <div class="text-center">
+                                            <span class="text-xs text-gray-500">
+                                                +{{ $shopReserve->upcoming_releases->count() - 3 }} more releases
+                                            </span>
+                                        </div>
+                                    @endif
+                                </div>
+                            @else
+                                <div class="text-center py-4">
+                                    <i class="fas fa-calendar-times text-gray-300 text-2xl mb-2"></i>
+                                    <p class="text-sm text-gray-500">No upcoming releases</p>
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+
+                    <!-- Shop Actions -->
+                    <div class="px-6 py-4 bg-gray-50 border-t border-gray-200">
+                        <div class="flex items-center justify-between">
+                            <a href="{{ route('merchant.shops.show', $shopReserve->shop_id) }}"
+                               class="inline-flex items-center text-blue-600 hover:text-blue-900 text-sm font-medium transition-colors duration-150">
+                                <i class="fas fa-store mr-1 h-3 w-3"></i>
+                                View Shop
+                            </a>
+                            <a href="{{ route('merchant.transactions.index', ['shop_id' => $shopReserve->shop_id]) }}"
+                               class="inline-flex items-center text-green-600 hover:text-green-900 text-sm font-medium transition-colors duration-150">
+                                <i class="fas fa-credit-card mr-1 h-3 w-3"></i>
+                                Transactions
+                            </a>
+                        </div>
                     </div>
                 </div>
-            </div>
-
-            <!-- Quick Actions -->
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="text-lg font-semibold text-gray-900">Quick Actions</h3>
-                </div>
-
-                <div class="card-body space-y-3">
-                    <button type="button"
-                            onclick="requestEarlyRelease()"
-                            class="w-full btn-primary">
-                        Request Early Release
-                    </button>
-
-                    <button type="button"
-                            onclick="viewReleaseSchedule()"
-                            class="w-full btn-secondary">
-                        View Release Schedule
-                    </button>
-
-                    <button type="button"
-                            onclick="downloadStatement()"
-                            class="w-full btn-secondary">
-                        Download Statement
-                    </button>
-                </div>
-            </div>
+            @endforeach
         </div>
-    </div>
+    @endif
 
-    <!-- Reserve Entries Table -->
-    <div class="card">
-        <div class="card-header">
+    <!-- Detailed Reserve History Table -->
+    <div class="bg-white shadow-sm rounded-xl ring-1 ring-gray-900/5 overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200">
             <div class="flex items-center justify-between">
-                <h3 class="text-lg font-semibold text-gray-900">Reserve Entries</h3>
-
-                <!-- Filters -->
+                <h3 class="text-lg font-semibold text-gray-900 flex items-center">
+                    <i class="fas fa-history mr-3 text-blue-500"></i>
+                    Reserve History
+                </h3>
                 <div class="flex items-center space-x-3">
-                    <select class="form-select text-sm" onchange="filterByStatus(this.value)">
-                        <option value="">All Statuses</option>
-                        <option value="reserved">Reserved</option>
-                        <option value="released">Released</option>
-                        <option value="scheduled">Scheduled for Release</option>
-                    </select>
-
-                    <select class="form-select text-sm" onchange="filterByPeriod(this.value)">
-                        <option value="30">Last 30 Days</option>
-                        <option value="90">Last 90 Days</option>
-                        <option value="365">Last Year</option>
-                        <option value="all">All Time</option>
+                    <select onchange="changePerPage(this.value)" class="text-sm border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                        <option value="25" {{ request('per_page') == 25 ? 'selected' : '' }}>25 per page</option>
+                        <option value="50" {{ request('per_page') == 50 ? 'selected' : '' }}>50 per page</option>
+                        <option value="100" {{ request('per_page') == 100 ? 'selected' : '' }}>100 per page</option>
                     </select>
                 </div>
             </div>
         </div>
 
-        <div class="overflow-x-auto">
-            <table class="table">
-                <thead class="table-header">
-                <tr>
-                    <th class="table-header-cell">Date</th>
-                    <th class="table-header-cell">Transaction ID</th>
-                    <th class="table-header-cell">Amount Reserved</th>
-                    <th class="table-header-cell">Release Date</th>
-                    <th class="table-header-cell">Status</th>
-                    <th class="table-header-cell">Actions</th>
-                </tr>
-                </thead>
-                <tbody class="table-body">
-                @forelse($reserves ?? [] as $reserve)
-                    <tr class="table-row-hover">
-                        <td class="table-cell">
-                            <div class="text-sm text-gray-900">{{ $reserve->created_at->format('M d, Y') }}</div>
-                            <div class="text-xs text-gray-500">{{ $reserve->created_at->format('H:i:s') }}</div>
-                        </td>
-
-                        <td class="table-cell">
-                            @if($reserve->transaction)
-                                <a href="{{ route('merchantportal.transactions.show', $reserve->transaction) }}"
-                                   class="text-indigo-600 hover:text-indigo-500 font-mono text-sm">
-                                    #{{ $reserve->transaction->transaction_id }}
-                                </a>
-                            @else
-                                <span class="text-gray-400">—</span>
-                            @endif
-                        </td>
-
-                        <td class="table-cell">
-                            <div class="text-sm font-medium text-gray-900">€{{ number_format($reserve->amount, 2) }}</div>
-                            @if($reserve->rate)
-                                <div class="text-xs text-gray-500">{{ $reserve->rate }}% rate</div>
-                            @endif
-                        </td>
-
-                        <td class="table-cell">
-                            @if($reserve->release_date)
-                                <div class="text-sm text-gray-900">{{ $reserve->release_date->format('M d, Y') }}</div>
+        @if(isset($reserves) && $reserves->isNotEmpty())
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                    <tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <a href="{{ request()->fullUrlWithQuery(['sort' => 'transaction_date', 'direction' => request('direction') === 'asc' ? 'desc' : 'asc']) }}" class="group inline-flex items-center hover:text-gray-900">
+                                Transaction Date
+                                <span class="ml-2 flex-none rounded text-gray-400 group-hover:text-gray-500">
+                                        <i class="fas fa-sort h-3 w-3"></i>
+                                    </span>
+                            </a>
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Shop
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Transaction ID
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <a href="{{ request()->fullUrlWithQuery(['sort' => 'reserve_amount', 'direction' => request('direction') === 'asc' ? 'desc' : 'asc']) }}" class="group inline-flex items-center hover:text-gray-900">
+                                Reserve Amount
+                                <span class="ml-2 flex-none rounded text-gray-400 group-hover:text-gray-500">
+                                        <i class="fas fa-sort h-3 w-3"></i>
+                                    </span>
+                            </a>
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Reserve %
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <a href="{{ request()->fullUrlWithQuery(['sort' => 'release_date', 'direction' => request('direction') === 'asc' ? 'desc' : 'asc']) }}" class="group inline-flex items-center hover:text-gray-900">
+                                Release Date
+                                <span class="ml-2 flex-none rounded text-gray-400 group-hover:text-gray-500">
+                                        <i class="fas fa-sort h-3 w-3"></i>
+                                    </span>
+                            </a>
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Status
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Actions
+                        </th>
+                    </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                    @foreach($reserves as $reserve)
+                        <tr class="hover:bg-gray-50 transition-colors duration-150">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm font-medium text-gray-900">
+                                    {{ $reserve->transaction_date->format('M j, Y') }}
+                                </div>
+                                <div class="text-xs text-gray-500">
+                                    {{ $reserve->transaction_date->format('H:i:s') }}
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <div class="h-8 w-8 rounded-full bg-gradient-to-r from-yellow-500 to-yellow-600 flex items-center justify-center mr-3">
+                                        <span class="text-white text-xs font-bold">{{ substr($reserve->shop->name ?? 'U', 0, 1) }}</span>
+                                    </div>
+                                    <div>
+                                        <div class="text-sm font-medium text-gray-900">{{ $reserve->shop->name ?? 'Unknown Shop' }}</div>
+                                        <div class="text-xs text-gray-500">ID: {{ $reserve->shop_id }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm font-medium text-gray-900">
+                                    {{ $reserve->transaction->payment_id ?? $reserve->transaction_id }}
+                                </div>
+                                <div class="text-xs text-gray-500">
+                                    €{{ number_format($reserve->transaction_amount / 100, 2) }} transaction
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm font-semibold text-gray-900">
+                                    €{{ number_format($reserve->reserve_amount, 2) }}
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                        {{ number_format($reserve->reserve_percentage, 1) }}%
+                                    </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm text-gray-900">
+                                    {{ $reserve->release_date->format('M j, Y') }}
+                                </div>
                                 <div class="text-xs text-gray-500">
                                     {{ $reserve->release_date->diffForHumans() }}
                                 </div>
-                            @else
-                                <span class="text-gray-400">Not scheduled</span>
-                            @endif
-                        </td>
-
-                        <td class="table-cell">
-                            @switch($reserve->status)
-                                @case('reserved')
-                                    <span class="badge badge-warning">Reserved</span>
-                                    @break
-                                @case('released')
-                                    <span class="badge badge-success">Released</span>
-                                    @break
-                                @case('scheduled')
-                                    <span class="badge badge-info">Scheduled</span>
-                                    @break
-                                @default
-                                    <span class="badge badge-gray">{{ ucfirst($reserve->status) }}</span>
-                            @endswitch
-                        </td>
-
-                        <td class="table-cell">
-                            <div class="flex items-center space-x-2">
-                                <button type="button"
-                                        onclick="viewReserveDetails({{ $reserve->id }})"
-                                        class="text-indigo-600 hover:text-indigo-500 text-sm">
-                                    View
-                                </button>
-
-                                @if($reserve->status === 'reserved' && $reserve->eligible_for_early_release)
-                                    <button type="button"
-                                            onclick="requestEarlyReleaseFor({{ $reserve->id }})"
-                                            class="text-green-600 hover:text-green-500 text-sm">
-                                        Request Release
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                        @switch($reserve->status)
+                                            @case('released')
+                                                bg-green-100 text-green-800
+                                                @break
+                                            @case('pending')
+                                                bg-yellow-100 text-yellow-800
+                                                @break
+                                            @case('active')
+                                                bg-blue-100 text-blue-800
+                                                @break
+                                            @default
+                                                bg-gray-100 text-gray-800
+                                        @endswitch
+                                    ">
+                                        <i class="fas fa-{{ $reserve->status === 'released' ? 'check' : ($reserve->status === 'pending' ? 'clock' : 'circle') }} mr-1 h-3 w-3"></i>
+                                        {{ ucfirst($reserve->status) }}
+                                    </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                <div class="flex items-center space-x-2">
+                                    <a href="{{ route('merchant.transactions.show', $reserve->transaction_id) }}" class="text-blue-600 hover:text-blue-900 transition-colors duration-150">
+                                        <i class="fas fa-eye h-4 w-4"></i>
+                                        <span class="sr-only">View transaction</span>
+                                    </a>
+                                    <button type="button" onclick="copyToClipboard('{{ $reserve->transaction_id }}')" class="text-gray-400 hover:text-gray-600 transition-colors duration-150">
+                                        <i class="fas fa-copy h-4 w-4"></i>
+                                        <span class="sr-only">Copy transaction ID</span>
                                     </button>
-                                @endif
-                            </div>
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="6" class="px-6 py-12 text-center">
-                            <div class="flex flex-col items-center">
-                                <svg class="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0012 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3 .52m-3-.52l2.62 10.726c.122.499-.106 1.012-.329 1.243-.329.329-.778.329-1.15.329H19.5m-6 0h-2.25m2.25 0h6m-6 0v1.5c0 .621.504 1.125 1.125 1.125M12 7.5h1.5m-1.5 0h-1.5m1.5 0v2.25" />
-                                </svg>
-                                <h3 class="mt-4 text-sm font-medium text-gray-900">No reserve entries</h3>
-                                <p class="mt-2 text-sm text-gray-500">Reserve entries will appear here as transactions are processed.</p>
-                            </div>
-                        </td>
-                    </tr>
-                @endforelse
-                </tbody>
-            </table>
-        </div>
+                                </div>
+                            </td>
+                        </tr>
+                    @endforeach
+                    </tbody>
+                </table>
+            </div>
 
-        @if(isset($reserves) && $reserves->hasPages())
-            <div class="card-footer">
-                {{ $reserves->links() }}
+            <!-- Pagination -->
+            @if($reserves->hasPages())
+                <div class="bg-white px-6 py-4 border-t border-gray-200">
+                    <div class="flex items-center justify-between">
+                        <div class="flex-1 flex justify-between sm:hidden">
+                            {{ $reserves->appends(request()->query())->links() }}
+                        </div>
+                        <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                            <div>
+                                <p class="text-sm text-gray-700">
+                                    Showing <span class="font-medium">{{ $reserves->firstItem() }}</span> to
+                                    <span class="font-medium">{{ $reserves->lastItem() }}</span> of
+                                    <span class="font-medium">{{ $reserves->total() }}</span> results
+                                </p>
+                            </div>
+                            <div>
+                                {{ $reserves->appends(request()->query())->links() }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            @endif
+        @else
+            <!-- Empty State -->
+            <div class="text-center py-12">
+                <div class="mx-auto h-24 w-24 rounded-full bg-gray-100 flex items-center justify-center mb-6">
+                    <i class="fas fa-piggy-bank text-4xl text-gray-400"></i>
+                </div>
+                <h3 class="text-lg font-medium text-gray-900 mb-2">No rolling reserves found</h3>
+                <p class="text-gray-500 mb-8 max-w-md mx-auto">
+                    @if(request()->hasAny(['shop_id', 'status', 'date_from', 'date_to']))
+                        No reserves match your current filters. Try adjusting your search criteria.
+                    @else
+                        No rolling reserves have been created yet. Reserves will appear here as transactions are processed.
+                    @endif
+                </p>
+                @if(request()->hasAny(['shop_id', 'status', 'date_from', 'date_to']))
+                    <div class="flex items-center justify-center space-x-4">
+                        <a href="{{ route('merchant.rolling-reserves.index') }}" class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-150">
+                            <i class="fas fa-times -ml-1 mr-2 h-4 w-4"></i>
+                            Clear Filters
+                        </a>
+                        <button type="button" onclick="location.reload()" class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-150">
+                            <i class="fas fa-sync-alt -ml-1 mr-2 h-4 w-4"></i>
+                            Refresh
+                        </button>
+                    </div>
+                @endif
             </div>
         @endif
     </div>
 
-    @push('scripts')
-        <script>
-            function refreshData() {
-                window.location.reload();
-            }
+    <!-- Reserve Release Calendar -->
+    @if(isset($upcomingReleases) && $upcomingReleases->isNotEmpty())
+        <div class="mt-8 bg-white shadow-sm rounded-xl ring-1 ring-gray-900/5 overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-900 flex items-center">
+                    <i class="fas fa-calendar-alt mr-3 text-green-500"></i>
+                    Upcoming Reserve Releases
+                </h3>
+                <p class="mt-1 text-sm text-gray-500">Schedule of reserve releases over the next 90 days</p>
+            </div>
 
-            function downloadReport() {
-                // Implement report download
-                console.log('Downloading rolling reserves report');
-            }
+            <div class="p-6">
+                <div class="space-y-4">
+                    @foreach($upcomingReleases->groupBy(function($date) { return $date->release_date->format('Y-m-d'); }) as $date => $releases)
+                        <div class="flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-green-100 rounded-lg border border-green-200">
+                            <div class="flex items-center space-x-4">
+                                <div class="flex-shrink-0">
+                                    <div class="h-12 w-12 rounded-xl bg-gradient-to-r from-green-500 to-green-600 flex items-center justify-center shadow-lg">
+                                        <i class="fas fa-calendar-check text-white"></i>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="text-lg font-semibold text-gray-900">
+                                        {{ \Carbon\Carbon::parse($date)->format('M j, Y') }}
+                                    </div>
+                                    <div class="text-sm text-gray-600">
+                                        {{ \Carbon\Carbon::parse($date)->diffForHumans() }} • {{ $releases->count() }} release{{ $releases->count() > 1 ? 's' : '' }}
+                                    </div>
+                                </div>
+                            </div>
 
-            function requestEarlyRelease() {
-                // Implement early release request
-                console.log('Requesting early release');
-            }
+                            <div class="text-right">
+                                <div class="text-2xl font-bold text-gray-900">
+                                    €{{ number_format($releases->sum('amount'), 2) }}
+                                </div>
+                                <div class="text-sm text-gray-500">
+                                    Total release amount
+                                </div>
+                            </div>
+                        </div>
 
-            function viewReleaseSchedule() {
-                // Implement release schedule view
-                console.log('Viewing release schedule');
-            }
+                        <!-- Detailed breakdown for this date -->
+                        <div class="ml-16 space-y-2">
+                            @foreach($releases->take(3) as $release)
+                                <div class="flex items-center justify-between py-2 px-4 bg-gray-50 rounded-lg">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="h-6 w-6 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
+                                            <span class="text-white text-xs font-bold">{{ substr($release->shop->name ?? 'S', 0, 1) }}</span>
+                                        </div>
+                                        <span class="text-sm font-medium text-gray-900">{{ $release->shop->name ?? 'Unknown Shop' }}</span>
+                                    </div>
+                                    <span class="text-sm font-semibold text-gray-900">€{{ number_format($release->amount, 2) }}</span>
+                                </div>
+                            @endforeach
 
-            function downloadStatement() {
-                // Implement statement download
-                console.log('Downloading statement');
-            }
+                            @if($releases->count() > 3)
+                                <div class="text-center py-1">
+                                    <span class="text-xs text-gray-500">
+                                        +{{ $releases->count() - 3 }} more shops with releases on this date
+                                    </span>
+                                </div>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+    @endif
 
-            function viewReserveDetails(reserveId) {
-                // Implement reserve details view
-                console.log('Viewing reserve details:', reserveId);
-            }
+    <!-- Reserve Summary by Status -->
+    @if(isset($reservesByStatus))
+        <div class="mt-8 bg-white shadow-sm rounded-xl ring-1 ring-gray-900/5 overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-900 flex items-center">
+                    <i class="fas fa-chart-pie mr-3 text-purple-500"></i>
+                    Reserve Status Breakdown
+                </h3>
+                <p class="mt-1 text-sm text-gray-500">Distribution of reserves by current status</p>
+            </div>
 
-            function requestEarlyReleaseFor(reserveId) {
-                if (confirm('Request early release for this reserve entry?')) {
-                    // Implement specific reserve early release
-                    console.log('Requesting early release for reserve:', reserveId);
-                }
-            }
+            <div class="p-6">
+                <div class="grid grid-cols-1 gap-6 sm:grid-cols-3">
+                    <!-- Active Reserves -->
+                    <div class="bg-blue-50 rounded-lg p-6 border border-blue-200">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <div class="text-2xl font-bold text-blue-900">
+                                    €{{ number_format($reservesByStatus['active']['amount'] ?? 0, 2) }}
+                                </div>
+                                <div class="text-sm font-medium text-blue-700">Active Reserves</div>
+                                <div class="text-xs text-blue-600 mt-1">
+                                    {{ $reservesByStatus['active']['count'] ?? 0 }} reserves
+                                </div>
+                            </div>
+                            <div class="h-12 w-12 rounded-xl bg-blue-500 flex items-center justify-center">
+                                <i class="fas fa-circle text-white"></i>
+                            </div>
+                        </div>
+                        <div class="mt-4">
+                            <div class="flex justify-between text-xs text-blue-600 mb-1">
+                                <span>Progress</span>
+                                <span>{{ number_format(($reservesByStatus['active']['percentage'] ?? 0), 1) }}%</span>
+                            </div>
+                            <div class="w-full bg-blue-200 rounded-full h-2">
+                                <div class="bg-blue-500 h-2 rounded-full transition-all duration-500"
+                                     style="width: {{ min($reservesByStatus['active']['percentage'] ?? 0, 100) }}%"></div>
+                            </div>
+                        </div>
+                    </div>
 
-            function filterByStatus(status) {
-                // Implement status filtering
-                console.log('Filtering by status:', status);
-            }
+                    <!-- Pending Releases -->
+                    <div class="bg-yellow-50 rounded-lg p-6 border border-yellow-200">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <div class="text-2xl font-bold text-yellow-900">
+                                    €{{ number_format($reservesByStatus['pending']['amount'] ?? 0, 2) }}
+                                </div>
+                                <div class="text-sm font-medium text-yellow-700">Pending Release</div>
+                                <div class="text-xs text-yellow-600 mt-1">
+                                    {{ $reservesByStatus['pending']['count'] ?? 0 }} reserves
+                                </div>
+                            </div>
+                            <div class="h-12 w-12 rounded-xl bg-yellow-500 flex items-center justify-center">
+                                <i class="fas fa-clock text-white"></i>
+                            </div>
+                        </div>
+                        <div class="mt-4">
+                            <div class="flex justify-between text-xs text-yellow-600 mb-1">
+                                <span>Progress</span>
+                                <span>{{ number_format(($reservesByStatus['pending']['percentage'] ?? 0), 1) }}%</span>
+                            </div>
+                            <div class="w-full bg-yellow-200 rounded-full h-2">
+                                <div class="bg-yellow-500 h-2 rounded-full transition-all duration-500"
+                                     style="width: {{ min($reservesByStatus['pending']['percentage'] ?? 0, 100) }}%"></div>
+                            </div>
+                        </div>
+                    </div>
 
-            function filterByPeriod(period) {
-                // Implement period filtering
-                console.log('Filtering by period:', period);
-            }
-
-            // Auto-refresh data every 5 minutes
-            setInterval(function() {
-                // Check for updates without full page reload
-                fetch(window.location.href + '?ajax=1')
-                    .then(response => response.json())
-                    .then(data => {
-                        // Update summary cards if data has changed
-                        console.log('Data refreshed');
-                    })
-                    .catch(error => console.error('Error refreshing data:', error));
-            }, 300000); // 5 minutes
-        </script>
-    @endpush
+                    <!-- Released Reserves -->
+                    <div class="bg-green-50 rounded-lg p-6 border border-green-200">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <div class="text-2xl font-bold text-green-900">
+                                    €{{ number_format($reservesByStatus['released']['amount'] ?? 0, 2) }}
+                                </div>
+                                <div class="text-sm font-medium text-green-700">Released</div>
+                                <div class="text-xs text-green-600 mt-1">
+                                    {{ $reservesByStatus['released']['count'] ?? 0 }} reserves
+                                </div>
+                            </div>
+                            <div class="h-12 w-12 rounded-xl bg-green-500 flex items-center justify-center">
+                                <i class="fas fa-check text-white"></i>
+                            </div>
+                        </div>
+                        <div class="mt-4">
+                            <div class="flex justify-between text-xs text-green-600 mb-1">
+                                <span>Progress</span>
+                                <span>{{ number_format(($reservesByStatus['released']['percentage'] ?? 0), 1) }}%</span>
+                            </div>
+                            <div class="w-full bg-green-200 rounded-full h-2">
+                                <div class="bg-green-500 h-2 rounded-full transition-all duration-500"
+                                     style="width: {{ min($reservesByStatus['released']['percentage'] ?? 0, 100) }}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
 @endsection
+
+@push('scripts')
+    <script>
+        function changePerPage(value) {
+            const url = new URL(window.location.href);
+            url.searchParams.set('per_page', value);
+            url.searchParams.delete('page');
+            window.location.href = url.toString();
+        }
+
+        function exportReserves() {
+            const url = new URL('{{ route("merchant.rolling-reserves.index") }}');
+            const params = new URLSearchParams(window.location.search);
+            params.set('export', 'csv');
+
+            // Create a temporary form to submit the export request
+            const form = document.createElement('form');
+            form.method = 'GET';
+            form.action = url.pathname;
+
+            for (const [key, value] of params) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = key;
+                input.value = value;
+                form.appendChild(input);
+            }
+
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(function() {
+                console.log('Copied to clipboard: ' + text);
+                showToast('Transaction ID copied to clipboard!', 'success');
+            }, function(err) {
+                console.error('Could not copy text: ', err);
+                showToast('Failed to copy to clipboard', 'error');
+            });
+        }
+
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `fixed top-4 right-4 z-50 px-4 py-2 rounded-lg shadow-lg text-white transform transition-all duration-300 ${
+                type === 'success' ? 'bg-green-500' :
+                    type === 'error' ? 'bg-red-500' :
+                        'bg-blue-500'
+            }`;
+            toast.textContent = message;
+            toast.style.transform = 'translateX(100%)';
+
+            document.body.appendChild(toast);
+
+            // Animate in
+            setTimeout(() => {
+                toast.style.transform = 'translateX(0)';
+            }, 10);
+
+            // Animate out and remove
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(100%)';
+                setTimeout(() => {
+                    if (document.body.contains(toast)) {
+                        document.body.removeChild(toast);
+                    }
+                }, 300);
+            }, 3000);
+        }
+
+        // Auto-refresh reserve data every 5 minutes
+        setInterval(function() {
+            // You could implement partial refresh here if needed
+            console.log('Reserve data refresh check');
+        }, 300000);
+
+        // Initialize tooltips and other interactive elements
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add any initialization code here
+            console.log('Rolling Reserves page loaded');
+        });
+    </script>
+@endpush

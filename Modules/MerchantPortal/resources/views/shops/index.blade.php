@@ -2,213 +2,428 @@
 
 @section('title', 'Shops')
 @section('page-title', 'Shops')
-@section('page-subtitle', 'Manage your online stores and configurations')
+@section('page-subtitle', 'Manage and monitor all your merchant shops')
 
 @section('breadcrumb')
-    <li class="flex items-center">
-        <a href="{{ route('merchant.dashboard') }}" class="text-gray-400 hover:text-gray-500">Dashboard</a>
-        <i class="fas fa-chevron-right mx-2 text-gray-300"></i>
+    <li>
+        <div class="flex items-center">
+            <i class="fas fa-chevron-right h-3 w-3 text-gray-400 mx-2"></i>
+            <span class="text-sm font-medium text-gray-900">Shops</span>
+        </div>
     </li>
-    <li class="text-gray-900">Shops</li>
+@endsection
+
+@section('page-actions')
+    <div class="flex items-center space-x-3">
+        <!-- Refresh Button -->
+        <button type="button" onclick="location.reload()" class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-150">
+            <i class="fas fa-sync-alt -ml-1 mr-2 h-4 w-4"></i>
+            Refresh
+        </button>
+    </div>
 @endsection
 
 @section('content')
-    <!-- Actions Bar -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
-        <div class="flex-1">
-            <!-- Search -->
-            <div class="max-w-lg">
-                <div class="relative">
-                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <i class="fas fa-search text-gray-400"></i>
+    <!-- Shop Overview Stats -->
+    <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+        <!-- Total Shops -->
+        <div class="bg-white shadow-sm rounded-xl ring-1 ring-gray-900/5 p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 shadow-lg">
+                        <i class="fas fa-store text-white"></i>
                     </div>
-                    <input type="text"
-                           class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                           placeholder="Search shops...">
+                </div>
+                <div class="ml-4 flex-1">
+                    <dl>
+                        <dt class="text-sm font-medium text-gray-500">Total Shops</dt>
+                        <dd class="text-2xl font-bold text-gray-900">{{ $shops->count() }}</dd>
+                    </dl>
+                    <div class="mt-2 flex items-center text-sm">
+                        <span class="text-green-600 font-medium">
+                            {{ $shops->where('status', 'active')->count() }} active
+                        </span>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div class="mt-4 sm:mt-0 sm:ml-4">
-            <a href="{{ route('merchant.shops.create') }}"
-               class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-150">
-                <i class="fas fa-plus mr-2"></i>
-                Add New Shop
-            </a>
+        <!-- Total Volume -->
+        <div class="bg-white shadow-sm rounded-xl ring-1 ring-gray-900/5 p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-r from-green-500 to-green-600 shadow-lg">
+                        <i class="fas fa-euro-sign text-white"></i>
+                    </div>
+                </div>
+                <div class="ml-4 flex-1">
+                    <dl>
+                        <dt class="text-sm font-medium text-gray-500">Total Volume</dt>
+                        <dd class="text-2xl font-bold text-gray-900">€{{ number_format($totalStats['volume'] ?? 0, 0) }}</dd>
+                    </dl>
+                    <div class="mt-2 flex items-center text-sm">
+                        <span class="text-green-600 font-medium">
+                            This month
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Average Success Rate -->
+        <div class="bg-white shadow-sm rounded-xl ring-1 ring-gray-900/5 p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-r from-purple-500 to-purple-600 shadow-lg">
+                        <i class="fas fa-chart-line text-white"></i>
+                    </div>
+                </div>
+                <div class="ml-4 flex-1">
+                    <dl>
+                        <dt class="text-sm font-medium text-gray-500">Avg Success Rate</dt>
+                        <dd class="text-2xl font-bold text-gray-900">{{ number_format($totalStats['success_rate'] ?? 0, 1) }}%</dd>
+                    </dl>
+                    <div class="mt-2 flex items-center text-sm">
+                        <div class="flex-1 bg-gray-200 rounded-full h-2 mr-2">
+                            <div class="bg-gradient-to-r from-purple-500 to-purple-600 h-2 rounded-full transition-all duration-500" style="width: {{ $totalStats['success_rate'] ?? 0 }}%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Total Reserves -->
+        <div class="bg-white shadow-sm rounded-xl ring-1 ring-gray-900/5 p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-r from-yellow-500 to-yellow-600 shadow-lg">
+                        <i class="fas fa-piggy-bank text-white"></i>
+                    </div>
+                </div>
+                <div class="ml-4 flex-1">
+                    <dl>
+                        <dt class="text-sm font-medium text-gray-500">Total Reserves</dt>
+                        <dd class="text-2xl font-bold text-gray-900">€{{ number_format($totalStats['reserves'] ?? 0, 0) }}</dd>
+                    </dl>
+                    <div class="mt-2 flex items-center text-sm">
+                        <span class="text-yellow-600 font-medium">
+                            Rolling reserves
+                        </span>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
     <!-- Shops Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        @forelse($shops ?? [] as $shop)
-            <div class="bg-white overflow-hidden shadow rounded-lg hover:shadow-lg transition-shadow duration-150">
-                <!-- Shop Header -->
-                <div class="px-6 py-4 border-b border-gray-200">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center">
-                            <div class="flex-shrink-0">
-                                @if($shop->logo)
-                                    <img class="h-10 w-10 rounded-lg object-cover" src="{{ $shop->logo }}" alt="{{ $shop->name }}">
-                                @else
-                                    <div class="h-10 w-10 rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
-                                        <span class="text-sm font-medium text-white">{{ substr($shop->name, 0, 2) }}</span>
-                                    </div>
-                                @endif
+    @if($shops->isNotEmpty())
+        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
+            @foreach($shops as $shop)
+                <div class="group bg-white shadow-sm rounded-xl ring-1 ring-gray-900/5 hover:shadow-lg hover:scale-[1.02] transition-all duration-300 overflow-hidden">
+                    <!-- Shop Header -->
+                    <div class="p-6 border-b border-gray-200">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <div class="h-12 w-12 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
+                                    <span class="text-white text-lg font-bold">{{ substr($shop->owner_name, 0, 1) }}</span>
+                                </div>
+                                <div>
+                                    <h3 class="text-lg font-semibold text-gray-900 group-hover:text-blue-600 transition-colors duration-300">
+                                        {{ $shop->owner_name }}
+                                    </h3>
+                                    <p class="text-sm text-gray-500">ID: {{ $shop->id }}</p>
+                                </div>
                             </div>
-                            <div class="ml-3">
-                                <h3 class="text-lg font-medium text-gray-900 truncate">
-                                    {{ $shop->name }}
-                                </h3>
-                                <p class="text-sm text-gray-500 truncate">
-                                    {{ $shop->domain ?? 'No domain set' }}
-                                </p>
-                            </div>
-                        </div>
 
-                        <!-- Status Badge -->
-                        @php
-                            $statusClasses = [
-                                'active' => 'bg-green-100 text-green-800',
-                                'inactive' => 'bg-red-100 text-red-800',
-                                'pending' => 'bg-yellow-100 text-yellow-800'
-                            ];
-                            $status = $shop->status ?? 'pending';
-                            $classes = $statusClasses[$status] ?? 'bg-gray-100 text-gray-800';
-                        @endphp
-                        <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full {{ $classes }}">
-                            {{ ucfirst($status) }}
-                        </span>
-                    </div>
-                </div>
-
-                <!-- Shop Stats -->
-                <div class="px-6 py-4">
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <dt class="text-sm font-medium text-gray-500">Transactions</dt>
-                            <dd class="mt-1 text-2xl font-semibold text-gray-900">{{ $shop->transactions_count ?? 0 }}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-sm font-medium text-gray-500">Revenue</dt>
-                            <dd class="mt-1 text-2xl font-semibold text-gray-900">${{ number_format($shop->total_revenue ?? 0, 0) }}</dd>
-                        </div>
-                    </div>
-
-                    <!-- Last Transaction -->
-                    <div class="mt-4 pt-4 border-t border-gray-200">
-                        <div class="flex items-center justify-between text-sm">
-                            <span class="text-gray-500">Last transaction:</span>
-                            <span class="font-medium text-gray-900">
-                                {{ $shop->last_transaction_at ? $shop->last_transaction_at->diffForHumans() : 'Never' }}
+                            <!-- Status Badge -->
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                {{ $shop->active === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' }}">
+                                <i class="fas fa-circle mr-1 h-2 w-2"></i>
+                                {{ ucfirst($shop->active) }}
                             </span>
                         </div>
                     </div>
-                </div>
 
-                <!-- Shop Actions -->
-                <div class="px-6 py-3 bg-gray-50 border-t border-gray-200">
-                    <div class="flex items-center justify-between">
-                        <div class="flex space-x-3">
-                            <a href="{{ route('merchant.shops.show', $shop->id) }}"
-                               class="text-blue-600 hover:text-blue-900 text-sm font-medium transition-colors duration-150">
-                                View Details
-                            </a>
-                            <a href="{{ route('merchant.shops.edit', $shop->id) }}"
-                               class="text-gray-600 hover:text-gray-900 text-sm font-medium transition-colors duration-150">
-                                Edit
-                            </a>
+                    <!-- Shop Metrics -->
+                    <div class="p-6">
+                        <div class="grid grid-cols-2 gap-4">
+                            <!-- Transaction Count -->
+                            <div class="text-center p-4 bg-gray-50 rounded-lg">
+                                <div class="text-2xl font-bold text-gray-900">{{ $shop->transactions_count ?? 0 }}</div>
+                                <div class="text-xs text-gray-500 uppercase tracking-wide">Transactions</div>
+                            </div>
+
+                            <!-- Total Volume -->
+                            <div class="text-center p-4 bg-gray-50 rounded-lg">
+                                <div class="text-2xl font-bold text-gray-900">€{{ number_format($shop->total_volume ?? 0, 0) }}</div>
+                                <div class="text-xs text-gray-500 uppercase tracking-wide">Volume</div>
+                            </div>
+
+                            <!-- Success Rate -->
+                            <div class="text-center p-4 bg-gray-50 rounded-lg">
+                                <div class="text-2xl font-bold text-gray-900">{{ number_format($shop->success_rate ?? 0, 1) }}%</div>
+                                <div class="text-xs text-gray-500 uppercase tracking-wide">Success Rate</div>
+                            </div>
+
+                            <!-- Rolling Reserve -->
+                            <div class="text-center p-4 bg-gray-50 rounded-lg">
+                                <div class="text-2xl font-bold text-gray-900">€{{ number_format($shop->rolling_reserve_amount ?? 0, 0) }}</div>
+                                <div class="text-xs text-gray-500 uppercase tracking-wide">Reserve</div>
+                            </div>
                         </div>
 
-                        <!-- Dropdown Menu -->
-                        <div class="relative">
-                            <button type="button"
-                                    class="text-gray-400 hover:text-gray-600 transition-colors duration-150"
-                                    onclick="toggleDropdown('shop-menu-{{ $shop->id }}')">
-                                <i class="fas fa-ellipsis-v"></i>
-                            </button>
+                        <!-- Performance Indicators -->
+                        <div class="mt-6 space-y-3">
+                            <!-- Success Rate Bar -->
+                            <div>
+                                <div class="flex justify-between text-sm mb-1">
+                                    <span class="text-gray-600">Success Rate</span>
+                                    <span class="font-medium">{{ number_format($shop->success_rate ?? 0, 1) }}%</span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-2">
+                                    <div class="bg-gradient-to-r from-green-400 to-green-600 h-2 rounded-full transition-all duration-500"
+                                         style="width: {{ min($shop->success_rate ?? 0, 100) }}%"></div>
+                                </div>
+                            </div>
 
-                            <div id="shop-menu-{{ $shop->id }}"
-                                 class="hidden absolute right-0 z-10 mt-2 w-48 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5">
-                                <div class="py-1">
-                                    <a href="{{ route('merchant.shops.transactions', $shop->id) }}"
-                                       class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                        <i class="fas fa-credit-card mr-3"></i>
-                                        View Transactions
-                                    </a>
-                                    <a href="{{ route('merchant.shops.settings', $shop->id) }}"
-                                       class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                        <i class="fas fa-cog mr-3"></i>
-                                        Settings
-                                    </a>
-                                    <button type="button"
-                                            onclick="toggleShopStatus('{{ $shop->id }}', '{{ $shop->status }}')"
-                                            class="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                        <i class="fas fa-{{ $shop->status === 'active' ? 'pause' : 'play' }} mr-3"></i>
-                                        {{ $shop->status === 'active' ? 'Deactivate' : 'Activate' }}
-                                    </button>
-                                    <div class="border-t border-gray-100"></div>
-                                    <button type="button"
-                                            onclick="confirmDelete('{{ $shop->id }}', '{{ $shop->name }}')"
-                                            class="flex items-center w-full px-4 py-2 text-sm text-red-700 hover:bg-red-50">
-                                        <i class="fas fa-trash mr-3"></i>
-                                        Delete Shop
-                                    </button>
+                            <!-- Reserve Percentage -->
+                            <div>
+                                <div class="flex justify-between text-sm mb-1">
+                                    <span class="text-gray-600">Reserve Rate</span>
+                                    <span class="font-medium">{{ number_format($shop->settings->rolling_reserve_percentage ?? 0, 1) }}%</span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-2">
+                                    <div class="bg-gradient-to-r from-yellow-400 to-yellow-600 h-2 rounded-full transition-all duration-500"
+                                         style="width: {{ min($shop->settings->rolling_reserve_percentage ?? 0, 100) }}%"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Additional Info -->
+                        <div class="mt-6 pt-4 border-t border-gray-200">
+                            <div class="flex items-center justify-between text-sm">
+                                <span class="text-gray-500">Last transaction:</span>
+                                <span class="font-medium text-gray-900">
+                                    {{ $shop->last_transaction_at ? $shop->last_transaction_at->diffForHumans() : 'Never' }}
+                                </span>
+                            </div>
+                            @if($shop->settings)
+                                <div class="flex items-center justify-between text-sm mt-2">
+                                    <span class="text-gray-500">MDR Rate:</span>
+                                    <span class="font-medium text-gray-900">{{ number_format($shop->settings->mdr_percentage ?? 0, 2) }}%</span>
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+
+                    <!-- Shop Actions -->
+                    <div class="px-6 py-4 bg-gray-50 border-t border-gray-200">
+                        <div class="flex items-center justify-between">
+                            <div class="flex space-x-3">
+                                <a href="{{ route('merchant.shops.show', $shop->id) }}"
+                                   class="inline-flex items-center text-blue-600 hover:text-blue-900 text-sm font-medium transition-colors duration-150">
+                                    <i class="fas fa-eye mr-1 h-3 w-3"></i>
+                                    View Details
+                                </a>
+                                <a href="{{ route('merchant.transactions.index', ['shop_id' => $shop->id]) }}"
+                                   class="inline-flex items-center text-green-600 hover:text-green-900 text-sm font-medium transition-colors duration-150">
+                                    <i class="fas fa-credit-card mr-1 h-3 w-3"></i>
+                                    Transactions
+                                </a>
+                            </div>
+
+                            <!-- Dropdown Menu -->
+                            <div class="relative" x-data="{ open: false }">
+                                <button @click="open = !open" type="button"
+                                        class="text-gray-400 hover:text-gray-600 transition-colors duration-150 p-1">
+                                    <i class="fas fa-ellipsis-v h-4 w-4"></i>
+                                </button>
+
+                                <div x-show="open" @click.away="open = false"
+                                     x-transition:enter="transition ease-out duration-100"
+                                     x-transition:enter-start="transform opacity-0 scale-95"
+                                     x-transition:enter-end="transform opacity-100 scale-100"
+                                     x-transition:leave="transition ease-in duration-75"
+                                     x-transition:leave-start="transform opacity-100 scale-100"
+                                     x-transition:leave-end="transform opacity-0 scale-95"
+                                     class="absolute right-0 z-10 mt-2 w-48 bg-white rounded-lg shadow-lg ring-1 ring-black ring-opacity-5 divide-y divide-gray-100"
+                                     x-cloak>
+                                    <div class="py-1">
+                                        <a href="{{ route('merchant.shops.show', $shop->id) }}"
+                                           class="group flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                            <i class="fas fa-info-circle mr-3 h-4 w-4 text-gray-400"></i>
+                                            Shop Details
+                                        </a>
+                                        <a href="{{ route('merchant.rolling-reserves.index', ['shop_id' => $shop->id]) }}"
+                                           class="group flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                            <i class="fas fa-piggy-bank mr-3 h-4 w-4 text-gray-400"></i>
+                                            View Reserves
+                                        </a>
+                                    </div>
+                                    <div class="py-1">
+                                        <button onclick="copyToClipboard('{{ $shop->id }}')"
+                                                class="group flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                            <i class="fas fa-copy mr-3 h-4 w-4 text-gray-400"></i>
+                                            Copy Shop ID
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        @empty
-            <!-- Empty State -->
-            <div class="col-span-full">
-                <div class="text-center py-12">
-                    <div class="mx-auto h-24 w-24 text-gray-400">
-                        <i class="fas fa-store text-6xl"></i>
-                    </div>
-                    <h3 class="mt-4 text-lg font-medium text-gray-900">No shops yet</h3>
-                    <p class="mt-2 text-sm text-gray-500">
-                        Get started by creating your first online shop.
-                    </p>
-                    <div class="mt-6">
-                        <a href="{{ route('merchant.shops.create') }}"
-                           class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                            <i class="fas fa-plus mr-2"></i>
-                            Create Your First Shop
-                        </a>
-                    </div>
-                </div>
-            </div>
-        @endforelse
-    </div>
+            @endforeach
+        </div>
 
-    <!-- Quick Setup Guide (for new merchants) -->
-    @if(($shops ?? collect())->count() === 0)
-        <div class="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6">
-            <div class="flex items-start">
-                <div class="flex-shrink-0">
-                    <i class="fas fa-lightbulb text-blue-600 text-xl"></i>
-                </div>
-                <div class="ml-4">
-                    <h3 class="text-lg font-medium text-blue-900">Getting Started</h3>
-                    <div class="mt-2 text-sm text-blue-700">
-                        <p class="mb-3">Follow these steps to set up your first shop:</p>
-                        <ol class="list-decimal list-inside space-y-1">
-                            <li>Create a new shop with your business details</li>
-                            <li>Configure payment methods and currencies</li>
-                            <li>Set up your domain and branding</li>
-                            <li>Test your integration with our API</li>
-                            <li>Go live and start accepting payments!</li>
-                        </ol>
-                    </div>
-                    <div class="mt-4">
-                        <a href="{{ route('merchant.shops.create') }}"
-                           class="inline-flex items-center px-3 py-2 border border-blue-300 shadow-sm text-sm leading-4 font-medium rounded-md text-blue-700 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                            Get Started
-                            <i class="fas fa-arrow-right ml-2"></i>
-                        </a>
-                    </div>
-                </div>
+        <!-- Pagination -->
+{{--        @if($shops->hasPages())--}}
+{{--            <div class="mt-8 flex items-center justify-center">--}}
+{{--                <div class="bg-white rounded-lg shadow-sm ring-1 ring-gray-900/5 px-6 py-3">--}}
+{{--                    {{ $shops->links() }}--}}
+{{--                </div>--}}
+{{--            </div>--}}
+{{--        @endif--}}
+
+    @else
+        <!-- Empty State -->
+        <div class="text-center py-12">
+            <div class="mx-auto h-24 w-24 rounded-full bg-gray-100 flex items-center justify-center mb-6">
+                <i class="fas fa-store text-4xl text-gray-400"></i>
+            </div>
+            <h3 class="text-lg font-medium text-gray-900 mb-2">No shops found</h3>
+            <p class="text-gray-500 mb-8 max-w-md mx-auto">
+                You don't have any shops configured yet. Shops will appear here once they're added to your merchant account.
+            </p>
+            <div class="flex items-center justify-center space-x-4">
+                <button type="button" onclick="location.reload()"
+                        class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-150">
+                    <i class="fas fa-sync-alt -ml-1 mr-2 h-4 w-4"></i>
+                    Refresh
+                </button>
+            </div>
+        </div>
+    @endif
+
+    <!-- Shop Performance Summary Table (Desktop View) -->
+    @if($shops->isNotEmpty())
+        <div class="mt-8 bg-white shadow-sm rounded-xl ring-1 ring-gray-900/5 overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-900 flex items-center">
+                    <i class="fas fa-chart-bar mr-3 text-blue-500"></i>
+                    Detailed Shop Performance
+                </h3>
+                <p class="mt-1 text-sm text-gray-500">Comprehensive view of all shop metrics</p>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                    <tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Shop
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Status
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Transactions
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Volume
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Success Rate
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Reserve Amount
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            MDR Rate
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Last Transaction
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Actions
+                        </th>
+                    </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                    @foreach($shops as $shop)
+                        <tr class="hover:bg-gray-50 transition-colors duration-150">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <div class="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center mr-3">
+                                        <span class="text-white text-sm font-bold">{{ substr($shop->owner_name, 0, 1) }}</span>
+                                    </div>
+                                    <div>
+                                        <div class="text-sm font-medium text-gray-900">{{ $shop->owner_name }}</div>
+                                        <div class="text-xs text-gray-500">ID: {{ $shop->id }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                        {{ $shop->active === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' }}">
+                                        <i class="fas fa-circle mr-1 h-2 w-2"></i>
+                                        {{ ucfirst($shop->active) }}
+                                    </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                <div class="font-semibold">{{ number_format($shop->transactions_count ?? 0) }}</div>
+                                <div class="text-xs text-gray-500">total</div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                <div class="font-semibold">€{{ number_format($shop->total_volume ?? 0, 0) }}</div>
+                                <div class="text-xs text-gray-500">lifetime</div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <div class="flex-1">
+                                        <div class="text-sm font-semibold text-gray-900">{{ number_format($shop->success_rate ?? 0, 1) }}%</div>
+                                        <div class="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+                                            <div class="bg-green-500 h-1.5 rounded-full" style="width: {{ min($shop->success_rate ?? 0, 100) }}%"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                <div class="font-semibold">€{{ number_format($shop->rolling_reserve_amount ?? 0, 2) }}</div>
+                                <div class="text-xs text-gray-500">{{ number_format($shop->settings->rolling_reserve_percentage ?? 0, 1) }}% rate</div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                <div class="font-semibold">{{ number_format($shop->settings->mdr_percentage ?? 0, 2) }}%</div>
+                                <div class="text-xs text-gray-500">merchant discount</div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                <div>{{ $shop->last_transaction_at ? $shop->last_transaction_at->format('M j, Y') : 'Never' }}</div>
+                                @if($shop->last_transaction_at)
+                                    <div class="text-xs text-gray-500">{{ $shop->last_transaction_at->diffForHumans() }}</div>
+                                @endif
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                <div class="flex items-center space-x-2">
+                                    <a href="{{ route('merchant.shops.show', $shop->id) }}"
+                                       class="text-blue-600 hover:text-blue-900 transition-colors duration-150">
+                                        <i class="fas fa-eye h-4 w-4"></i>
+                                        <span class="sr-only">View details</span>
+                                    </a>
+                                    <a href="{{ route('merchant.transactions.index', ['shop_id' => $shop->id]) }}"
+                                       class="text-green-600 hover:text-green-900 transition-colors duration-150">
+                                        <i class="fas fa-credit-card h-4 w-4"></i>
+                                        <span class="sr-only">View transactions</span>
+                                    </a>
+                                    <button onclick="copyToClipboard('{{ $shop->id }}')"
+                                            class="text-gray-400 hover:text-gray-600 transition-colors duration-150">
+                                        <i class="fas fa-copy h-4 w-4"></i>
+                                        <span class="sr-only">Copy ID</span>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    @endforeach
+                    </tbody>
+                </table>
             </div>
         </div>
     @endif
@@ -216,118 +431,42 @@
 
 @push('scripts')
     <script>
-        // Toggle dropdown menu
-        function toggleDropdown(menuId) {
-            const menu = document.getElementById(menuId);
-            const allMenus = document.querySelectorAll('[id^="shop-menu-"]');
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(function() {
+                // Show success notification
+                console.log('Copied to clipboard: ' + text);
 
-            // Close all other menus
-            allMenus.forEach(m => {
-                if (m.id !== menuId) {
-                    m.classList.add('hidden');
-                }
+                // You could implement a toast notification here
+                showToast('Shop ID copied to clipboard!', 'success');
+            }, function(err) {
+                console.error('Could not copy text: ', err);
+                showToast('Failed to copy to clipboard', 'error');
             });
-
-            // Toggle current menu
-            menu.classList.toggle('hidden');
         }
 
-        // Close dropdowns when clicking outside
-        document.addEventListener('click', function(event) {
-            const allMenus = document.querySelectorAll('[id^="shop-menu-"]');
-            const clickedButton = event.target.closest('button[onclick*="toggleDropdown"]');
+        function showToast(message, type = 'info') {
+            // Simple toast implementation - you could enhance this
+            const toast = document.createElement('div');
+            toast.className = `fixed top-4 right-4 z-50 px-4 py-2 rounded-lg shadow-lg text-white ${
+                type === 'success' ? 'bg-green-500' :
+                    type === 'error' ? 'bg-red-500' :
+                        'bg-blue-500'
+            }`;
+            toast.textContent = message;
 
-            if (!clickedButton) {
-                allMenus.forEach(menu => menu.classList.add('hidden'));
-            }
-        });
+            document.body.appendChild(toast);
 
-        // Toggle shop status
-        function toggleShopStatus(shopId, currentStatus) {
-            const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
-            const action = newStatus === 'active' ? 'activate' : 'deactivate';
-
-            if (confirm(`Are you sure you want to ${action} this shop?`)) {
-                // Here you would make an AJAX call to update the shop status
-                fetch(`/merchant/shops/${shopId}/status`, {
-                    method: 'PATCH',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                    },
-                    body: JSON.stringify({ status: newStatus })
-                })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            location.reload(); // Refresh to show updated status
-                        } else {
-                            alert('Failed to update shop status');
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        alert('An error occurred while updating shop status');
-                    });
-            }
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(100%)';
+                setTimeout(() => document.body.removeChild(toast), 300);
+            }, 3000);
         }
 
-        // Confirm delete
-        function confirmDelete(shopId, shopName) {
-            if (confirm(`Are you sure you want to delete "${shopName}"? This action cannot be undone.`)) {
-                // Here you would make an AJAX call to delete the shop
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = `/merchant/shops/${shopId}`;
-
-                const methodInput = document.createElement('input');
-                methodInput.type = 'hidden';
-                methodInput.name = '_method';
-                methodInput.value = 'DELETE';
-
-                const tokenInput = document.createElement('input');
-                tokenInput.type = 'hidden';
-                tokenInput.name = '_token';
-                tokenInput.value = document.querySelector('meta[name="csrf-token"]').content;
-
-                form.appendChild(methodInput);
-                form.appendChild(tokenInput);
-                document.body.appendChild(form);
-                form.submit();
-            }
-        }
-
-        // Search functionality
-        const searchInput = document.querySelector('input[placeholder="Search shops..."]');
-        if (searchInput) {
-            searchInput.addEventListener('input', debounce(function(e) {
-                const searchTerm = e.target.value.toLowerCase();
-                const shopCards = document.querySelectorAll('.grid > div:not(.col-span-full)');
-
-                shopCards.forEach(card => {
-                    const shopName = card.querySelector('h3').textContent.toLowerCase();
-                    const shopDomain = card.querySelector('p').textContent.toLowerCase();
-
-                    if (shopName.includes(searchTerm) || shopDomain.includes(searchTerm)) {
-                        card.style.display = 'block';
-                    } else {
-                        card.style.display = 'none';
-                    }
-                });
-            }, 300));
-        }
-
-        // Debounce function
-        function debounce(func, wait) {
-            let timeout;
-            return function executedFunction(...args) {
-                const later = () => {
-                    clearTimeout(timeout);
-                    func(...args);
-                };
-                clearTimeout(timeout);
-                timeout = setTimeout(later, wait);
-            };
-        }
+        // Auto-refresh data every 2 minutes
+        setInterval(function() {
+            // You could implement partial refresh here
+            console.log('Shop data refresh check');
+        }, 120000);
     </script>
 @endpush
