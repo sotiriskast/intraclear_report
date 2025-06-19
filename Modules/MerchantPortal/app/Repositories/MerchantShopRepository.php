@@ -94,8 +94,8 @@ class MerchantShopRepository
     {
         $totalCents = DectaTransaction::where('gateway_shop_id', $shopId)
             ->where('status', DectaTransaction::STATUS_MATCHED)
-            ->whereMonth('tr_date_time', Carbon::now()->month)
-            ->whereYear('tr_date_time', Carbon::now()->year)
+            ->whereRaw('EXTRACT(MONTH FROM tr_date_time) = ?', [Carbon::now()->month])
+            ->whereRaw('EXTRACT(YEAR FROM tr_date_time) = ?', [Carbon::now()->year])
             ->sum('tr_amount') ?? 0;
 
         return $totalCents / 100;
@@ -146,5 +146,32 @@ class MerchantShopRepository
             ->first();
 
         return $lastTransaction ? $lastTransaction->tr_date_time : null;
+    }
+
+    public function getShopPerformanceByMonth(int $shopId, int $months = 12): array
+    {
+        $monthlyData = DectaTransaction::where('gateway_shop_id', $shopId)
+            ->where('status', DectaTransaction::STATUS_MATCHED)
+            ->where('tr_date_time', '>=', Carbon::now()->subMonths($months))
+            ->selectRaw('EXTRACT(YEAR FROM tr_date_time) as year, EXTRACT(MONTH FROM tr_date_time) as month, SUM(tr_amount) as volume, COUNT(*) as count')
+            ->groupBy(\DB::raw('EXTRACT(YEAR FROM tr_date_time), EXTRACT(MONTH FROM tr_date_time)'))
+            ->orderBy(\DB::raw('EXTRACT(YEAR FROM tr_date_time), EXTRACT(MONTH FROM tr_date_time)'))
+            ->get();
+
+        $labels = [];
+        $volumes = [];
+        $counts = [];
+
+        foreach ($monthlyData as $data) {
+            $labels[] = Carbon::create($data->year, $data->month, 1)->format('M Y');
+            $volumes[] = (float) ($data->volume / 100);
+            $counts[] = $data->count;
+        }
+
+        return [
+            'labels' => $labels,
+            'volumes' => $volumes,
+            'counts' => $counts,
+        ];
     }
 }

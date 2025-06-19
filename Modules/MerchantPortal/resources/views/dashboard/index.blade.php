@@ -1,4 +1,4 @@
-@extends('merchantportal::layouts.merchant')
+@extends('merchantportal::layouts.master')
 
 @section('title', 'Dashboard')
 @section('page-title', 'Dashboard')

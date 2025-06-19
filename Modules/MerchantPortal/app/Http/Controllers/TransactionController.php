@@ -3,7 +3,7 @@ namespace Modules\MerchantPortal\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
-use Modules\MerchantPortal\App\Repositories\MerchantTransactionRepository;
+use Modules\MerchantPortal\Repositories\MerchantTransactionRepository;
 
 class TransactionController extends Controller
 {
@@ -24,6 +24,7 @@ class TransactionController extends Controller
             'amount_min' => 'nullable|numeric|min:0',
             'amount_max' => 'nullable|numeric|gte:amount_min',
             'payment_id' => 'nullable|string',
+            'merchant_name' => 'nullable|string',
             'per_page' => 'nullable|integer|min:10|max:100',
         ]);
 
@@ -70,6 +71,9 @@ class TransactionController extends Controller
         $transaction->created_at = $transaction->tr_date_time;
         $transaction->payment_method = $transaction->card_type_name;
         $transaction->currency = $transaction->tr_ccy;
+        $transaction->customer_email = null; // Not available in DectaTransaction
+        $transaction->reference_id = $transaction->acq_ref_nr;
+        $transaction->description = $transaction->merchant_name;
 
         if ($request->expectsJson()) {
             return response()->json($transaction);
@@ -78,5 +82,19 @@ class TransactionController extends Controller
         return view('merchantportal::transactions.show', [
             'transaction' => $transaction,
         ]);
+    }
+
+    public function analytics(Request $request)
+    {
+        $user = auth()->user();
+        $merchantId = $user->merchant_id;
+
+        $analytics = [
+            'payment_types' => $this->transactionRepository->getTransactionsByPaymentType($merchantId),
+            'countries' => $this->transactionRepository->getTransactionsByCountry($merchantId),
+            'monthly_stats' => $this->transactionRepository->getMonthlyStatsByMerchant($merchantId),
+        ];
+
+        return response()->json($analytics);
     }
 }

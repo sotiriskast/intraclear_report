@@ -2,6 +2,8 @@
 
 namespace Modules\Decta\Models;
 
+use App\Models\Merchant;
+use App\Models\Shop;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -107,7 +109,14 @@ class DectaTransaction extends Model
     {
         return $this->belongsTo(DectaFile::class, 'decta_file_id');
     }
-
+    public function shop(): BelongsTo
+    {
+        return $this->belongsTo(Shop::class, 'gateway_shop_id');
+    }
+    public function merchaant(): BelongsTo
+    {
+        return $this->belongsTo(Merchant::class, 'gateway_merchant_id');
+    }
     /**
      * Scope for pending transactions
      */

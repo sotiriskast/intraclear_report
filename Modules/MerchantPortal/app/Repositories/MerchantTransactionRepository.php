@@ -1,6 +1,8 @@
 <?php
 
 namespace Modules\MerchantPortal\Repositories;
+use App\Models\Shop;
+use Illuminate\Support\Facades\DB;
 use Modules\Decta\Models\DectaTransaction;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
@@ -18,9 +20,7 @@ class MerchantTransactionRepository
     public function getByMerchantWithFilters(int $merchantId, array $filters = [], int $perPage = 25): LengthAwarePaginator
     {
         $query = $this->model->query()
-            ->whereHas('shop', function ($query) use ($merchantId) {
-                $query->where('merchant_id', $merchantId);
-            })
+            ->where('merchant_id', $merchantId)
             ->with(['shop'])
             ->orderBy('tr_date_time', 'desc');
 
@@ -53,23 +53,35 @@ class MerchantTransactionRepository
             $query->where('payment_id', 'like', '%' . $filters['payment_id'] . '%');
         }
 
-        return $query->paginate($perPage);
+        if (!empty($filters['merchant_name'])) {
+            $query->where('merchant_name', 'like', '%' . $filters['merchant_name'] . '%');
+        }
+
+        $results = $query->paginate($perPage);
+
+        // Manually load shop data for each transaction
+        $this->loadShopData($results->getCollection());
+
+        return $results;
     }
+
 
     public function findByIdAndMerchant(int $id, int $merchantId): ?DectaTransaction
     {
-        return $this->model->whereHas('shop', function ($query) use ($merchantId) {
-            $query->where('merchant_id', $merchantId);
-        })
-            ->with(['shop', 'dectaFile'])
-            ->find($id);
+        $transaction = $this->model->where('id', $id)
+            ->where('merchant_id', $merchantId)
+            ->first();
+
+        if ($transaction) {
+            $this->loadShopData(collect([$transaction]));
+        }
+
+        return $transaction;
     }
 
     public function getRecentByMerchant(int $merchantId, int $limit = 10): Collection
     {
-        return $this->model->whereHas('shop', function ($query) use ($merchantId) {
-            $query->where('merchant_id', $merchantId);
-        })
+        return $this->model->where('merchant_id', $merchantId)
             ->with(['shop'])
             ->orderBy('tr_date_time', 'desc')
             ->limit($limit)
@@ -78,20 +90,16 @@ class MerchantTransactionRepository
 
     public function countTodayByMerchant(int $merchantId): int
     {
-        return $this->model->whereHas('shop', function ($query) use ($merchantId) {
-            $query->where('merchant_id', $merchantId);
-        })
+        return $this->model->where('merchant_id', $merchantId)
             ->whereDate('tr_date_time', Carbon::today())
             ->count();
     }
 
     public function getMonthlyVolumeByMerchant(int $merchantId): float
     {
-        $totalCents = $this->model->whereHas('shop', function ($query) use ($merchantId) {
-            $query->where('merchant_id', $merchantId);
-        })
-            ->whereMonth('tr_date_time', Carbon::now()->month)
-            ->whereYear('tr_date_time', Carbon::now()->year)
+        $totalCents = $this->model->where('merchant_id', $merchantId)
+            ->whereRaw('EXTRACT(MONTH FROM tr_date_time) = ?', [Carbon::now()->month])
+            ->whereRaw('EXTRACT(YEAR FROM tr_date_time) = ?', [Carbon::now()->year])
             ->where('status', DectaTransaction::STATUS_MATCHED)
             ->sum('tr_amount') ?? 0;
 
@@ -100,14 +108,13 @@ class MerchantTransactionRepository
 
     public function getMonthlyStatsByMerchant(int $merchantId): array
     {
-        $monthlyData = $this->model->whereHas('shop', function ($query) use ($merchantId) {
-            $query->where('merchant_id', $merchantId);
-        })
-            ->whereYear('tr_date_time', Carbon::now()->year)
+        // PostgreSQL compatible query
+        $monthlyData = $this->model->where('merchant_id', $merchantId)
+            ->whereRaw('EXTRACT(YEAR FROM tr_date_time) = ?', [Carbon::now()->year])
             ->where('status', DectaTransaction::STATUS_MATCHED)
-            ->selectRaw('MONTH(tr_date_time) as month, SUM(tr_amount) as volume, COUNT(*) as count')
-            ->groupBy('month')
-            ->orderBy('month')
+            ->selectRaw('EXTRACT(MONTH FROM tr_date_time) as month, SUM(tr_amount) as volume, COUNT(*) as count')
+            ->groupBy(DB::raw('EXTRACT(MONTH FROM tr_date_time)'))
+            ->orderBy(DB::raw('EXTRACT(MONTH FROM tr_date_time)'))
             ->get();
 
         $chartData = array_fill(0, 12, 0);
@@ -129,17 +136,13 @@ class MerchantTransactionRepository
 
     public function getSuccessRateByMerchant(int $merchantId): float
     {
-        $total = $this->model->whereHas('shop', function ($query) use ($merchantId) {
-            $query->where('merchant_id', $merchantId);
-        })->count();
+        $total = $this->model->where('merchant_id', $merchantId)->count();
 
         if ($total === 0) {
             return 0;
         }
 
-        $successful = $this->model->whereHas('shop', function ($query) use ($merchantId) {
-            $query->where('merchant_id', $merchantId);
-        })
+        $successful = $this->model->where('merchant_id', $merchantId)
             ->where('status', DectaTransaction::STATUS_MATCHED)
             ->count();
 
@@ -148,12 +151,131 @@ class MerchantTransactionRepository
 
     public function getAverageAmountByMerchant(int $merchantId): float
     {
-        $avgCents = $this->model->whereHas('shop', function ($query) use ($merchantId) {
-            $query->where('merchant_id', $merchantId);
-        })
+        $avgCents = $this->model->where('merchant_id', $merchantId)
             ->where('status', DectaTransaction::STATUS_MATCHED)
             ->avg('tr_amount') ?? 0;
 
         return $avgCents / 100;
+    }
+
+    public function getTransactionsByPaymentType(int $merchantId): array
+    {
+        return $this->model->where('merchant_id', $merchantId)
+            ->where('status', DectaTransaction::STATUS_MATCHED)
+            ->selectRaw('card_type_name, COUNT(*) as count, SUM(tr_amount) as total_amount')
+            ->groupBy('card_type_name')
+            ->orderBy('count', 'desc')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'type' => $item->card_type_name,
+                    'count' => $item->count,
+                    'amount' => $item->total_amount / 100,
+                ];
+            })
+            ->toArray();
+    }
+
+    public function getTransactionsByCountry(int $merchantId): array
+    {
+        return $this->model->where('merchant_id', $merchantId)
+            ->where('status', DectaTransaction::STATUS_MATCHED)
+            ->selectRaw('issuer_country, COUNT(*) as count, SUM(tr_amount) as total_amount')
+            ->groupBy('issuer_country')
+            ->orderBy('count', 'desc')
+            ->limit(10)
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'country' => $item->issuer_country,
+                    'count' => $item->count,
+                    'amount' => $item->total_amount / 100,
+                ];
+            })
+            ->toArray();
+    }
+
+    /**
+     * Get daily transaction stats for the last 30 days
+     */
+    public function getDailyStatsByMerchant(int $merchantId, int $days = 30): array
+    {
+        $startDate = Carbon::now()->subDays($days)->startOfDay();
+
+        $dailyData = $this->model->where('merchant_id', $merchantId)
+            ->where('tr_date_time', '>=', $startDate)
+            ->where('status', DectaTransaction::STATUS_MATCHED)
+            ->selectRaw('DATE(tr_date_time) as date, SUM(tr_amount) as volume, COUNT(*) as count')
+            ->groupBy(DB::raw('DATE(tr_date_time)'))
+            ->orderBy(DB::raw('DATE(tr_date_time)'))
+            ->get();
+
+        $labels = [];
+        $volumes = [];
+        $counts = [];
+
+        foreach ($dailyData as $data) {
+            $labels[] = Carbon::parse($data->date)->format('M j');
+            $volumes[] = (float) ($data->volume / 100);
+            $counts[] = $data->count;
+        }
+
+        return [
+            'labels' => $labels,
+            'volumes' => $volumes,
+            'counts' => $counts,
+        ];
+    }
+
+    /**
+     * Get transaction stats by hour for today
+     */
+    public function getHourlyStatsByMerchant(int $merchantId): array
+    {
+        $today = Carbon::today();
+
+        $hourlyData = $this->model->where('merchant_id', $merchantId)
+            ->whereDate('tr_date_time', $today)
+            ->where('status', DectaTransaction::STATUS_MATCHED)
+            ->selectRaw('EXTRACT(HOUR FROM tr_date_time) as hour, SUM(tr_amount) as volume, COUNT(*) as count')
+            ->groupBy(DB::raw('EXTRACT(HOUR FROM tr_date_time)'))
+            ->orderBy(DB::raw('EXTRACT(HOUR FROM tr_date_time)'))
+            ->get();
+
+        $chartData = array_fill(0, 24, 0);
+        $labels = [];
+
+        for ($i = 0; $i < 24; $i++) {
+            $labels[] = sprintf('%02d:00', $i);
+        }
+
+        foreach ($hourlyData as $data) {
+            $chartData[$data->hour] = (float) ($data->volume / 100);
+        }
+
+        return [
+            'labels' => $labels,
+            'data' => $chartData,
+        ];
+    }
+
+    /**
+     * Load shop data for transactions
+     */
+    private function loadShopData(Collection $transactions): void
+    {
+        $shopIds = $transactions->pluck('gateway_shop_id')->filter()->unique();
+
+        if ($shopIds->isEmpty()) {
+            return;
+        }
+
+        $shops = Shop::whereIn('id', $shopIds)->get()->keyBy('id');
+
+        $transactions->each(function ($transaction) use ($shops) {
+            if ($transaction->gateway_shop_id && $shops->has($transaction->gateway_shop_id)) {
+                $transaction->shop = $shops->get($transaction->gateway_shop_id);
+            }
+        });
     }
 }
