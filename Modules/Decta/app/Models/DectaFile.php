@@ -71,7 +71,18 @@ class DectaFile extends Model
     {
         return $query->where('status', self::STATUS_PENDING);
     }
-
+    /**
+     * Scope a query to only include pending files.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function scopeGetPendingForTransaction($query)
+    {
+        return $query->where('status', self::STATUS_PENDING)
+                        ->where('file_type', '!=', 'visa_sms_csv')
+            ->where('filename', 'NOT LIKE', 'INTCL_visa_sms_tr_det_%');
+    }
     /**
      * Scope a query to only include processing files.
      *

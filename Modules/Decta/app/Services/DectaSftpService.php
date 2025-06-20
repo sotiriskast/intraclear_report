@@ -37,16 +37,35 @@ class DectaSftpService
     {
         try {
             $tempScript = tempnam(sys_get_temp_dir(), 'sftp_script');
-            $listCommand = $directory ? "ls -la {$directory}" : "ls -la";
-            file_put_contents($tempScript, "{$listCommand}\nquit\n");
+
+            // Properly quote directory path to handle spaces
+            if ($directory) {
+                $quotedDirectory = '"' . str_replace('"', '\"', $directory) . '"';
+                $listCommand = "ls -la {$quotedDirectory}";
+            } else {
+                $listCommand = "ls -la";
+            }
+
+            $scriptContent = "{$listCommand}\nquit\n";
+
+            if (file_put_contents($tempScript, $scriptContent) === false) {
+                throw new Exception("Failed to write to temporary script file");
+            }
 
             $command = $this->buildSftpCommand($tempScript);
+
+            Log::info('Executing SFTP list command', [
+                'directory' => $directory,
+                'quoted_directory' => $quotedDirectory ?? 'none',
+                'list_command' => $listCommand
+            ]);
 
             exec($command, $output, $returnCode);
             unlink($tempScript);
 
             if ($returnCode !== 0) {
-                throw new Exception("SFTP command failed with code: $returnCode. Output: " . implode("\n", $output));
+                $outputStr = implode("\n", $output);
+                throw new Exception("SFTP command failed with code: $returnCode. Output: " . $outputStr);
             }
 
             // Parse the directory listing output
@@ -156,13 +175,18 @@ class DectaSftpService
                 }
             }
 
-            // Create a temporary script file for SFTP
+            // Create a temporary script file for SFTP with proper quoting
             $tempScript = tempnam(sys_get_temp_dir(), 'sftp_script');
             if ($tempScript === false) {
                 throw new Exception("Failed to create temporary script file");
             }
 
-            $scriptContent = "get \"{$remotePath}\" \"{$fullLocalPath}\"\nquit\n";
+            // Properly quote paths to handle spaces
+            $quotedRemotePath = '"' . str_replace('"', '\"', $remotePath) . '"';
+            $quotedLocalPath = '"' . str_replace('"', '\"', $fullLocalPath) . '"';
+
+            $scriptContent = "get {$quotedRemotePath} {$quotedLocalPath}\nquit\n";
+
             if (file_put_contents($tempScript, $scriptContent) === false) {
                 throw new Exception("Failed to write to temporary script file");
             }
@@ -172,6 +196,8 @@ class DectaSftpService
 
             Log::info('Executing SFTP command', [
                 'command' => $command,
+                'remote_path_quoted' => $quotedRemotePath,
+                'local_path_quoted' => $quotedLocalPath,
                 'target_path' => $fullLocalPath
             ]);
 
@@ -190,37 +216,37 @@ class DectaSftpService
                 throw new Exception("SFTP command failed with code: {$returnCode}. Output: {$outputStr}");
             }
 
-            // Verify file was downloaded using Storage facade
+            // Verify the download was successful
             if (!Storage::disk($this->diskName)->exists($localPath)) {
-                throw new Exception("File was not downloaded successfully - not accessible via Storage facade: {$localPath}");
+                throw new Exception("File download completed but file not found at expected location: {$localPath}");
             }
 
-            // Get file size using Storage facade
             $fileSize = Storage::disk($this->diskName)->size($localPath);
-            if ($fileSize === false || $fileSize === 0) {
-                throw new Exception("Downloaded file is empty or unreadable via Storage facade: {$localPath}");
+            if ($fileSize === 0) {
+                throw new Exception("Downloaded file is empty: {$localPath}");
             }
 
-            Log::info('SFTP file downloaded successfully', [
+            Log::info('File downloaded successfully', [
                 'remote_path' => $remotePath,
                 'local_path' => $localPath,
-                'resolved_path' => $fullLocalPath,
-                'file_size' => $fileSize,
-                'disk' => $this->diskName,
-                'storage_accessible' => true
+                'file_size' => $fileSize
             ]);
 
             return true;
 
         } catch (Exception $e) {
-            Log::error('Failed to download SFTP file', [
+            Log::error('File download failed', [
                 'remote_path' => $remotePath,
-                'local_path' => $localPath ?? 'not set',
-                'resolved_path' => isset($fullLocalPath) ? $fullLocalPath : 'not set',
-                'disk' => $this->diskName,
+                'local_path' => $localPath,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
+
+            // Clean up any partial download
+            if ($localPath && Storage::disk($this->diskName)->exists($localPath)) {
+                Storage::disk($this->diskName)->delete($localPath);
+            }
+
             return false;
         }
     }
