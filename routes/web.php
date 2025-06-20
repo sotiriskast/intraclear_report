@@ -264,7 +264,7 @@ Route::middleware(['auth:web', 'verified', '2fa.required', 'admin.access'
 
 });
 
-foreach (glob(__DIR__ . '/merchant/*.php') as $routeFile) {
-    require $routeFile;
-}
+//foreach (glob(__DIR__ . '/merchant/*.php') as $routeFile) {
+//    require $routeFile;
+//}
 

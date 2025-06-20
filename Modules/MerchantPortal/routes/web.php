@@ -6,7 +6,7 @@ use Modules\MerchantPortal\Http\Controllers\TransactionController;
 use Modules\MerchantPortal\Http\Controllers\ShopController;
 use Modules\MerchantPortal\Http\Controllers\RollingReserveController;
 
-Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 Route::get('/overview', [DashboardController::class, 'overview'])->name('overview');
 
 // Transactions
