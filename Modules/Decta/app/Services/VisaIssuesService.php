@@ -2,10 +2,8 @@
 
 namespace Modules\Decta\Services;
 
-use Modules\Decta\Services\DectaSftpService;
 use Modules\Decta\Repositories\DectaTransactionRepository;
 use Modules\Decta\Repositories\DectaFileRepository;
-use Modules\Decta\Models\DectaTransaction;
 use Modules\Decta\Models\DectaFile;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -26,7 +24,7 @@ class VisaIssuesService
     /**
      * Services and Repositories
      */
-    protected DectaSftpService $sftpService;
+    protected DectaSftpService $sftpService;  // Use existing SFTP service
     protected DectaTransactionRepository $transactionRepository;
     protected DectaFileRepository $fileRepository;
 
@@ -39,7 +37,7 @@ class VisaIssuesService
      * Constructor
      */
     public function __construct(
-        DectaSftpService $sftpService,
+        DectaSftpService $sftpService,  // Use existing SFTP service
         DectaTransactionRepository $transactionRepository,
         DectaFileRepository $fileRepository
     ) {
@@ -52,10 +50,18 @@ class VisaIssuesService
     /**
      * List available files on SFTP server
      */
-    public function listAvailableFiles(): array
+    public function listAvailableFiles(?string $customDirectory = null): array
     {
         try {
-            $remotePath = $this->getRemotePath();
+            // Use the custom directory or default visa issues path
+            $remotePath = $customDirectory ?: $this->getRemotePath();
+
+            Log::info('Listing Visa Issues files', [
+                'remote_path' => $remotePath,
+                'custom_directory' => $customDirectory
+            ]);
+
+            // Use the existing SFTP service with the specific directory
             $files = $this->sftpService->listFiles($remotePath);
 
             $availableFiles = [];
@@ -92,6 +98,7 @@ class VisaIssuesService
 
         } catch (Exception $e) {
             Log::error('Failed to list Visa Issues files', [
+                'directory' => $customDirectory ?: $this->getRemotePath(),
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
@@ -106,6 +113,7 @@ class VisaIssuesService
     {
         $force = $options['force'] ?? false;
         $isDryRun = $options['dry_run'] ?? false;
+        $customRemotePath = $options['custom_remote_path'] ?? null;
 
         $result = [
             'filename' => $filename,
@@ -122,13 +130,19 @@ class VisaIssuesService
                 return $result;
             }
 
-            $remotePath = $this->getRemotePath() . '/' . $filename;
-
-            // Check if file exists on SFTP
-            if (!$this->checkFileExists($remotePath)) {
-                $result['message'] = 'File not found on SFTP server';
-                return $result;
+            // Determine the remote path
+            if ($customRemotePath) {
+                $remotePath = $customRemotePath;
+            } else {
+                $remoteDir = $this->getRemotePath();
+                $remotePath = rtrim($remoteDir, '/') . '/' . $filename;
             }
+
+            Log::info('Attempting to download Visa Issues file', [
+                'filename' => $filename,
+                'remote_path' => $remotePath,
+                'dry_run' => $isDryRun
+            ]);
 
             // Check if already downloaded (unless forcing)
             $existingFile = $this->fileRepository->findByFilename($filename);
@@ -140,22 +154,35 @@ class VisaIssuesService
             }
 
             if ($isDryRun) {
-                $result['message'] = '[DRY RUN] Would download file';
+                $result['message'] = '[DRY RUN] Would download file from: ' . $remotePath;
                 return $result;
             }
 
-            // Download the file
-            $downloadResult = $this->sftpService->downloadFileDetailed($filename);
+            // Calculate local path for visa issues
+            $localPath = $this->getLocalPath($filename);
 
-            if (!$downloadResult['success']) {
-                $result['message'] = $downloadResult['message'] ?? 'Unknown download error';
+            // Use the existing SFTP service to download
+            $success = $this->sftpService->downloadFile($remotePath, $localPath);
+
+            if (!$success) {
+                $result['message'] = 'Download failed using SFTP service';
                 return $result;
             }
+
+            // Verify file was downloaded
+            if (!Storage::disk('decta')->exists($localPath)) {
+                $result['message'] = 'File was not saved to expected location';
+                return $result;
+            }
+
+            $fileSize = Storage::disk('decta')->size($localPath);
 
             // Create or update file record in database
             $fileRecord = $this->createOrUpdateFileRecord(
                 $filename,
-                $downloadResult,
+                $remotePath,
+                $localPath,
+                $fileSize,
                 $force && $existingFile
             );
 
@@ -163,12 +190,14 @@ class VisaIssuesService
             $result['downloaded'] = true;
             $result['message'] = 'Downloaded successfully';
             $result['file_record'] = $fileRecord;
-            $result['local_path'] = $downloadResult['local_path'];
+            $result['local_path'] = $localPath;
 
-            Log::info('Visa Issues file downloaded', [
+            Log::info('Visa Issues file downloaded successfully', [
                 'filename' => $filename,
+                'remote_path' => $remotePath,
+                'local_path' => $localPath,
                 'file_id' => $fileRecord->id,
-                'size' => $downloadResult['file_size'] ?? 0
+                'size' => $fileSize
             ]);
 
             return $result;
@@ -182,6 +211,15 @@ class VisaIssuesService
             ]);
             return $result;
         }
+    }
+
+    /**
+     * Get local path for visa issues files
+     */
+    protected function getLocalPath(string $filename): string
+    {
+        $basePath = $this->config['sftp']['local_path'] ?? 'visa_issues';
+        return $basePath . '/' . $filename;
     }
 
     /**
@@ -466,42 +504,22 @@ class VisaIssuesService
     }
 
     /**
-     * Check if file exists on SFTP server
-     */
-    protected function checkFileExists(string $remotePath): bool
-    {
-        try {
-            $files = $this->sftpService->listFiles(dirname($remotePath));
-            $filename = basename($remotePath);
-
-            foreach ($files as $file) {
-                if (basename($file['path']) === $filename) {
-                    return true;
-                }
-            }
-
-            return false;
-        } catch (Exception $e) {
-            Log::warning('Error checking file existence', [
-                'remote_path' => $remotePath,
-                'error' => $e->getMessage()
-            ]);
-            return false;
-        }
-    }
-
-    /**
      * Create or update file record in database
      */
-    protected function createOrUpdateFileRecord(string $filename, array $downloadResult, bool $isUpdate = false): DectaFile
-    {
+    protected function createOrUpdateFileRecord(
+        string $filename,
+        string $remotePath,
+        string $localPath,
+        int $fileSize,
+        bool $isUpdate = false
+    ): DectaFile {
         $dateRange = $this->extractDateRange($filename);
 
         $fileData = [
             'filename' => $filename,
-            'original_path' => $downloadResult['remote_path'],
-            'local_path' => $downloadResult['local_path'],
-            'file_size' => $downloadResult['file_size'] ?? 0,
+            'original_path' => $remotePath,
+            'local_path' => $localPath,
+            'file_size' => $fileSize,
             'file_type' => 'visa_issues_csv',
             'status' => self::STATUS_ISSUES_PENDING,
             'metadata' => [
@@ -669,5 +687,13 @@ class VisaIssuesService
         $pow = min($pow, count($units) - 1);
 
         return round($bytes / pow(1024, $pow), 2) . ' ' . $units[$pow];
+    }
+
+    /**
+     * Log info message (helper method for command feedback)
+     */
+    protected function info(string $message): void
+    {
+        Log::info($message);
     }
 }

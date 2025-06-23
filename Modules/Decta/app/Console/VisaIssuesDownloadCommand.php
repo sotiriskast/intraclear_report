@@ -16,7 +16,10 @@ class VisaIssuesDownloadCommand extends Command
      */
     protected $signature = 'visa:download-issues-reports
                             {filename? : Specific filename to download}
+                            {--path= : Full remote path to the file (overrides default directory)}
+                            {--remote-dir= : Remote directory path (e.g., "/in_file/Different issues")}
                             {--list : List available files on SFTP server}
+                            {--list-dir= : Directory to list files from}
                             {--process-immediately : Process file immediately after download}
                             {--force : Force download even if file exists}
                             {--dry-run : Show what would be downloaded without downloading}';
@@ -26,7 +29,7 @@ class VisaIssuesDownloadCommand extends Command
      *
      * @var string
      */
-    protected $description = 'Download Visa Issues reports from /in_file/Different issues directory';
+    protected $description = 'Download Visa Issues reports from SFTP server with flexible path options';
 
     /**
      * Visa Issues Service
@@ -54,15 +57,23 @@ class VisaIssuesDownloadCommand extends Command
             $filename = $this->argument('filename');
             $listOnly = $this->option('list');
             $isDryRun = $this->option('dry-run');
+            $customPath = $this->option('path');
+            $remoteDir = $this->option('remote-dir');
+            $listDir = $this->option('list-dir');
 
             // If list option is provided, show available files
-            if ($listOnly || !$filename) {
-                $this->listAvailableFiles();
+            if ($listOnly || (!$filename && !$customPath)) {
+                $this->listAvailableFiles($listDir);
 
-                if (!$filename && !$listOnly) {
+                if (!$filename && !$customPath && !$listOnly) {
                     $this->line('');
                     $this->warn('Please specify a filename to download or use --list to see available files.');
-                    $this->line('Usage: php artisan visa:download-issues-reports INTCL_visa_sms_tr_det_20250501-20250531.csv');
+                    $this->line('');
+                    $this->info('💡 Usage Examples:');
+                    $this->line('Basic: php artisan visa:download-issues-reports INTCL_visa_sms_tr_det_20250501-20250531.csv');
+                    $this->line('Custom directory: php artisan visa:download-issues-reports FILENAME --remote-dir="/in_file/Different issues"');
+                    $this->line('Full path: php artisan visa:download-issues-reports --path="/in_file/Different issues/FILENAME.csv"');
+                    $this->line('List custom dir: php artisan visa:download-issues-reports --list --list-dir="/in_file/Different issues"');
                     return Command::SUCCESS;
                 }
 
@@ -71,17 +82,35 @@ class VisaIssuesDownloadCommand extends Command
                 }
             }
 
+            // Determine the file to download and its path
+            if ($customPath) {
+                // Full path provided
+                $filename = basename($customPath);
+                $remotePath = $customPath;
+                $this->info("📥 Downloading from custom path: {$remotePath}");
+            } else {
+                // Filename provided, construct path
+                if (!$filename) {
+                    $this->error('Filename is required when not using --path option');
+                    return Command::FAILURE;
+                }
+
+                $remoteDir = $remoteDir ?: $this->visaIssuesService->getConfig('sftp.remote_path');
+                $remotePath = rtrim($remoteDir, '/') . '/' . $filename;
+                $this->info("📥 Downloading: {$filename}");
+                $this->line("📂 From directory: {$remoteDir}");
+            }
+
             // Download specific file
             if ($isDryRun) {
                 $this->info('🔍 DRY RUN MODE - No actual download will be performed');
                 $this->line('');
             }
 
-            $this->info("📥 Downloading: {$filename}");
-
             $options = [
                 'force' => $this->option('force'),
-                'dry_run' => $isDryRun
+                'dry_run' => $isDryRun,
+                'custom_remote_path' => $remotePath
             ];
 
             $result = $this->visaIssuesService->downloadFile($filename, $options);
@@ -111,18 +140,26 @@ class VisaIssuesDownloadCommand extends Command
     /**
      * List available files on SFTP server
      */
-    protected function listAvailableFiles(): void
+    protected function listAvailableFiles(?string $customDir = null): void
     {
+        $directory = $customDir ?: $this->visaIssuesService->getConfig('sftp.remote_path');
+
         $this->info('📂 Available Files on SFTP Server');
         $this->line('==================================');
+        $this->line("Directory: {$directory}");
+        $this->line('');
 
         try {
-            $files = $this->visaIssuesService->listAvailableFiles();
+            $files = $this->visaIssuesService->listAvailableFiles($customDir);
 
             if (empty($files)) {
                 $this->warn('No Visa Issues files found on SFTP server.');
-                $this->line('Expected location: /in_file/Different issues');
+                $this->line("Location checked: {$directory}");
                 $this->line('Expected pattern: INTCL_visa_sms_tr_det_YYYYMMDD-YYYYMMDD.csv');
+                $this->line('');
+                $this->info('💡 Try different directories:');
+                $this->line('php artisan visa:download-issues-reports --list --list-dir="/in_file/reports"');
+                $this->line('php artisan visa:download-issues-reports --list --list-dir="/in_file/Different issues"');
                 return;
             }
 
@@ -155,10 +192,17 @@ class VisaIssuesDownloadCommand extends Command
             $this->line('');
             $this->info('💡 Usage Examples:');
             $this->line('Download: php artisan visa:download-issues-reports ' . $files[0]['filename']);
+            $this->line('Custom dir: php artisan visa:download-issues-reports ' . $files[0]['filename'] . ' --remote-dir="' . $directory . '"');
+            $this->line('Full path: php artisan visa:download-issues-reports --path="' . $directory . '/' . $files[0]['filename'] . '"');
             $this->line('Download and process: php artisan visa:download-issues-reports ' . $files[0]['filename'] . ' --process-immediately');
 
         } catch (Exception $e) {
-            $this->error("Failed to list files: " . $e->getMessage());
+            $this->error("Failed to list files from {$directory}: " . $e->getMessage());
+            $this->line('');
+            $this->info('💡 Try different directories:');
+            $this->line('php artisan visa:download-issues-reports --list --list-dir="/in_file/reports"');
+            $this->line('php artisan visa:download-issues-reports --list --list-dir="/in_file/Different issues"');
+            $this->line('php artisan visa:download-issues-reports --list --list-dir="/in_file"');
         }
     }
 
@@ -181,6 +225,15 @@ class VisaIssuesDownloadCommand extends Command
             }
         } else {
             $this->line("   ❌ Download failed: " . $result['message']);
+
+            // Provide helpful suggestions based on error type
+            if (str_contains($result['message'], 'not found')) {
+                $this->line('');
+                $this->info('💡 Troubleshooting:');
+                $this->line('1. Check available files: php artisan visa:download-issues-reports --list');
+                $this->line('2. Try different directory: php artisan visa:download-issues-reports --list --list-dir="/in_file/reports"');
+                $this->line('3. Use full path: php artisan visa:download-issues-reports --path="/full/path/to/file.csv"');
+            }
         }
     }
 
