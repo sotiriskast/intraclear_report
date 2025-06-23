@@ -24,7 +24,7 @@ class VisaIssuesService
     /**
      * Services and Repositories
      */
-    protected DectaSftpService $sftpService;  // Use existing SFTP service
+    protected DectaSftpService $sftpService;
     protected DectaTransactionRepository $transactionRepository;
     protected DectaFileRepository $fileRepository;
 
@@ -37,7 +37,7 @@ class VisaIssuesService
      * Constructor
      */
     public function __construct(
-        DectaSftpService $sftpService,  // Use existing SFTP service
+        DectaSftpService $sftpService,
         DectaTransactionRepository $transactionRepository,
         DectaFileRepository $fileRepository
     ) {
@@ -542,7 +542,7 @@ class VisaIssuesService
     }
 
     /**
-     * Read and parse CSV file
+     * Read and parse CSV file (IMPROVED VERSION)
      */
     protected function readCsvFile(DectaFile $file): array
     {
@@ -553,31 +553,172 @@ class VisaIssuesService
         }
 
         $fileContent = Storage::disk('decta')->get($localPath);
-        return $this->parseCsvContent($fileContent);
+
+        Log::info('Reading Visa Issues CSV file', [
+            'file_id' => $file->id,
+            'filename' => $file->filename,
+            'content_length' => strlen($fileContent),
+            'content_preview' => substr($fileContent, 0, 200)
+        ]);
+
+        return $this->parseCsvContentImproved($fileContent);
     }
 
     /**
-     * Parse CSV content into array
+     * IMPROVED CSV parsing with better handling of encoding, delimiters, and edge cases
      */
-    protected function parseCsvContent(string $content): array
+    protected function parseCsvContentImproved(string $content): array
     {
-        $delimiter = $this->config['processing']['csv_delimiter'] ?? ';';
+        // Remove BOM if present
+        $content = $this->removeBOM($content);
 
-        $lines = explode("\n", $content);
-        $header = str_getcsv(array_shift($lines), $delimiter);
+        // Handle different line endings
+        $content = str_replace(["\r\n", "\r"], "\n", $content);
 
+        // Split into lines and filter empty ones
+        $lines = array_filter(explode("\n", $content), function($line) {
+            return !empty(trim($line));
+        });
+
+        if (empty($lines)) {
+            throw new Exception('CSV file appears to be empty');
+        }
+
+        // Get headers from first line
+        $headerLine = array_shift($lines);
+        $headers = $this->parseCsvLine($headerLine);
+        $headers = $this->normalizeHeaders($headers);
+
+        if (empty($headers)) {
+            throw new Exception('No headers found in CSV file');
+        }
+
+        Log::info('CSV headers parsed', [
+            'header_count' => count($headers),
+            'headers' => $headers,
+            'data_lines_count' => count($lines)
+        ]);
+
+        // Validate headers
+        $this->validateVisaIssuesHeaders($headers);
+
+        // Parse data rows
         $data = [];
-        foreach ($lines as $line) {
+        foreach ($lines as $lineIndex => $line) {
             $line = trim($line);
-            if (empty($line)) continue;
+            if (empty($line)) {
+                continue;
+            }
 
-            $row = str_getcsv($line, $delimiter);
-            if (count($row) === count($header)) {
-                $data[] = array_combine($header, $row);
+            try {
+                $row = $this->parseCsvLine($line);
+
+                // Skip if row count doesn't match header count
+                if (count($row) !== count($headers)) {
+                    Log::warning('Row column count mismatch', [
+                        'line_index' => $lineIndex + 2, // +2 for header and 0-based indexing
+                        'expected_columns' => count($headers),
+                        'actual_columns' => count($row),
+                        'line_content' => substr($line, 0, 100)
+                    ]);
+                    continue;
+                }
+
+                $data[] = array_combine($headers, $row);
+
+            } catch (Exception $e) {
+                Log::warning('Failed to parse CSV line', [
+                    'line_index' => $lineIndex + 2,
+                    'error' => $e->getMessage(),
+                    'line_content' => substr($line, 0, 100)
+                ]);
             }
         }
 
+        Log::info('CSV parsing completed', [
+            'total_lines_processed' => count($lines),
+            'valid_data_rows' => count($data)
+        ]);
+
         return $data;
+    }
+
+    /**
+     * Remove BOM (Byte Order Mark) from content
+     */
+    protected function removeBOM(string $content): string
+    {
+        $boms = [
+            "\xEF\xBB\xBF",     // UTF-8 BOM
+            "\xFF\xFE",         // UTF-16 LE BOM
+            "\xFE\xFF",         // UTF-16 BE BOM
+            "\xFF\xFE\x00\x00", // UTF-32 LE BOM
+            "\x00\x00\xFE\xFF"  // UTF-32 BE BOM
+        ];
+
+        foreach ($boms as $bom) {
+            if (substr($content, 0, strlen($bom)) === $bom) {
+                return substr($content, strlen($bom));
+            }
+        }
+
+        return $content;
+    }
+
+    /**
+     * Parse CSV line handling quoted values and different delimiters
+     */
+    protected function parseCsvLine(string $line): array
+    {
+        // Try comma delimiter first (more common)
+        if (strpos($line, ',') !== false) {
+            $result = str_getcsv($line, ',');
+            // If we get more than 20 columns with comma, it's likely correct
+            if (count($result) > 20) {
+                return $result;
+            }
+        }
+
+        // Try semicolon delimiter
+        if (strpos($line, ';') !== false) {
+            $result = str_getcsv($line, ';');
+            if (count($result) > 1) {
+                return $result;
+            }
+        }
+
+        // Fall back to comma as default
+        return str_getcsv($line, ',');
+    }
+
+    /**
+     * Normalize headers by trimming whitespace and handling encoding issues
+     */
+    protected function normalizeHeaders(array $headers): array
+    {
+        return array_map(function($header) {
+            return trim($header, " \t\n\r\0\x0B\"'");
+        }, $headers);
+    }
+
+    /**
+     * Validate that we have the expected Visa Issues CSV headers
+     */
+    protected function validateVisaIssuesHeaders(array $headers): void
+    {
+        $requiredHeaders = ['PAYMENT_ID', 'INTERCHANGE'];
+        $missingHeaders = [];
+
+        foreach ($requiredHeaders as $required) {
+            if (!in_array($required, $headers)) {
+                $missingHeaders[] = $required;
+            }
+        }
+
+        if (!empty($missingHeaders)) {
+            throw new Exception('Missing required Visa Issues CSV headers: ' . implode(', ', $missingHeaders) .
+                '. Found headers: ' . implode(', ', $headers));
+        }
     }
 
     /**
