@@ -1,0 +1,11 @@
+{
+    "name": "MerchantPortal",
+    "alias": "merchantportal",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\MerchantPortal\\Providers\\MerchantPortalServiceProvider"
+    ],
+    "files": []
+}

@@ -68,7 +68,7 @@ class DectaFileRepository
      */
     public function getPendingFiles(): Collection
     {
-        return DectaFile::pending()->get();
+        return DectaFile::getPendingForTransaction()->get();
     }
 
     /**

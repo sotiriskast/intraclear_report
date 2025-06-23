@@ -76,8 +76,89 @@
                             @enderror
                         </div>
 
-                        {{-- Role Assignment --}}
+                        {{-- Password Confirmation Field (for merchant users) --}}
+                        <div id="password-confirmation-field" class="col-span-1 sm:col-span-2 hidden">
+                            <label for="password_confirmation" class="block text-sm font-medium text-gray-700">
+                                {{ __('Confirm Password') }}
+                            </label>
+                            <input id="password_confirmation"
+                                   name="password_confirmation"
+                                   type="password"
+                                   class="mt-1 block w-full rounded-md border-gray-300 px-3 py-2 text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm shadow-sm"
+                                   placeholder="Confirm password"
+                            />
+                            @error('password_confirmation')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        {{-- User Type Selection --}}
                         <div class="col-span-1 sm:col-span-2">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                {{ __('User Type') }}
+                            </label>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <label class="relative flex items-center p-4 rounded-lg border cursor-pointer hover:bg-gray-50">
+                                    <input type="radio"
+                                           name="user_type"
+                                           value="admin"
+                                           {{ old('user_type') == 'admin' ? 'checked' : '' }}
+                                           class="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500"
+                                           onchange="toggleUserTypeFields()">
+                                    <div class="ml-4">
+                                        <span class="block text-sm font-medium text-gray-900">
+                                            {{ __('Admin User') }}
+                                        </span>
+                                        <span class="block text-sm text-gray-500">
+                                            {{ __('Administrative access with role-based permissions') }}
+                                        </span>
+                                    </div>
+                                </label>
+
+                                <label class="relative flex items-center p-4 rounded-lg border cursor-pointer hover:bg-gray-50">
+                                    <input type="radio"
+                                           name="user_type"
+                                           value="merchant"
+                                           {{ old('user_type') == 'merchant' ? 'checked' : '' }}
+                                           class="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500"
+                                           onchange="toggleUserTypeFields()">
+                                    <div class="ml-4">
+                                        <span class="block text-sm font-medium text-gray-900">
+                                            {{ __('Merchant User') }}
+                                        </span>
+                                        <span class="block text-sm text-gray-500">
+                                            {{ __('Access to merchant portal with merchant-specific permissions') }}
+                                        </span>
+                                    </div>
+                                </label>
+                            </div>
+                            @error('user_type')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        {{-- Merchant Selection (for merchant users) --}}
+                        <div id="merchant-field" class="col-span-1 sm:col-span-2 hidden">
+                            <label for="merchant_id" class="block text-sm font-medium text-gray-700">
+                                {{ __('Associated Merchant') }}
+                            </label>
+                            <select id="merchant_id"
+                                    name="merchant_id"
+                                    class="mt-1 block w-full rounded-md border-gray-300 px-3 py-2 text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm shadow-sm">
+                                <option value="">{{ __('Select Merchant') }}</option>
+                                @foreach($merchants as $merchant)
+                                    <option value="{{ $merchant->id }}" {{ old('merchant_id') == $merchant->id ? 'selected' : '' }}>
+                                        {{ $merchant->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('merchant_id')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        {{-- Role Assignment (for admin users) --}}
+                        <div id="role-field" class="col-span-1 sm:col-span-2">
                             <label class="block text-sm font-medium text-gray-700">
                                 {{ __('Role Assignment') }}
                             </label>
@@ -94,7 +175,8 @@
                                                 {{ ucfirst($role->name) }}
                                             </span>
                                             <span class="block text-sm text-gray-500">
-                                                {{ $role->name === 'admin' ? 'Full system access and control' : 'Standard user capabilities' }}
+                                                {{ $role->name === 'admin' ? 'Full system access and control' :
+                                                   ($role->name === 'super-admin' ? 'Complete access to all system functions' : 'Standard user capabilities') }}
                                             </span>
                                         </div>
                                     </label>
@@ -121,4 +203,48 @@
             </div>
         </div>
     </div>
+
+    <script>
+        function toggleUserTypeFields() {
+            const userType = document.querySelector('input[name="user_type"]:checked')?.value;
+            const merchantField = document.getElementById('merchant-field');
+            const roleField = document.getElementById('role-field');
+            const passwordConfirmationField = document.getElementById('password-confirmation-field');
+
+            if (userType === 'merchant') {
+                merchantField.classList.remove('hidden');
+                roleField.classList.add('hidden');
+                passwordConfirmationField.classList.remove('hidden');
+
+                // Make merchant_id required
+                document.getElementById('merchant_id').setAttribute('required', 'required');
+
+                // Make password_confirmation required
+                document.getElementById('password_confirmation').setAttribute('required', 'required');
+
+                // Remove required from role
+                const roleInputs = document.querySelectorAll('input[name="role"]');
+                roleInputs.forEach(input => input.removeAttribute('required'));
+            } else {
+                merchantField.classList.add('hidden');
+                roleField.classList.remove('hidden');
+                passwordConfirmationField.classList.add('hidden');
+
+                // Remove required from merchant_id
+                document.getElementById('merchant_id').removeAttribute('required');
+
+                // Remove required from password_confirmation
+                document.getElementById('password_confirmation').removeAttribute('required');
+
+                // Make role required
+                const roleInputs = document.querySelectorAll('input[name="role"]');
+                roleInputs[0].setAttribute('required', 'required');
+            }
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            toggleUserTypeFields();
+        });
+    </script>
 </x-app-layout>

@@ -1,0 +1,30 @@
+{
+    "name": "intraclear/merchantportal",
+    "description": "",
+    "authors": [
+        {
+            "name": "Sotiris Kastanas",
+            "email": "s.kastanas@intraclear.com"
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {
+
+            }
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\MerchantPortal\\": "app/",
+            "Modules\\MerchantPortal\\Database\\Factories\\": "database/factories/",
+            "Modules\\MerchantPortal\\Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\MerchantPortal\\Tests\\": "tests/"
+        }
+    }
+}
