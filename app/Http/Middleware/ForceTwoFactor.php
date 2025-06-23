@@ -16,8 +16,18 @@ class ForceTwoFactor
      */
     public function handle(Request $request, Closure $next)
     {
-        if (Auth::check() && !Auth::user()->two_factor_secret) {
-            return redirect('/user/profile')->with('error', 'You must enable Two-Factor Authentication to access this Platform.');
+        if (Auth::check()) {
+            $user = Auth::user();
+
+            // Skip 2FA check for merchant users
+            if ($user->user_type === 'merchant') {
+                return $next($request);
+            }
+
+            // For admin users, require 2FA
+            if (!$user->two_factor_secret) {
+                return redirect('/user/profile')->with('error', 'You must enable Two-Factor Authentication to access this Platform.');
+            }
         }
 
         return $next($request);

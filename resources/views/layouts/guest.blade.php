@@ -10,7 +10,10 @@
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
-
+        <link rel="icon" href="{{asset('images/intraclear-favicon.jpg')}}" sizes="32x32" />
+        <link rel="icon" href="{{asset('images/intraclear-favicon.jpg')}}" sizes="192x192" />
+        <link rel="apple-touch-icon" href="{{asset('images/intraclear-favicon.jpg')}}" />
+        <meta name="msapplication-TileImage" content="{{asset('images/intraclear-favicon.jpg')}}" />
         <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
 
