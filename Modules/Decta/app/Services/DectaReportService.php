@@ -18,7 +18,7 @@ class DectaReportService
         $yesterday = Carbon::yesterday();
         $lastMonth = Carbon::now()->subDays(30);
 
-        // Main statistics using PostgreSQL
+        // Main statistics using PostgreSQL - FIXED for shop counting
         $stats = DB::select("
         SELECT
             COUNT(*) as total_transactions,
@@ -28,6 +28,7 @@ class DectaReportService
             COUNT(*) FILTER (WHERE gateway_transaction_status = 'approved' OR gateway_transaction_status = 'APPROVED') as approved_transactions,
             COUNT(*) FILTER (WHERE gateway_transaction_status = 'declined' OR gateway_transaction_status = 'DECLINED') as declined_transactions,
             COUNT(DISTINCT gateway_account_id) FILTER (WHERE gateway_account_id IS NOT NULL) as unique_merchants,
+            COUNT(DISTINCT gateway_shop_id) FILTER (WHERE gateway_shop_id IS NOT NULL AND gateway_shop_id != 0) as unique_shops,
             COUNT(DISTINCT tr_ccy) FILTER (WHERE tr_ccy IS NOT NULL) as unique_currencies
         FROM decta_transactions
         WHERE created_at >= ?
@@ -181,6 +182,7 @@ class DectaReportService
             'yesterday_amounts_by_currency' => $yesterdayAmountsByCurrency,
 
             'unique_merchants' => $mainStats->unique_merchants ?? 0,
+            'unique_shops' => $mainStats->unique_shops ?? 0,
             'today_transactions' => $todayData->today_transactions ?? 0,
             'today_matched' => $todayData->today_matched ?? 0,
             'today_unmatched' => $todayData->today_unmatched ?? 0,
@@ -193,57 +195,7 @@ class DectaReportService
             'period_days' => 30
         ];
     }
-    /**
-     * Debug method to understand unmatched transactions discrepancy
-     */
-    public function debugUnmatchedTransactions(): array
-    {
-        $lastMonth = Carbon::now()->subDays(30);
 
-        // Count from summary stats query (last 30 days, includes failed)
-        $summaryCount = DB::select("
-        SELECT
-            COUNT(*) FILTER (WHERE is_matched = false) as unmatched_all,
-            COUNT(*) FILTER (WHERE is_matched = false AND status != 'failed') as unmatched_non_failed,
-            COUNT(*) FILTER (WHERE is_matched = false AND status = 'failed') as unmatched_failed
-        FROM decta_transactions
-        WHERE created_at >= ?
-    ", [$lastMonth]);
-
-        // Count from current unmatched list query (all time, excludes failed)
-        $listCount = DB::select("
-        SELECT
-            COUNT(*) as unmatched_all_time,
-            COUNT(*) FILTER (WHERE created_at >= ?) as unmatched_last_30_days
-        FROM decta_transactions
-        WHERE is_matched = false AND status != 'failed'
-    ", [$lastMonth]);
-
-        // Sample of unmatched records
-        $samples = DB::select("
-        SELECT
-            payment_id,
-            is_matched,
-            status,
-            created_at,
-            tr_date_time
-        FROM decta_transactions
-        WHERE is_matched = false
-        ORDER BY created_at DESC
-        LIMIT 10
-    ");
-
-        return [
-            'summary_stats' => $summaryCount[0] ?? null,
-            'list_stats' => $listCount[0] ?? null,
-            'sample_records' => $samples,
-            'explanation' => [
-                'summary_unmatched_count' => 'Counts from last 30 days, includes failed transactions',
-                'list_unmatched_count' => 'Shows all time, excludes failed transactions',
-                'discrepancy_reason' => 'Different date filters and failed transaction handling'
-            ]
-        ];
-    }
     /**
      * Get declined transactions with filters
      */
@@ -333,6 +285,7 @@ class DectaReportService
             ];
         }, $results);
     }
+
     /**
      * Get approval/decline trends for the last N days
      */
@@ -365,6 +318,7 @@ class DectaReportService
             ];
         }, $results);
     }
+
     /**
      * Get decline reasons summary
      */
@@ -395,6 +349,7 @@ class DectaReportService
             ];
         }, $results);
     }
+
     /**
      * Generate reports based on type and filters
      */
@@ -411,6 +366,8 @@ class DectaReportService
                 return $this->getDailySummaryReport($filters);
             case 'merchant_breakdown':
                 return $this->getMerchantBreakdownReport($filters);
+            case 'shop_breakdown':
+                return $this->getShopBreakdownReport($filters); // New method
             case 'scheme':
                 return $this->getSchemeReport($filters);
             case 'declined_transactions':
@@ -423,6 +380,7 @@ class DectaReportService
                 throw new \InvalidArgumentException("Unknown report type: {$reportType}");
         }
     }
+
     /**
      * Get declined transactions report
      */
@@ -430,6 +388,7 @@ class DectaReportService
     {
         return $this->getDeclinedTransactions($filters, 1000, 0);
     }
+
     /**
      * Get approval analysis report
      */
@@ -491,9 +450,9 @@ class DectaReportService
             ];
         }, $results);
     }
+
     /**
      * Get scheme report - grouped by card type, transaction type, currency, and merchant
-     * Fixed for PostgreSQL GROUP BY requirements
      */
     protected function getSchemeReport(array $filters): array
     {
@@ -519,6 +478,12 @@ class DectaReportService
             $params[] = (int)$filters['merchant_id'];
         }
 
+        // Handle shop filtering
+        if (!empty($filters['shop_id'])) {
+            $whereConditions[] = 'dt.gateway_shop_id = ?';
+            $params[] = $filters['shop_id'];
+        }
+
         if (!empty($filters['currency'])) {
             $whereConditions[] = 'dt.tr_ccy = ?';
             $params[] = $filters['currency'];
@@ -537,18 +502,18 @@ class DectaReportService
 
         if (!empty($filters['amount_min'])) {
             $whereConditions[] = 'dt.tr_amount >= ?';
-            $params[] = (int)($filters['amount_min'] * 100); // Convert to cents
+            $params[] = (int)($filters['amount_min'] * 100);
         }
 
         if (!empty($filters['amount_max'])) {
             $whereConditions[] = 'dt.tr_amount <= ?';
-            $params[] = (int)($filters['amount_max'] * 100); // Convert to cents
+            $params[] = (int)($filters['amount_max'] * 100);
         }
 
         $whereClause = implode(' AND ', $whereConditions);
         $joinClause = implode(' ', $joins);
 
-        // Updated query with proper fee calculation from user_define_field2
+        // UPDATED: Query now includes shop details from shops table
         $query = "
     WITH grouped_data AS (
         SELECT
@@ -556,6 +521,14 @@ class DectaReportService
             COALESCE(dt.tr_type, 'Unknown') as transaction_type,
             COALESCE(dt.tr_ccy, 'Unknown') as currency,
             COALESCE(dt.merchant_legal_name, dt.merchant_name, 'Unknown') as merchant_legal_name,
+            COALESCE(dt.gateway_shop_id::text, 'Unknown') as shop_id,
+
+            -- ADDED: Shop details from shops table
+            COALESCE(s.owner_name, 'Unknown Owner') as shop_owner_name,
+            COALESCE(s.email, '') as shop_email,
+            COALESCE(s.website, '') as shop_website,
+            CASE WHEN s.active THEN 'Active' ELSE 'Inactive' END as shop_status,
+
             -- Handle sales vs refunds: refunds (06) should be negative for net calculation
             CASE
                 WHEN dt.tr_type = '06' THEN -dt.tr_amount
@@ -572,38 +545,63 @@ class DectaReportService
             END as fee_amount
         FROM decta_transactions dt
         {$joinClause}
+        -- ADDED: LEFT JOIN with shops table to get shop details
+        LEFT JOIN shops s ON dt.gateway_shop_id = s.shop_id
+            AND dt.gateway_account_id = (SELECT account_id FROM merchants WHERE id = s.merchant_id)
         WHERE {$whereClause}
-          AND dt.card_type_name IS NOT NULL
-          AND dt.tr_type IS NOT NULL
-          AND dt.tr_ccy IS NOT NULL
+          AND dt.tr_amount IS NOT NULL
     )
     SELECT
         card_type,
         transaction_type,
         currency,
         merchant_legal_name,
-        -- For individual rows, show original amounts (positive for both sales and refunds)
+        shop_id,
+
+        -- ADDED: Shop detail fields
+        shop_owner_name,
+        shop_email,
+        shop_website,
+        shop_status,
+
+        -- Financial data
         SUM(original_amount) as total_amount,
         COUNT(*) as transaction_count,
-        -- For net calculations, use adjusted amounts (sales positive, refunds negative)
         SUM(adjusted_amount) as net_amount,
-        -- Sum the actual fees from user_define_field2
         SUM(fee_amount) as total_fees
     FROM grouped_data
     GROUP BY
         card_type,
         transaction_type,
         currency,
-        merchant_legal_name
+        merchant_legal_name,
+        shop_id,
+        shop_owner_name,
+        shop_email,
+        shop_website,
+        shop_status
     ORDER BY
-        merchant_legal_name ASC,  -- First sort by Merchant Legal Name
-        currency ASC,             -- Then sort by Currency
-        card_type ASC,            -- Then by Card Type
-        transaction_type ASC      -- Finally by Transaction Type
+        merchant_legal_name ASC,
+        shop_owner_name ASC,
+        shop_id ASC,
+        currency ASC,
+        card_type ASC,
+        transaction_type ASC
 ";
 
         try {
+            \Log::info('Executing enhanced scheme report query with shop details', [
+                'query' => $query,
+                'params' => $params,
+                'filters' => $filters
+            ]);
+
             $results = DB::select($query, $params);
+
+            \Log::info('Enhanced scheme report query completed', [
+                'result_count' => count($results),
+                'filters' => $filters
+            ]);
 
             return array_map(function ($row) {
                 return [
@@ -611,27 +609,40 @@ class DectaReportService
                     'transaction_type' => $row->transaction_type,
                     'transaction_type_name' => $row->transaction_type === '05' ? 'Sales' : ($row->transaction_type === '06' ? 'Refunds' : $row->transaction_type),
                     'currency' => $row->currency,
-                    'amount' => $row->total_amount ? $row->total_amount / 100 : 0, // Original amount for display
-                    'net_amount' => $row->net_amount ? $row->net_amount / 100 : 0, // Net amount (sales - refunds)
+                    'amount' => $row->total_amount ? $row->total_amount / 100 : 0,
+                    'net_amount' => $row->net_amount ? $row->net_amount / 100 : 0,
                     'count' => $row->transaction_count,
-                    'fee' => $row->total_fees ? round($row->total_fees, 2) : 0, // Fees are already in base currency
-                    'merchant_legal_name' => $row->merchant_legal_name
+                    'fee' => $row->total_fees ? round($row->total_fees, 2) : 0,
+                    'merchant_legal_name' => $row->merchant_legal_name,
+                    'shop_id' => $row->shop_id,
+
+                    // ADDED: Shop details in response
+                    'shop_details' => [
+                        'shop_id' => $row->shop_id,
+                        'owner_name' => $row->shop_owner_name !== 'Unknown Owner' ? $row->shop_owner_name : null,
+                        'email' => !empty($row->shop_email) ? $row->shop_email : null,
+                        'website' => !empty($row->shop_website) ? $row->shop_website : null,
+                        'status' => $row->shop_status,
+                        'display_name' => $row->shop_owner_name !== 'Unknown Owner'
+                            ? "Shop {$row->shop_id} - {$row->shop_owner_name}"
+                            : "Shop {$row->shop_id}"
+                    ]
                 ];
             }, $results);
 
         } catch (\Exception $e) {
-            // Log the error for debugging
-            \Log::error('Scheme report query failed', [
+            \Log::error('Enhanced scheme report query failed', [
                 'error' => $e->getMessage(),
                 'query' => $query,
                 'params' => $params,
-                'filters' => $filters
+                'filters' => $filters,
+                'trace' => $e->getTraceAsString()
             ]);
 
-            // Return empty array on error
             return [];
         }
     }
+
     /**
      * Get detailed transaction report
      */
@@ -657,6 +668,12 @@ class DectaReportService
             $joins[] = 'LEFT JOIN merchants m ON dt.gateway_account_id = m.account_id';
             $whereConditions[] = 'm.id = ?';
             $params[] = $filters['merchant_id'];
+        }
+
+        // Handle shop filtering
+        if (!empty($filters['shop_id'])) {
+            $whereConditions[] = 'dt.gateway_shop_id = ?';
+            $params[] = $filters['shop_id'];
         }
 
         if (!empty($filters['currency'])) {
@@ -731,6 +748,7 @@ class DectaReportService
                 'merchant_id' => $row->merchant_id,
                 'merchant_db_name' => $row->merchant_db_name ?? null,
                 'merchant_legal_name' => $row->merchant_legal_name ?? null,
+                'shop_id' => $row->gateway_shop_id,
                 'terminal_id' => $row->terminal_id,
                 'card_type' => $row->card_type_name,
                 'transaction_type' => $row->tr_type,
@@ -750,6 +768,152 @@ class DectaReportService
             ];
         }, $results);
     }
+
+    protected function getShopBreakdownReport(array $filters): array
+    {
+        // Base conditions - exclude NULL and 0 shop IDs
+        $whereConditions = ['dt.gateway_shop_id IS NOT NULL', 'dt.gateway_shop_id != 0'];
+        $params = [];
+        $joins = ['LEFT JOIN merchants m ON dt.gateway_account_id = m.account_id'];
+
+        // Apply date filters
+        if (!empty($filters['date_from'])) {
+            $whereConditions[] = 'dt.tr_date_time >= ?';
+            $params[] = $filters['date_from'];
+        }
+
+        if (!empty($filters['date_to'])) {
+            $whereConditions[] = 'dt.tr_date_time <= ?';
+            $params[] = $filters['date_to'] . ' 23:59:59';
+        }
+
+        // Filter by specific merchant
+        if (!empty($filters['merchant_id'])) {
+            $whereConditions[] = 'm.id = ?';
+            $params[] = $filters['merchant_id'];
+        }
+
+        // Filter by specific shop - FIXED: Handle both "All Shops" and specific shop
+        if (!empty($filters['shop_id']) && $filters['shop_id'] !== '' && $filters['shop_id'] !== 'all') {
+            $whereConditions[] = 'dt.gateway_shop_id = ?';
+            $params[] = (int)$filters['shop_id']; // Cast to integer for bigint column
+        }
+
+        // Apply other filters
+        if (!empty($filters['currency'])) {
+            $whereConditions[] = 'dt.tr_ccy = ?';
+            $params[] = $filters['currency'];
+        }
+
+        if (!empty($filters['status'])) {
+            if ($filters['status'] === 'matched') {
+                $whereConditions[] = 'dt.is_matched = true';
+            } elseif ($filters['status'] === 'pending') {
+                $whereConditions[] = 'dt.is_matched = false AND dt.status != \'failed\'';
+            } else {
+                $whereConditions[] = 'dt.status = ?';
+                $params[] = $filters['status'];
+            }
+        }
+
+        if (!empty($filters['amount_min'])) {
+            $whereConditions[] = 'dt.tr_amount >= ?';
+            $params[] = (int)($filters['amount_min'] * 100); // Convert to cents
+        }
+
+        if (!empty($filters['amount_max'])) {
+            $whereConditions[] = 'dt.tr_amount <= ?';
+            $params[] = (int)($filters['amount_max'] * 100); // Convert to cents
+        }
+
+        $whereClause = implode(' AND ', $whereConditions);
+        $joinClause = implode(' ', $joins);
+
+        $query = "
+        SELECT
+            dt.gateway_shop_id as shop_id,
+            dt.gateway_account_id,
+            dt.merchant_name,
+            m.name as merchant_db_name,
+            m.legal_name as merchant_legal_name,
+            COUNT(*) as total_transactions,
+            COUNT(*) FILTER (WHERE dt.is_matched = true) as matched_transactions,
+            COUNT(*) FILTER (WHERE dt.status = 'failed') as failed_transactions,
+            COUNT(*) FILTER (WHERE dt.gateway_transaction_status IN ('approved', 'APPROVED')) as approved_transactions,
+            COUNT(*) FILTER (WHERE dt.gateway_transaction_status IN ('declined', 'DECLINED')) as declined_transactions,
+            SUM(dt.tr_amount) as total_amount,
+            SUM(dt.tr_amount) FILTER (WHERE dt.is_matched = true) as matched_amount,
+            AVG(dt.tr_amount) as avg_amount,
+            MIN(dt.tr_date_time) as first_transaction,
+            MAX(dt.tr_date_time) as last_transaction,
+            COUNT(DISTINCT dt.tr_ccy) as currencies_used,
+            array_agg(DISTINCT dt.tr_ccy) FILTER (WHERE dt.tr_ccy IS NOT NULL) as currencies_list
+        FROM decta_transactions dt
+        {$joinClause}
+        WHERE {$whereClause}
+        GROUP BY
+            dt.gateway_shop_id,
+            dt.gateway_account_id,
+            dt.merchant_name,
+            m.name,
+            m.legal_name
+        ORDER BY total_amount DESC
+    ";
+
+        try {
+            $results = DB::select($query, $params);
+
+            return array_map(function ($row) {
+                $matchRate = $row->total_transactions > 0
+                    ? ($row->matched_transactions / $row->total_transactions) * 100
+                    : 0;
+
+                $approvalRate = ($row->approved_transactions + $row->declined_transactions) > 0
+                    ? ($row->approved_transactions / ($row->approved_transactions + $row->declined_transactions)) * 100
+                    : 0;
+
+                // Handle currencies_list properly
+                $currenciesList = [];
+                if ($row->currencies_list) {
+                    $currencies = is_string($row->currencies_list)
+                        ? json_decode($row->currencies_list, true)
+                        : $row->currencies_list;
+                    $currenciesList = array_filter($currencies ?: []); // Remove nulls
+                }
+
+                return [
+                    'shop_id' => $row->shop_id,
+                    'merchant_name' => $row->merchant_db_name ?: $row->merchant_legal_name ?: $row->merchant_name,
+                    'total_transactions' => $row->total_transactions,
+                    'matched_transactions' => $row->matched_transactions,
+                    'failed_transactions' => $row->failed_transactions,
+                    'approved_transactions' => $row->approved_transactions,
+                    'declined_transactions' => $row->declined_transactions,
+                    'total_amount' => $row->total_amount ? $row->total_amount / 100 : 0,
+                    'matched_amount' => $row->matched_amount ? $row->matched_amount / 100 : 0,
+                    'avg_amount' => $row->avg_amount ? $row->avg_amount / 100 : 0,
+                    'match_rate' => round($matchRate, 2),
+                    'approval_rate' => round($approvalRate, 2),
+                    'first_transaction' => $row->first_transaction,
+                    'last_transaction' => $row->last_transaction,
+                    'currencies_used' => $row->currencies_used,
+                    'currencies_list' => $currenciesList
+                ];
+            }, $results);
+
+        } catch (\Exception $e) {
+            \Log::error('Shop breakdown report query failed', [
+                'error' => $e->getMessage(),
+                'query' => $query,
+                'params' => $params,
+                'filters' => $filters
+            ]);
+
+            // Return empty array on error
+            return [];
+        }
+    }
+
     /**
      * Get daily summary report
      */
@@ -808,6 +972,7 @@ class DectaReportService
             ];
         }, $results);
     }
+
     /**
      * Get merchant breakdown report
      */
@@ -832,7 +997,10 @@ class DectaReportService
             $whereConditions[] = 'm.id = ?';
             $params[] = $filters['merchant_id'];
         }
-
+        if (!empty($filters['shop_id'])) {
+            $whereConditions[] = 'dt.gateway_shop_id = ?';
+            $params[] = $filters['shop_id'];
+        }
         $whereClause = implode(' AND ', $whereConditions);
         $joinClause = implode(' ', $joins);
 
@@ -889,6 +1057,7 @@ class DectaReportService
             ];
         }, $results);
     }
+
     /**
      * Get matching report (success/failure analysis)
      */
@@ -934,6 +1103,7 @@ class DectaReportService
             ];
         }, $results);
     }
+
     /**
      * Get settlement report (placeholder)
      */
@@ -941,6 +1111,7 @@ class DectaReportService
     {
         return $this->getDailySummaryReport($filters);
     }
+
     /**
      * Get recent files
      */
@@ -981,6 +1152,7 @@ class DectaReportService
             ];
         }, $results);
     }
+
     /**
      * Get processing status overview
      */
@@ -1003,6 +1175,7 @@ class DectaReportService
             ];
         }, $results);
     }
+
     /**
      * Get matching trends for the last N days
      */
@@ -1032,6 +1205,7 @@ class DectaReportService
             ];
         }, $results);
     }
+
     /**
      * Get top merchants by transaction volume
      */
@@ -1161,7 +1335,9 @@ class DectaReportService
             // Fallback to the simple method if the advanced query fails
             return $this->getTopMerchantsSimple($limit);
         }
-    }    /**
+    }
+
+    /**
      * Alternative simpler approach if the above is still complex
      */
     public function getTopMerchantsSimple(int $limit = 5): array
@@ -1282,6 +1458,7 @@ class DectaReportService
             ];
         }, $topMerchants);
     }
+
     private function formatCurrencyDisplaySummary(array $currencies, int $currencyCount): string
     {
         if (empty($currencies)) {
@@ -1306,6 +1483,7 @@ class DectaReportService
 
         return implode(', ', $summary);
     }
+
     /**
      * Get currency breakdown
      */
@@ -1338,6 +1516,7 @@ class DectaReportService
             ];
         }, $results);
     }
+
     /**
      * Get transaction details by payment ID
      */
@@ -1409,6 +1588,7 @@ class DectaReportService
             ]
         ];
     }
+
     /**
      * Get unmatched transactions with filters
      */
@@ -1483,6 +1663,7 @@ class DectaReportService
             ];
         }, $results);
     }
+
     public function getCardVolumeBreakdownByRegion(array $filters = []): array
     {
         $whereConditions = ['dt.tr_amount IS NOT NULL', 'dt.tr_amount > 0'];
@@ -1590,6 +1771,7 @@ class DectaReportService
             return $this->getEmptyVolumeBreakdownStructure();
         }
     }
+
     private function getEmptyVolumeBreakdownStructure(): array
     {
         return [
@@ -1611,6 +1793,7 @@ class DectaReportService
             'message' => 'No data found for the selected criteria'
         ];
     }
+
     /**
      * Format the enhanced volume breakdown results with proper currency separation
      */
@@ -1836,6 +2019,7 @@ class DectaReportService
             'has_data' => true
         ];
     }
+
     /**
      * Get detailed card volume summary with regional and card type breakdowns
      */
@@ -1973,6 +2157,7 @@ class DectaReportService
             return $this->getEmptyVolumeBreakdownStructure();
         }
     }
+
     protected function getVolumeBreakdownReport(array $filters): array
     {
         return $this->getDetailedVolumeBreakdown($filters);

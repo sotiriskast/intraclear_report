@@ -66,6 +66,7 @@ class DectaExportService
             throw $e;
         }
     }
+
     /**
      * Ensure exports directory exists
      */
@@ -78,9 +79,7 @@ class DectaExportService
             }
         }
     }
-    /**
-     * Export data to Excel format
-     */
+
     /**
      * Export to Excel (simplified - converts to CSV with .xlsx extension)
      */
@@ -99,8 +98,8 @@ class DectaExportService
 
         return $filePath;
     }
+
     /**
-     /**
      * Generate filename for export
      */
     private function generateFilename(string $reportType, string $extension): string
@@ -172,17 +171,36 @@ class DectaExportService
     private function getHeaders(string $reportType): array
     {
         switch ($reportType) {
-            case 'transactions':
-                return [
-                    'Payment ID', 'Transaction Date', 'Amount', 'Currency', 'Merchant Name',
-                    'Merchant ID', 'Terminal ID', 'Card Type', 'Transaction Type', 'Status',
-                    'Is Matched', 'Matched At', 'Gateway Transaction ID', 'Error Message'
-                ];
-
             case 'scheme':
                 return [
                     'Card Type', 'Transaction Type', 'Currency', 'Amount', 'Net Amount',
-                    'Transaction Count', 'Fee', 'Merchant Legal Name'
+                    'Transaction Count', 'Fee', 'Merchant Legal Name', 'Shop ID',
+                    'Shop Owner Name', 'Shop Email', 'Shop Website', 'Shop Status', 'Shop Display Name'
+                ];
+
+            case 'transactions':
+                return [
+                    'Payment ID', 'Transaction Date', 'Amount', 'Currency', 'Merchant Name',
+                    'Merchant ID', 'Shop ID', 'Terminal ID', 'Card Type', 'Transaction Type', 'Status',
+                    'Is Matched', 'Matched At', 'Gateway Transaction ID', 'Error Message'
+                ];
+
+            case 'shop_breakdown':
+                return [
+                    'Shop ID', 'Merchant Name', 'Total Transactions', 'Matched Transactions',
+                    'Failed Transactions', 'Approved Transactions', 'Declined Transactions',
+                    'Total Amount', 'Matched Amount', 'Average Amount', 'Match Rate %',
+                    'Approval Rate %', 'First Transaction', 'Last Transaction',
+                    'Currencies Used', 'Currencies List'
+                ];
+
+            // Keep all your existing cases...
+            case 'merchant_breakdown':
+                return [
+                    'Merchant ID', 'Merchant Name', 'Total Transactions', 'Matched Transactions',
+                    'Failed Transactions', 'Total Amount', 'Matched Amount', 'Avg Amount',
+                    'Match Rate %', 'First Transaction', 'Last Transaction', 'Currencies Used',
+                    'Terminals Used'
                 ];
 
             case 'volume_breakdown':
@@ -198,27 +216,40 @@ class DectaExportService
                     'Avg Transaction Amount', 'Match Rate %'
                 ];
 
-            case 'merchant_breakdown':
-                return [
-                    'Merchant ID', 'Merchant Name', 'Total Transactions', 'Matched Transactions',
-                    'Failed Transactions', 'Total Amount', 'Matched Amount', 'Avg Amount',
-                    'Match Rate %', 'First Transaction', 'Last Transaction', 'Currencies Used',
-                    'Terminals Used'
-                ];
-
             default:
-                Log::warning('Unknown report type for headers', ['report_type' => $reportType]);
-                // If we don't know the report type, use the keys from the first row
                 return !empty($data) && is_array($data[0]) ? array_keys($data[0]) : ['Data'];
         }
     }
+
     /**
      * Format row data for CSV export
+     */
+    /**
+     * Format row data for CSV export - FIXED shop_breakdown
      */
     private function formatRowForCsv(array $item, string $reportType): array
     {
         try {
             switch ($reportType) {
+                case 'scheme':
+                    return [
+                        $item['card_type'] ?? '',
+                        $item['transaction_type_name'] ?? $item['transaction_type'] ?? '',
+                        $item['currency'] ?? '',
+                        $item['amount'] ?? 0,
+                        $item['net_amount'] ?? 0,
+                        $item['count'] ?? 0,
+                        $item['fee'] ?? 0,
+                        $item['merchant_legal_name'] ?? '',
+                        $item['shop_id'] ?? '',
+                        // ADDED: Shop details
+                        $item['shop_details']['owner_name'] ?? '',
+                        $item['shop_details']['email'] ?? '',
+                        $item['shop_details']['website'] ?? '',
+                        $item['shop_details']['status'] ?? '',
+                        $item['shop_details']['display_name'] ?? ''
+                    ];
+
                 case 'transactions':
                     return [
                         $item['payment_id'] ?? '',
@@ -227,6 +258,7 @@ class DectaExportService
                         $item['currency'] ?? '',
                         $item['merchant_name'] ?? '',
                         $item['merchant_id'] ?? '',
+                        $item['shop_id'] ?? '',
                         $item['terminal_id'] ?? '',
                         $item['card_type'] ?? '',
                         $item['transaction_type'] ?? '',
@@ -237,62 +269,29 @@ class DectaExportService
                         $item['error_message'] ?? ''
                     ];
 
-                case 'scheme':
+                case 'shop_breakdown':
                     return [
-                        $item['card_type'] ?? '',
-                        $item['transaction_type_name'] ?? $item['transaction_type'] ?? '',
-                        $item['currency'] ?? '',
-                        $item['amount'] ?? 0,
-                        $item['net_amount'] ?? 0,
-                        $item['count'] ?? 0,
-                        $item['fee'] ?? 0,
-                        $item['merchant_legal_name'] ?? ''
-                    ];
-
-                case 'volume_breakdown':
-                    return [
-                        $item['continent'] ?? '',
-                        $item['card_brand'] ?? '',
-                        $item['card_type'] ?? '',
-                        $item['currency'] ?? '',
-                        $item['amount'] ?? 0,
-                        $item['transaction_count'] ?? 0,
-                        $item['percentage_of_total'] ?? 0
-                    ];
-
-                case 'daily_summary':
-                    return [
-                        $item['date'] ?? '',
-                        $item['total_transactions'] ?? 0,
-                        $item['matched_count'] ?? 0,
-                        $item['unmatched_count'] ?? 0,
-                        $item['failed_count'] ?? 0,
-                        $item['total_amount'] ?? 0,
-                        $item['matched_amount'] ?? 0,
-                        $item['unique_merchants'] ?? 0,
-                        $item['avg_transaction_amount'] ?? 0,
-                        $item['match_rate'] ?? 0
-                    ];
-
-                case 'merchant_breakdown':
-                    return [
-                        $item['merchant_id'] ?? '',
+                        $item['shop_id'] ?? '',
                         $item['merchant_name'] ?? '',
                         $item['total_transactions'] ?? 0,
                         $item['matched_transactions'] ?? 0,
                         $item['failed_transactions'] ?? 0,
+                        $item['approved_transactions'] ?? 0,
+                        $item['declined_transactions'] ?? 0,
                         $item['total_amount'] ?? 0,
                         $item['matched_amount'] ?? 0,
                         $item['avg_amount'] ?? 0,
                         $item['match_rate'] ?? 0,
+                        $item['approval_rate'] ?? 0,
                         $item['first_transaction'] ?? '',
                         $item['last_transaction'] ?? '',
                         $item['currencies_used'] ?? 0,
-                        $item['terminals_used'] ?? 0
+                        is_array($item['currencies_list'] ?? null) ? implode(', ', $item['currencies_list']) : ''
                     ];
 
+                // ... keep other existing cases unchanged ...
+
                 default:
-                    // For unknown report types, just return all values
                     return array_values($item);
             }
         } catch (\Exception $e) {
@@ -301,7 +300,6 @@ class DectaExportService
                 'report_type' => $reportType,
                 'item' => $item
             ]);
-            // Return safe default
             return array_fill(0, count($this->getHeaders($reportType)), '');
         }
     }
@@ -410,5 +408,4 @@ class DectaExportService
     {
         return Storage::delete($filePath);
     }
-
 }
