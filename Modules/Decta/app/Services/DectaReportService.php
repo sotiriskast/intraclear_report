@@ -450,7 +450,24 @@ class DectaReportService
             ];
         }, $results);
     }
+    /**
+     * Validate and parse date input
+     */
+    private function validateAndParseDate($dateInput): string
+    {
+        // If it's already a valid date string, return it
+        if (is_string($dateInput) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateInput)) {
+            return $dateInput;
+        }
 
+        // Try to parse various date formats
+        try {
+            $carbon = \Carbon\Carbon::parse($dateInput);
+            return $carbon->format('Y-m-d');
+        } catch (\Exception $e) {
+            throw new \InvalidArgumentException("Invalid date format: {$dateInput}");
+        }
+    }
     /**
      * Get scheme report - grouped by card type, transaction type, currency, and merchant
      */
@@ -462,13 +479,41 @@ class DectaReportService
 
         // Build dynamic WHERE conditions with proper parameter binding
         if (!empty($filters['date_from'])) {
-            $whereConditions[] = 'dt.tr_date_time >= ?::timestamp';
-            $params[] = $filters['date_from'] . ' 00:00:00';
+            // Add validation and debugging
+            \Log::info('Processing date_from:', ['raw_value' => $filters['date_from']]);
+
+            try {
+                // Validate and parse the date
+                $dateFrom = $this->validateAndParseDate($filters['date_from']);
+                $whereConditions[] = 'dt.tr_date_time >= ?::timestamp';
+                $params[] = $dateFrom . ' 00:00:00';
+
+                \Log::info('Processed date_from successfully:', ['parsed_date' => $dateFrom]);
+            } catch (\Exception $e) {
+                \Log::error('Failed to parse date_from:', [
+                    'raw_value' => $filters['date_from'],
+                    'error' => $e->getMessage()
+                ]);
+                // Skip this filter if date is invalid
+            }
         }
 
         if (!empty($filters['date_to'])) {
-            $whereConditions[] = 'dt.tr_date_time <= ?::timestamp';
-            $params[] = $filters['date_to'] . ' 23:59:59';
+            \Log::info('Processing date_to:', ['raw_value' => $filters['date_to']]);
+
+            try {
+                $dateTo = $this->validateAndParseDate($filters['date_to']);
+                $whereConditions[] = 'dt.tr_date_time <= ?::timestamp';
+                $params[] = $dateTo . ' 23:59:59';
+
+                \Log::info('Processed date_to successfully:', ['parsed_date' => $dateTo]);
+            } catch (\Exception $e) {
+                \Log::error('Failed to parse date_to:', [
+                    'raw_value' => $filters['date_to'],
+                    'error' => $e->getMessage()
+                ]);
+                // Skip this filter if date is invalid
+            }
         }
 
         // Handle merchant filtering

@@ -895,18 +895,14 @@
                     html += `<div class="font-medium text-gray-900">Shop ${shopId}</div>`;
                 }
 
-                if (shopDetails.owner_name && shopDetails.owner_name !== 'Unknown Owner') {
-                    html += `<div class="text-gray-600">${shopDetails.owner_name}</div>`;
-                }
+                //
+                // if (shopDetails.email) {
+                //     html += `<div class="text-xs text-blue-600">${shopDetails.email}</div>`;
+                // }
 
-                if (shopDetails.email) {
-                    html += `<div class="text-xs text-blue-600">${shopDetails.email}</div>`;
-                }
-
-                if (shopDetails.website) {
-                    html += `<div class="text-xs text-green-600">${shopDetails.website}</div>`;
-                }
-
+                // if (shopDetails.website) {
+                //     html += `<div class="text-xs text-green-600">${shopDetails.website}</div>`;
+                // }
                 html += `<div class="text-xs ${shopDetails.status === 'Active' ? 'text-green-500' : 'text-red-500'}">${shopDetails.status}</div>`;
                 html += `</div>`;
 

@@ -4,6 +4,7 @@ namespace Modules\Decta\Console;
 
 use Illuminate\Console\Command;
 use Modules\Decta\Services\VisaIssuesService;
+use Modules\Decta\Services\VisaNotificationService;
 use Illuminate\Support\Facades\Log;
 use Exception;
 
@@ -22,7 +23,8 @@ class VisaIssuesDownloadCommand extends Command
                             {--list-dir= : Directory to list files from}
                             {--process-immediately : Process file immediately after download}
                             {--force : Force download even if file exists}
-                            {--dry-run : Show what would be downloaded without downloading}';
+                            {--dry-run : Show what would be downloaded without downloading}
+                            {--no-email : Disable email notifications for this run}';
 
     /**
      * The console command description.
@@ -37,12 +39,18 @@ class VisaIssuesDownloadCommand extends Command
     protected VisaIssuesService $visaIssuesService;
 
     /**
+     * Visa Notification Service
+     */
+    protected VisaNotificationService $notificationService;
+
+    /**
      * Create a new command instance.
      */
-    public function __construct(VisaIssuesService $visaIssuesService)
+    public function __construct(VisaIssuesService $visaIssuesService, VisaNotificationService $notificationService)
     {
         parent::__construct();
         $this->visaIssuesService = $visaIssuesService;
+        $this->notificationService = $notificationService;
     }
 
     /**
@@ -52,6 +60,9 @@ class VisaIssuesDownloadCommand extends Command
     {
         $this->info('📋 Visa Issues Reports Download');
         $this->line('================================');
+
+        $startTime = now();
+        $errorMessages = [];
 
         try {
             $filename = $this->argument('filename');
@@ -74,6 +85,17 @@ class VisaIssuesDownloadCommand extends Command
                     $this->line('Custom directory: php artisan visa:download-issues-reports FILENAME --remote-dir="/in_file/Different issues"');
                     $this->line('Full path: php artisan visa:download-issues-reports --path="/in_file/Different issues/FILENAME.csv"');
                     $this->line('List custom dir: php artisan visa:download-issues-reports --list --list-dir="/in_file/Different issues"');
+
+                    // Send neutral notification for list/help case
+                    $this->sendNotificationIfEnabled([
+                        'downloaded' => false,
+                        'skipped' => false,
+                        'success' => true,
+                        'message' => 'Command executed for listing files or showing help',
+                        'filename' => $filename,
+                        'duration' => $startTime->diffInMinutes(now()),
+                    ], true, false); // Don't send notification for help/list commands
+
                     return Command::SUCCESS;
                 }
 
@@ -91,7 +113,20 @@ class VisaIssuesDownloadCommand extends Command
             } else {
                 // Filename provided, construct path
                 if (!$filename) {
-                    $this->error('Filename is required when not using --path option');
+                    $error = 'Filename is required when not using --path option';
+                    $this->error($error);
+                    $errorMessages[] = $error;
+
+                    $this->sendNotificationIfEnabled([
+                        'downloaded' => false,
+                        'skipped' => false,
+                        'success' => false,
+                        'message' => $error,
+                        'filename' => $filename,
+                        'error_messages' => $errorMessages,
+                        'duration' => $startTime->diffInMinutes(now()),
+                    ], false);
+
                     return Command::FAILURE;
                 }
 
@@ -122,18 +157,94 @@ class VisaIssuesDownloadCommand extends Command
             if ($result['downloaded'] && $this->option('process-immediately') && !$isDryRun) {
                 $this->line('');
                 $this->info('🔄 Processing immediately...');
-                $this->processFile($result['file_record']);
+                $processResult = $this->processFile($result['file_record']);
+                $result['process_result'] = $processResult;
             }
+
+            // Prepare notification data
+            $notificationData = [
+                'downloaded' => $result['downloaded'] ?? false,
+                'skipped' => $result['skipped'] ?? false,
+                'success' => $result['success'] ?? false,
+                'filename' => $filename,
+                'message' => $result['message'] ?? '',
+                'local_path' => $result['local_path'] ?? '',
+                'file_record' => $result['file_record'] ?? null,
+                'process_result' => $result['process_result'] ?? null,
+                'error_messages' => $errorMessages,
+                'duration' => $startTime->diffInMinutes(now()),
+                'options' => $options
+            ];
+
+            // Send notification
+            $this->sendNotificationIfEnabled($notificationData, $result['success'] || $result['skipped']);
 
             return $result['success'] || $result['skipped'] ? Command::SUCCESS : Command::FAILURE;
 
         } catch (Exception $e) {
-            $this->error("💥 Fatal error: " . $e->getMessage());
+            $error = "💥 Fatal error: " . $e->getMessage();
+            $this->error($error);
+            $errorMessages[] = $error;
+
             Log::error('Visa Issues download command failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
+
+            // Send failure notification
+            $this->sendNotificationIfEnabled([
+                'downloaded' => false,
+                'skipped' => false,
+                'success' => false,
+                'filename' => $filename ?? 'Unknown',
+                'message' => $error,
+                'error_messages' => $errorMessages,
+                'duration' => $startTime->diffInMinutes(now()),
+            ], false);
+
             return Command::FAILURE;
+        }
+    }
+
+    /**
+     * Send notification if enabled and not disabled by --no-email option
+     */
+    private function sendNotificationIfEnabled(array $results, bool $success, bool $force = true): void
+    {
+        // Skip if --no-email option is used
+        if ($this->option('no-email')) {
+            return;
+        }
+
+        // Skip for list/help commands unless forced
+        if (!$force && ($this->option('list') || (!$this->argument('filename') && !$this->option('path')))) {
+            return;
+        }
+
+        // Check if Issues download notifications are enabled
+        if (!config('decta.visa_issues.notifications.enabled', false)) {
+            return;
+        }
+
+        // Check specific success/failure settings
+        if ($success && !config('decta.visa_issues.notifications.notify_on_success', false)) {
+            return;
+        }
+
+        if (!$success && !config('decta.visa_issues.notifications.notify_on_failure', true)) {
+            return;
+        }
+
+        try {
+            $this->notificationService->sendIssuesDownloadNotification($results, $success);
+            $this->line($success ? '📧 Success notification sent' : '📧 Failure notification sent');
+        } catch (Exception $e) {
+            $this->warn("Failed to send email notification: {$e->getMessage()}");
+            Log::warning('Failed to send Visa Issues download notification', [
+                'error' => $e->getMessage(),
+                'results' => $results,
+                'success' => $success,
+            ]);
         }
     }
 
@@ -240,7 +351,7 @@ class VisaIssuesDownloadCommand extends Command
     /**
      * Process file immediately
      */
-    protected function processFile($fileRecord): void
+    protected function processFile($fileRecord): array
     {
         try {
             $result = $this->visaIssuesService->processFile($fileRecord);
@@ -256,8 +367,17 @@ class VisaIssuesDownloadCommand extends Command
                 $this->line("   ❌ Processing failed: " . ($result['error'] ?? 'Unknown error'));
             }
 
+            return $result;
+
         } catch (Exception $e) {
             $this->line("   💥 Processing error: " . $e->getMessage());
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+                'updated_count' => 0,
+                'not_found_count' => 0,
+                'error_count' => 1
+            ];
         }
     }
 }

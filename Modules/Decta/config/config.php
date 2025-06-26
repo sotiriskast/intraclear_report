@@ -40,14 +40,15 @@ return [
         'failed_dir' => 'failed', // Subdirectory for failed files
         'delete_remote_after_download' => env('DECTA_DELETE_REMOTE_FILES', false),
     ],
+
     /*
-|--------------------------------------------------------------------------
-| Email Notification Settings
-|--------------------------------------------------------------------------
-|
-| Configure email notifications for Decta operations
-|
-*/
+    |--------------------------------------------------------------------------
+    | Email Notification Settings
+    |--------------------------------------------------------------------------
+    |
+    | Configure email notifications for Decta operations
+    |
+    */
     'notifications' => [
         // Enable/disable email notifications
         'enabled' => env('DECTA_NOTIFICATIONS_ENABLED', true),
@@ -57,12 +58,29 @@ return [
             env('DECTA_NOTIFICATION_EMAIL_1', 's.kastanas@intraclear.com'),
             env('DECTA_NOTIFICATION_EMAIL_2', 'l.koniotis@yourcompany.com'),
             env('DECTA_NOTIFICATION_EMAIL_3', 'd.slobodchikov@intraclear.com'),
-            // Add more as needed
+
         ]),
 
         // Notification settings for different operations
         'send_on_success' => env('DECTA_NOTIFY_SUCCESS', true),
         'send_on_failure' => env('DECTA_NOTIFY_FAILURE', true),
+
+        // Email rate limiting settings
+        'rate_limiting' => [
+            'enabled' => env('DECTA_EMAIL_RATE_LIMITING_ENABLED', true),
+            'max_emails_per_minute' => env('DECTA_MAX_EMAILS_PER_MINUTE', 10),
+            'delay_between_emails' => env('DECTA_EMAIL_DELAY_SECONDS', 6),
+            'retry_on_rate_limit' => env('DECTA_RETRY_ON_RATE_LIMIT', true),
+            'max_retry_attempts' => env('DECTA_EMAIL_MAX_RETRIES', 3),
+            'retry_delay_multiplier' => env('DECTA_RETRY_DELAY_MULTIPLIER', 2),
+        ],
+
+        // Environment-specific email settings
+        'development' => [
+            'max_emails_per_minute' => env('DECTA_DEV_MAX_EMAILS_PER_MINUTE', 5),
+            'delay_between_emails' => env('DECTA_DEV_EMAIL_DELAY_SECONDS', 10),
+            'test_mode' => env('DECTA_DEV_TEST_MODE', true),
+        ],
 
         // Specific operation notifications
         'download' => [
@@ -91,14 +109,13 @@ return [
     ],
 
     /*
-|--------------------------------------------------------------------------
-| Large Export Configuration
-|--------------------------------------------------------------------------
-|
-| Configuration settings for handling large dataset exports
-|
-*/
-
+    |--------------------------------------------------------------------------
+    | Large Export Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Configuration settings for handling large dataset exports
+    |
+    */
     'memory_limit' => env('EXPORT_MEMORY_LIMIT', '1G'),
     'time_limit' => env('EXPORT_TIME_LIMIT', 3600), // 1 hour
     'chunk_size' => env('EXPORT_CHUNK_SIZE', 1000),
@@ -112,7 +129,6 @@ return [
     | Define when to show warnings and recommendations to users
     |
     */
-
     'thresholds' => [
         'large_dataset' => 300000,      // 300k records
         'very_large_dataset' => 800000, // 800k records
@@ -127,7 +143,6 @@ return [
     | Which formats work best for different dataset sizes
     |
     */
-
     'format_limits' => [
         'excel' => [
             'max_rows' => 1048576,      // Excel row limit
@@ -147,7 +162,6 @@ return [
     | Settings for progress reporting during exports
     |
     */
-
     'progress' => [
         'log_interval' => 10000,    // Log progress every N records
         'memory_check_interval' => 5000, // Check memory every N records
@@ -162,7 +176,6 @@ return [
     |
     */
     'visa_sms' => [
-
         /*
         |--------------------------------------------------------------------------
         | SFTP Settings
@@ -239,11 +252,73 @@ return [
         |
         */
         'notifications' => [
+            // Enable/disable email notifications globally
             'enabled' => env('VISA_SMS_NOTIFICATIONS_ENABLED', true),
             'email_recipients' => env('VISA_SMS_EMAIL_RECIPIENTS', ''),
             'notify_on_success' => env('VISA_SMS_NOTIFY_SUCCESS', false),
             'notify_on_failure' => env('VISA_SMS_NOTIFY_FAILURE', true),
             'notify_on_no_files' => env('VISA_SMS_NOTIFY_NO_FILES', false),
+
+            // Environments where notifications are allowed
+            'allowed_environments' => env('VISA_NOTIFICATION_ENVIRONMENTS', 'staging,production,local,dev'),
+
+            // Email addresses to receive notifications
+            'recipients' => array_filter([
+                env('DECTA_NOTIFICATION_EMAIL_1', 's.kastanas@intraclear.com'),
+                env('DECTA_NOTIFICATION_EMAIL_2', 'l.koniotis@yourcompany.com'),
+                env('DECTA_NOTIFICATION_EMAIL_3', 'd.slobodchikov@intraclear.com'),
+            ]),
+
+            // Rate limiting for notifications (inherits from main config if not set)
+            'rate_limiting' => [
+                'enabled' => env('VISA_SMS_EMAIL_RATE_LIMITING_ENABLED', true),
+                'max_emails_per_minute' => env('VISA_SMS_MAX_EMAILS_PER_MINUTE', 8),
+                'delay_between_emails' => env('VISA_SMS_EMAIL_DELAY_SECONDS', 8),
+            ],
+
+            /*
+            |--------------------------------------------------------------------------
+            | SMS Download Notifications
+            |--------------------------------------------------------------------------
+            */
+            'sms_download' => [
+                'enabled' => env('VISA_SMS_DOWNLOAD_NOTIFICATIONS_ENABLED', true),
+                'send_on_success' => env('VISA_SMS_DOWNLOAD_NOTIFY_SUCCESS', true),
+                'send_on_failure' => env('VISA_SMS_DOWNLOAD_NOTIFY_FAILURE', true),
+            ],
+
+            /*
+            |--------------------------------------------------------------------------
+            | SMS Processing Notifications
+            |--------------------------------------------------------------------------
+            */
+            'sms_processing' => [
+                'enabled' => env('VISA_SMS_PROCESSING_NOTIFICATIONS_ENABLED', true),
+                'send_on_success' => env('VISA_SMS_PROCESSING_NOTIFY_SUCCESS', true),
+                'send_on_failure' => env('VISA_SMS_PROCESSING_NOTIFY_FAILURE', true),
+            ],
+
+            /*
+            |--------------------------------------------------------------------------
+            | Issues Download Notifications
+            |--------------------------------------------------------------------------
+            */
+            'issues_download' => [
+                'enabled' => env('VISA_ISSUES_DOWNLOAD_NOTIFICATIONS_ENABLED', true),
+                'send_on_success' => env('VISA_ISSUES_DOWNLOAD_NOTIFY_SUCCESS', true),
+                'send_on_failure' => env('VISA_ISSUES_DOWNLOAD_NOTIFY_FAILURE', true),
+            ],
+
+            /*
+            |--------------------------------------------------------------------------
+            | Issues Processing Notifications
+            |--------------------------------------------------------------------------
+            */
+            'issues_processing' => [
+                'enabled' => env('VISA_ISSUES_PROCESSING_NOTIFICATIONS_ENABLED', true),
+                'send_on_success' => env('VISA_ISSUES_PROCESSING_NOTIFY_SUCCESS', true),
+                'send_on_failure' => env('VISA_ISSUES_PROCESSING_NOTIFY_FAILURE', true),
+            ],
         ],
 
         /*
@@ -286,7 +361,6 @@ return [
     |
     */
     'visa_issues' => [
-
         /*
         |--------------------------------------------------------------------------
         | SFTP Settings
@@ -351,11 +425,19 @@ return [
             'email_recipients' => env('VISA_ISSUES_EMAIL_RECIPIENTS', ''),
             'notify_on_success' => env('VISA_ISSUES_NOTIFY_SUCCESS', false),
             'notify_on_failure' => env('VISA_ISSUES_NOTIFY_FAILURE', true),
+
+            // Rate limiting for Issues notifications
+            'rate_limiting' => [
+                'enabled' => env('VISA_ISSUES_EMAIL_RATE_LIMITING_ENABLED', true),
+                'max_emails_per_minute' => env('VISA_ISSUES_MAX_EMAILS_PER_MINUTE', 5),
+                'delay_between_emails' => env('VISA_ISSUES_EMAIL_DELAY_SECONDS', 12),
+            ],
         ],
+
         'scheduling' => [
-            'auto_download' => env('VISA_SMS_AUTO_DOWNLOAD', true),
-            'auto_process' => env('VISA_SMS_AUTO_PROCESS', true),
-            'download_schedule' => '0 3 * * *', // Daily at 3 AM
+            'auto_download' => env('VISA_ISSUES_AUTO_DOWNLOAD', false),
+            'auto_process' => env('VISA_ISSUES_AUTO_PROCESS', false),
+            'download_schedule' => '0 4 * * *', // Daily at 4 AM
             'days_back_check' => 7, // How many days back to check for files
             'retention_days' => 365, // How long to keep processed files
         ],
@@ -389,5 +471,36 @@ return [
                 'interchange' => 'required|numeric',
             ],
         ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Mail Configuration Validation
+    |--------------------------------------------------------------------------
+    |
+    | Settings to validate and handle email configuration issues
+    |
+    */
+    'mail_validation' => [
+        'check_mail_config' => env('DECTA_CHECK_MAIL_CONFIG', true),
+        'fallback_on_mail_errors' => env('DECTA_FALLBACK_ON_MAIL_ERRORS', true),
+        'log_mail_errors' => env('DECTA_LOG_MAIL_ERRORS', true),
+        'skip_mail_on_rate_limit' => env('DECTA_SKIP_MAIL_ON_RATE_LIMIT', false),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Command Execution Settings
+    |--------------------------------------------------------------------------
+    |
+    | Settings for command execution and error handling
+    |
+    */
+    'commands' => [
+        'timeout' => env('DECTA_COMMAND_TIMEOUT', 3600), // 1 hour default
+        'memory_limit' => env('DECTA_COMMAND_MEMORY_LIMIT', '512M'),
+        'retry_failed_commands' => env('DECTA_RETRY_FAILED_COMMANDS', true),
+        'max_command_retries' => env('DECTA_MAX_COMMAND_RETRIES', 3),
+        'command_retry_delay' => env('DECTA_COMMAND_RETRY_DELAY', 60), // seconds
     ],
 ];
