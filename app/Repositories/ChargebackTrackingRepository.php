@@ -20,8 +20,8 @@ use Illuminate\Support\Facades\DB;
 readonly class ChargebackTrackingRepository implements ChargebackTrackingRepositoryInterface
 {
     private const array CURRENCY_PRECISION = [
-        'JPY' => 4,
-        'DEFAULT' => 6
+        'JPY' => 8,
+        'DEFAULT' => 8
     ];
 
     /**
@@ -330,10 +330,8 @@ readonly class ChargebackTrackingRepository implements ChargebackTrackingReposit
     {
         // Convert cents to base currency
         $originalAmount = $originalAmountCents / 100;
-
         // Calculate EUR amount
-        $eurAmount = $originalAmount * $exchangeRate;
-
+        $eurAmount = $originalAmount / $exchangeRate;
         // Check if the result would be too large
         if ($eurAmount > (self::MAX_SAFE_AMOUNT / 100)) {
             $this->logger->log('warning', 'EUR amount calculation would exceed safe limits', [
@@ -341,11 +339,9 @@ readonly class ChargebackTrackingRepository implements ChargebackTrackingReposit
                 'exchange_rate' => $exchangeRate,
                 'calculated_eur_amount' => $eurAmount,
             ]);
-
             // Return the maximum safe value instead of failing
             return self::MAX_SAFE_AMOUNT;
         }
-
         return (int) round($eurAmount * 100);
     }
 }

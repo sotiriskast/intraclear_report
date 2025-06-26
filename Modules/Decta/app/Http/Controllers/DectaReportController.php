@@ -46,26 +46,28 @@ class DectaReportController extends Controller
         $validator = Validator::make($request->all(), [
             'date_from' => 'required|date',
             'date_to' => 'required|date|after_or_equal:date_from',
-            'report_type' => 'required|in:transactions,settlements,matching,daily_summary,merchant_breakdown,scheme,declined_transactions,approval_analysis,volume_breakdown',
+            'report_type' => 'required|in:transactions,settlements,matching,daily_summary,merchant_breakdown,shop_breakdown,scheme,declined_transactions,approval_analysis,volume_breakdown',
             'merchant_id' => 'nullable|integer|exists:merchants,id',
+            'shop_id' => 'nullable|string',
             'currency' => 'nullable|string|size:3',
             'status' => 'nullable|in:pending,matched,failed,approved,declined',
             'amount_min' => 'nullable|numeric|min:0',
             'amount_max' => 'nullable|numeric|min:0',
             'export_format' => 'nullable|in:json,csv,excel',
-            // Add sorting options
-            'sort_by' => 'nullable|in:merchant_legal_name,currency,card_type,amount,count',
+            'sort_by' => 'nullable|in:merchant_legal_name,currency,card_type,amount,count,shop_id',
             'sort_direction' => 'nullable|in:asc,desc'
         ]);
+
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'errors' => $validator->errors()
             ], 422);
         }
+
         try {
             $filters = $request->only([
-                'date_from', 'date_to', 'merchant_id', 'currency',
+                'date_from', 'date_to', 'merchant_id', 'shop_id', 'currency',
                 'status', 'amount_min', 'amount_max', 'sort_by', 'sort_direction'
             ]);
 
@@ -84,7 +86,6 @@ class DectaReportController extends Controller
 
                 if (!$data['has_data']) {
                     if ($exportFormat === 'csv' || $exportFormat === 'excel') {
-                        // Create empty export file
                         $emptyData = [
                             [
                                 'message' => 'No data found for the selected criteria',
@@ -138,6 +139,345 @@ class DectaReportController extends Controller
                     'file' => $e->getFile(),
                     'line' => $e->getLine()
                 ] : null
+            ], 500);
+        }
+    }
+
+    /**
+     * Get shops for a specific merchant using the shops table
+     */
+    public function getShopsForMerchant(Request $request): JsonResponse
+    {
+        $merchantId = $request->route('merchantId'); // Get from URL parameter
+
+        $validator = Validator::make(['merchant_id' => $merchantId], [
+            'merchant_id' => 'required|integer|exists:merchants,id'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            // Get the merchant details
+            $merchant = DB::table('merchants')
+                ->select('id', 'account_id', 'name', 'legal_name')
+                ->where('id', $merchantId)
+                ->first();
+
+            if (!$merchant) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Merchant not found'
+                ], 404);
+            }
+
+            // UPDATED: Get shops from shops table with transaction statistics
+            $shops = DB::table('shops as s')
+                ->select([
+                    's.id as shop_table_id',
+                    's.shop_id',
+                    's.merchant_id',
+                    's.owner_name',
+                    's.email',
+                    's.website',
+                    's.active',
+                    's.created_at as shop_created_at',
+                    // Get transaction statistics
+                    DB::raw('COUNT(dt.id) as transaction_count'),
+                    DB::raw('COALESCE(SUM(dt.tr_amount), 0) as total_amount'),
+                    DB::raw('MIN(dt.tr_date_time) as first_transaction'),
+                    DB::raw('MAX(dt.tr_date_time) as last_transaction'),
+                    DB::raw('COUNT(DISTINCT dt.tr_ccy) as currencies_used'),
+                    // FIXED: Proper array aggregation with filtering
+                    DB::raw('array_agg(DISTINCT dt.tr_ccy) FILTER (WHERE dt.tr_ccy IS NOT NULL) as currencies_list')
+                ])
+                ->leftJoin('decta_transactions as dt', function ($join) {
+                    $join->on('s.shop_id', '=', 'dt.gateway_shop_id')
+                        ->where('dt.gateway_account_id', '=', DB::raw('(SELECT account_id FROM merchants WHERE id = s.merchant_id)'));
+                })
+                ->where('s.merchant_id', $merchantId)
+                ->where('s.active', true)
+                ->groupBy([
+                    's.id', 's.shop_id', 's.merchant_id', 's.owner_name',
+                    's.email', 's.website', 's.active', 's.created_at'
+                ])
+                ->orderBy('transaction_count', 'desc')
+                ->get();
+
+            $formattedShops = $shops->map(function ($shop) {
+                // Handle currencies list properly
+                $currencies = [];
+                if ($shop->currencies_list) {
+                    if (is_string($shop->currencies_list)) {
+                        // Remove PostgreSQL array braces and split
+                        $currencyString = trim($shop->currencies_list, '{}');
+                        if (!empty($currencyString)) {
+                            $currencies = array_filter(explode(',', $currencyString), function ($currency) {
+                                return !empty(trim($currency)) && trim($currency) !== 'NULL';
+                            });
+                            $currencies = array_map('trim', $currencies);
+                        }
+                    } elseif (is_array($shop->currencies_list)) {
+                        $currencies = array_filter($shop->currencies_list, function ($currency) {
+                            return !empty($currency) && $currency !== 'NULL';
+                        });
+                    }
+                }
+
+                // Create display name with shop details
+                $displayName = "Shop {$shop->shop_id}";
+                if ($shop->owner_name) {
+                    $displayName .= " - {$shop->owner_name}";
+                }
+                if ($shop->transaction_count > 0) {
+                    $displayName .= " ({$shop->transaction_count} transactions)";
+                } else {
+                    $displayName .= " (No transactions)";
+                }
+
+                return [
+                    'shop_table_id' => $shop->shop_table_id,
+                    'shop_id' => $shop->shop_id,
+                    'display_name' => $displayName,
+                    'owner_name' => $shop->owner_name,
+                    'email' => $shop->email,
+                    'website' => $shop->website,
+                    'active' => $shop->active,
+                    'transaction_count' => $shop->transaction_count,
+                    'total_amount' => $shop->total_amount ? $shop->total_amount / 100 : 0,
+                    'first_transaction' => $shop->first_transaction,
+                    'last_transaction' => $shop->last_transaction,
+                    'currencies_used' => $shop->currencies_used,
+                    'currencies' => array_values($currencies),
+                    'shop_created_at' => $shop->shop_created_at
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'merchant' => [
+                        'id' => $merchantId,
+                        'account_id' => $merchant->account_id,
+                        'name' => $merchant->name ?: $merchant->legal_name
+                    ],
+                    'shops' => $formattedShops,
+                    'summary' => [
+                        'total_shops' => $formattedShops->count(),
+                        'active_shops' => $formattedShops->where('active', true)->count(),
+                        'shops_with_transactions' => $formattedShops->where('transaction_count', '>', 0)->count(),
+                        'total_transactions' => $formattedShops->sum('transaction_count'),
+                        'total_amount' => $formattedShops->sum('total_amount')
+                    ]
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to get shops for merchant', [
+                'merchant_id' => $merchantId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load shops: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get all shops with search functionality
+     */
+    public function getShops(Request $request): JsonResponse
+    {
+        try {
+            $search = $request->get('search');
+            $limit = min($request->get('limit', 50), 100);
+            $merchantId = $request->get('merchant_id');
+            $activeOnly = $request->get('active_only', true);
+
+            $query = DB::table('shops as s')
+                ->select([
+                    's.id as shop_table_id',
+                    's.shop_id',
+                    's.merchant_id',
+                    's.owner_name',
+                    's.email',
+                    's.website',
+                    's.active',
+                    's.created_at as shop_created_at',
+                    'm.name as merchant_name',
+                    'm.legal_name as merchant_legal_name',
+                    'm.account_id as merchant_account_id',
+                    // Transaction statistics
+                    DB::raw('COUNT(dt.id) as transaction_count'),
+                    DB::raw('COALESCE(SUM(dt.tr_amount), 0) as total_amount'),
+                    DB::raw('COUNT(DISTINCT dt.tr_ccy) as currency_count'),
+                    DB::raw('MIN(dt.tr_date_time) as first_transaction'),
+                    DB::raw('MAX(dt.tr_date_time) as last_transaction')
+                ])
+                ->leftJoin('merchants as m', 's.merchant_id', '=', 'm.id')
+                ->leftJoin('decta_transactions as dt', function ($join) {
+                    $join->on('s.shop_id', '=', 'dt.gateway_shop_id')
+                        ->on('m.account_id', '=', 'dt.gateway_account_id');
+                });
+
+            // Apply filters
+            if ($activeOnly) {
+                $query->where('s.active', true);
+            }
+
+            if ($merchantId) {
+                $query->where('s.merchant_id', $merchantId);
+            }
+
+            if ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('s.shop_id', 'LIKE', "%{$search}%")
+                        ->orWhere('s.owner_name', 'ILIKE', "%{$search}%")
+                        ->orWhere('s.email', 'ILIKE', "%{$search}%")
+                        ->orWhere('m.name', 'ILIKE', "%{$search}%")
+                        ->orWhere('m.legal_name', 'ILIKE', "%{$search}%");
+                });
+            }
+
+            $shops = $query->groupBy([
+                's.id', 's.shop_id', 's.merchant_id', 's.owner_name', 's.email',
+                's.website', 's.active', 's.created_at', 'm.name', 'm.legal_name', 'm.account_id'
+            ])
+                ->orderBy('transaction_count', 'desc')
+                ->limit($limit)
+                ->get()
+                ->map(function ($shop) {
+                    return [
+                        'shop_table_id' => $shop->shop_table_id,
+                        'shop_id' => $shop->shop_id,
+                        'merchant_id' => $shop->merchant_id,
+                        'merchant_name' => $shop->merchant_name ?: $shop->merchant_legal_name,
+                        'merchant_account_id' => $shop->merchant_account_id,
+                        'display_name' => $this->formatShopDisplayName($shop),
+                        'owner_name' => $shop->owner_name,
+                        'email' => $shop->email,
+                        'website' => $shop->website,
+                        'active' => $shop->active,
+                        'transaction_count' => $shop->transaction_count,
+                        'total_amount' => $shop->total_amount ? $shop->total_amount / 100 : 0,
+                        'currency_count' => $shop->currency_count,
+                        'first_transaction' => $shop->first_transaction,
+                        'last_transaction' => $shop->last_transaction,
+                        'shop_created_at' => $shop->shop_created_at
+                    ];
+                });
+
+            return response()->json([
+                'success' => true,
+                'data' => $shops
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load shops: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function syncShopsFromTransactions(Request $request): JsonResponse
+    {
+        try {
+            $dryRun = $request->get('dry_run', true);
+            $merchantId = $request->get('merchant_id'); // Optional: sync for specific merchant
+
+            // Find shops in transactions that don't exist in shops table
+            $query = "
+            SELECT DISTINCT
+                dt.gateway_shop_id as shop_id,
+                dt.gateway_account_id,
+                m.id as merchant_id,
+                m.name as merchant_name,
+                COUNT(*) as transaction_count,
+                MIN(dt.tr_date_time) as first_seen,
+                MAX(dt.tr_date_time) as last_seen
+            FROM decta_transactions dt
+            LEFT JOIN merchants m ON dt.gateway_account_id = m.account_id
+            LEFT JOIN shops s ON dt.gateway_shop_id = s.shop_id AND s.merchant_id = m.id
+            WHERE dt.gateway_shop_id IS NOT NULL
+              AND dt.gateway_shop_id != 0
+              AND dt.gateway_shop_id != ''
+              AND m.id IS NOT NULL
+              AND s.id IS NULL  -- Shop doesn't exist in shops table
+        ";
+
+            $params = [];
+            if ($merchantId) {
+                $query .= " AND m.id = ?";
+                $params[] = $merchantId;
+            }
+
+            $query .= "
+            GROUP BY dt.gateway_shop_id, dt.gateway_account_id, m.id, m.name
+            ORDER BY transaction_count DESC
+        ";
+
+            $missingShops = DB::select($query, $params);
+
+            if ($dryRun) {
+                return response()->json([
+                    'success' => true,
+                    'dry_run' => true,
+                    'found_missing_shops' => count($missingShops),
+                    'missing_shops' => array_map(function ($shop) {
+                        return [
+                            'shop_id' => $shop->shop_id,
+                            'merchant_id' => $shop->merchant_id,
+                            'merchant_name' => $shop->merchant_name,
+                            'transaction_count' => $shop->transaction_count,
+                            'first_seen' => $shop->first_seen,
+                            'last_seen' => $shop->last_seen
+                        ];
+                    }, $missingShops)
+                ]);
+            }
+
+            // Actually create the missing shops
+            $created = 0;
+            $errors = [];
+
+            foreach ($missingShops as $shop) {
+                try {
+                    DB::table('shops')->insert([
+                        'shop_id' => $shop->shop_id,
+                        'merchant_id' => $shop->merchant_id,
+                        'owner_name' => null, // Will need to be filled manually
+                        'email' => null,
+                        'website' => null,
+                        'active' => true,
+                        'created_at' => now(),
+                        'updated_at' => now()
+                    ]);
+                    $created++;
+                } catch (\Exception $e) {
+                    $errors[] = "Shop {$shop->shop_id} for merchant {$shop->merchant_id}: " . $e->getMessage();
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'dry_run' => false,
+                'total_missing_shops' => count($missingShops),
+                'shops_created' => $created,
+                'errors' => $errors
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to sync shops: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -227,6 +567,7 @@ class DectaReportController extends Controller
 
         return $flatData;
     }
+
     /**
      * Get volume breakdown report specifically
      */
@@ -300,6 +641,7 @@ class DectaReportController extends Controller
             ], 500);
         }
     }
+
     /**
      * Get declined transactions (API endpoint for modal)
      */
@@ -553,9 +895,7 @@ class DectaReportController extends Controller
     private function getCurrency()
     {
         return DB::table('decta_transactions')
-            ->select([
-                'tr_ccy'
-            ])
+            ->select(['tr_ccy'])
             ->distinct()
             ->orderBy('tr_ccy')
             ->pluck('tr_ccy');
@@ -567,13 +907,37 @@ class DectaReportController extends Controller
     private function formatMerchantDisplayName($merchant)
     {
         $name = $merchant->name ?: $merchant->legal_name;
-
         if (!$name) {
             return "Merchant #{$merchant->id}";
         }
-
         return $merchant->account_id ? "{$name} (ID: {$merchant->account_id})" : $name;
     }
+
+    /**
+     * Format shop display name for dropdown
+     */
+    private function formatShopDisplayName($shop): string
+    {
+        $shopId = $shop->shop_id;
+        $ownerName = $shop->owner_name;
+        $merchantName = $shop->merchant_name ?? $shop->merchant_legal_name ?? 'Unknown Merchant';
+
+        // Build display name
+        $displayName = "Shop {$shopId}";
+
+        if ($ownerName) {
+            $displayName .= " - {$ownerName}";
+        }
+
+        if (isset($shop->transaction_count) && $shop->transaction_count > 0) {
+            $displayName .= " ({$shop->transaction_count} txns)";
+        } else {
+            $displayName .= " (No transactions)";
+        }
+
+        return $displayName;
+    }
+
 
     /**
      * API endpoint to get merchants (for dynamic loading if needed)

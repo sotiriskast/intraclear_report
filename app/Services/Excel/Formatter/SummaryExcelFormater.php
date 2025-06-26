@@ -110,6 +110,14 @@ readonly class SummaryExcelFormater
                 $this->calculator->getGrossAmount($currencyData),
                 $this->calculator->getGrossAmountEur($currencyData)
             ],
+            ['Miscellaneous Adjustment',
+                '-',
+                '-'
+            ],
+            ['Previous Balance Amount',
+                '-',
+                '-'
+            ],
             ['Rolling reserve amount released',
                 $this->calculator->getReleasedReserve($currencyData),
                 $this->calculator->getReleasedReserveEur($currencyData)
@@ -158,6 +166,7 @@ readonly class SummaryExcelFormater
             ->getAllBorders()
             ->setBorderStyle(Border::BORDER_THIN);
     }
+
     /**
      * Format FX rate markup as percentage with two decimal places
      *
