@@ -255,12 +255,12 @@ return [
             // Enable/disable email notifications globally
             'enabled' => env('VISA_SMS_NOTIFICATIONS_ENABLED', true),
             'email_recipients' => env('VISA_SMS_EMAIL_RECIPIENTS', ''),
-            'notify_on_success' => env('VISA_SMS_NOTIFY_SUCCESS', false),
+            'notify_on_success' => env('VISA_SMS_NOTIFY_SUCCESS', true),
             'notify_on_failure' => env('VISA_SMS_NOTIFY_FAILURE', true),
-            'notify_on_no_files' => env('VISA_SMS_NOTIFY_NO_FILES', false),
+            'notify_on_no_files' => env('VISA_SMS_NOTIFY_NO_FILES', true),
 
             // Environments where notifications are allowed
-            'allowed_environments' => env('VISA_NOTIFICATION_ENVIRONMENTS', 'staging,production,local,dev'),
+            'allowed_environments' => env('VISA_NOTIFICATION_ENVIRONMENTS', 'staging,production'),
 
             // Email addresses to receive notifications
             'recipients' => array_filter([
@@ -305,8 +305,8 @@ return [
             */
             'issues_download' => [
                 'enabled' => env('VISA_ISSUES_DOWNLOAD_NOTIFICATIONS_ENABLED', true),
-                'send_on_success' => env('VISA_ISSUES_DOWNLOAD_NOTIFY_SUCCESS', true),
-                'send_on_failure' => env('VISA_ISSUES_DOWNLOAD_NOTIFY_FAILURE', true),
+                'send_on_success' => env('VISA_ISSUES_DOWNLOAD_NOTIFY_SUCCESS', false),
+                'send_on_failure' => env('VISA_ISSUES_DOWNLOAD_NOTIFY_FAILURE', false),
             ],
 
             /*
@@ -316,8 +316,8 @@ return [
             */
             'issues_processing' => [
                 'enabled' => env('VISA_ISSUES_PROCESSING_NOTIFICATIONS_ENABLED', true),
-                'send_on_success' => env('VISA_ISSUES_PROCESSING_NOTIFY_SUCCESS', true),
-                'send_on_failure' => env('VISA_ISSUES_PROCESSING_NOTIFY_FAILURE', true),
+                'send_on_success' => env('VISA_ISSUES_PROCESSING_NOTIFY_SUCCESS', false),
+                'send_on_failure' => env('VISA_ISSUES_PROCESSING_NOTIFY_FAILURE', false),
             ],
         ],
 

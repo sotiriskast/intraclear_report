@@ -238,7 +238,7 @@ class DectaServiceProvider extends ServiceProvider
         $downloadSchedule = config('decta.visa_sms.scheduling.download_schedule', '0 3 * * *');
 
         // Download Visa SMS files daily
-        $schedule->command('visa:download-sms-reports')
+        $schedule->command('visa:download-sms-reports --days-back=1')
             ->cron($downloadSchedule)
             ->withoutOverlapping(1440) // 24 hours overlap protection
             ->runInBackground()
