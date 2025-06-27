@@ -16,8 +16,20 @@ use Modules\Decta\Console\DectaCleanupCommand;
 use Modules\Decta\Console\DectaStatusCommand;
 use Modules\Decta\Console\DectaTestNotificationCommand;
 use Modules\Decta\Console\DectaSetupCommand;
-use Modules\Decta\Console\DectaCheckDeclinedTransactionsCommand; // New command
+use Modules\Decta\Console\DectaCheckDeclinedTransactionsCommand;
+use Modules\Decta\Console\VisaNotificationStatusCommand;
+use Modules\Decta\Console\VisaSmsDownloadCommand;
+use Modules\Decta\Console\VisaSmsProcessCommand;
+use Modules\Decta\Console\VisaSmsStatusCommand;
+use Modules\Decta\Console\VisaSmsFixConflictsCommand;
+use Modules\Decta\Console\VisaTestNotificationCommand;
 use Modules\Decta\Services\DectaExportService;
+use Modules\Decta\Console\VisaIssuesDownloadCommand;
+use Modules\Decta\Console\VisaIssuesProcessCommand;
+use Modules\Decta\Console\VisaIssuesStatusCommand;
+use Modules\Decta\Services\VisaIssuesService;
+use Modules\Decta\Services\VisaNotificationService;
+use Modules\Decta\Services\VisaSmsService;
 use Nwidart\Modules\Traits\PathNamespace;
 use Illuminate\Console\Scheduling\Schedule;
 use Modules\Decta\Console\DectaDownloadFilesCommand;
@@ -89,8 +101,31 @@ class DectaServiceProvider extends ServiceProvider
         $this->app->bind(DectaReportService::class, function ($app) {
             return new DectaReportService();
         });
+
+        // Register the export service
         $this->app->bind(DectaExportService::class, function ($app) {
             return new DectaExportService();
+        });
+
+        // Register the Visa SMS service
+        $this->app->bind(VisaSmsService::class, function ($app) {
+            return new VisaSmsService(
+                $app->make(DectaSftpService::class),
+                $app->make(DectaTransactionRepository::class),
+                $app->make(DectaFileRepository::class)
+            );
+        });
+
+        // Register the Visa Issues service
+        $this->app->bind(VisaIssuesService::class, function ($app) {
+            return new VisaIssuesService(
+                $app->make(DectaSftpService::class),
+                $app->make(DectaTransactionRepository::class),
+                $app->make(DectaFileRepository::class)
+            );
+        });
+        $this->app->bind(VisaNotificationService::class, function ($app) {
+            return new VisaNotificationService();
         });
     }
 
@@ -115,6 +150,15 @@ class DectaServiceProvider extends ServiceProvider
             DectaTestDeclinedNotificationCommand::class,
             DectaTestIntegrationCommand::class,
             DectaNotificationStatusCommand::class,
+            VisaSmsDownloadCommand::class,
+            VisaSmsProcessCommand::class,
+            VisaSmsStatusCommand::class,
+            VisaSmsFixConflictsCommand::class,
+            VisaIssuesDownloadCommand::class,
+            VisaIssuesProcessCommand::class,
+            VisaIssuesStatusCommand::class,
+            VisaNotificationStatusCommand::class,
+            VisaTestNotificationCommand::class,
         ]);
     }
 
@@ -126,43 +170,95 @@ class DectaServiceProvider extends ServiceProvider
         $this->app->booted(function () {
             $schedule = $this->app->make(Schedule::class);
 
-            // Schedule the download command to run every day at 2 AM for yesterday's files
-            $schedule->command('decta:download-files')
-                ->dailyAt('02:00')
-                ->withoutOverlapping(1440) // 24 hours overlap protection
-                ->appendOutputTo(storage_path('logs/decta-download.log'));
+            // Existing Decta scheduling
+            $this->registerDectaSchedules($schedule);
 
-            // Schedule the process command to run every day at 3 AM
-            $schedule->command('decta:process-files')
-                ->dailyAt('03:00')
-                ->withoutOverlapping(1440) // 24 hours overlap protection
-                ->appendOutputTo(storage_path('logs/decta-process.log'));
+            // Visa SMS scheduling
+            $this->registerVisaSmsSchedules($schedule);
+        });
+    }
 
-            // Schedule retry of failed processing every 6 hours
-            $schedule->command('decta:process-files --retry-failed --limit=10')
+    /**
+     * Register Decta-specific schedules
+     */
+    protected function registerDectaSchedules(Schedule $schedule): void
+    {
+        // Schedule the download command to run every day at 2 AM for yesterday's files
+        $schedule->command('decta:download-files')
+            ->dailyAt('02:00')
+            ->withoutOverlapping(1440) // 24 hours overlap protection
+            ->appendOutputTo(storage_path('logs/decta-download.log'));
+
+        // Schedule the process command to run every day at 3 AM
+        $schedule->command('decta:process-files')
+            ->dailyAt('03:00')
+            ->withoutOverlapping(1440) // 24 hours overlap protection
+            ->appendOutputTo(storage_path('logs/decta-process.log'));
+
+        // Schedule retry of failed processing every 6 hours
+        $schedule->command('decta:process-files --retry-failed --limit=10')
+            ->everySixHours()
+            ->withoutOverlapping(360) // 6 hours overlap protection
+            ->appendOutputTo(storage_path('logs/decta-retry.log'));
+
+        // Schedule transaction matching retry every 4 hours
+        $schedule->command('decta:match-transactions --retry-failed --limit=50')
+            ->cron('0 */4 * * *') // Every 4 hours
+            ->withoutOverlapping(240) // 4 hours overlap protection
+            ->appendOutputTo(storage_path('logs/decta-matching.log'));
+
+        // Schedule cleanup of old records every Sunday at 1 AM
+        $schedule->command('decta:cleanup --days-old=90 --remove-processed')
+            ->weekly()
+            ->sundays()
+            ->at('01:00')
+            ->appendOutputTo(storage_path('logs/decta-cleanup.log'));
+
+        // Schedule declined transactions check every day at 8 AM
+        $schedule->command('decta:check-declined-transactions')
+            ->dailyAt('08:00')
+            ->withoutOverlapping(1440) // 24 hours overlap protection
+            ->appendOutputTo(storage_path('logs/decta-declined-check.log'));
+    }
+
+    /**
+     * Register Visa SMS-specific schedules
+     */
+    protected function registerVisaSmsSchedules(Schedule $schedule): void
+    {
+        // Check if Visa SMS auto-download is enabled
+        $autoDownload = config('decta.visa_sms.scheduling.auto_download', true);
+        $autoProcess = config('decta.visa_sms.scheduling.auto_process', true);
+
+        if (!$autoDownload) {
+            return;
+        }
+
+        // Get the download schedule from config (default: daily at 3 AM)
+        $downloadSchedule = config('decta.visa_sms.scheduling.download_schedule', '0 3 * * *');
+
+        // Download Visa SMS files daily
+        $schedule->command('visa:download-sms-reports --days-back=1')
+            ->cron($downloadSchedule)
+            ->withoutOverlapping(1440) // 24 hours overlap protection
+            ->runInBackground()
+            ->appendOutputTo(storage_path('logs/visa_sms_download.log'));
+
+        // Process downloaded files if auto-processing is enabled
+        if ($autoProcess) {
+            $schedule->command('visa:process-sms-reports --status=pending')
+                ->cron('0 4 * * *') // Run 1 hour after download (assuming 3 AM download)
+                ->withoutOverlapping(1440) // 24 hours overlap protection
+                ->runInBackground()
+                ->appendOutputTo(storage_path('logs/visa_sms_process.log'));
+
+            // Retry failed processing every 6 hours
+            $schedule->command('visa:process-sms-reports --status=failed')
                 ->everySixHours()
                 ->withoutOverlapping(360) // 6 hours overlap protection
-                ->appendOutputTo(storage_path('logs/decta-retry.log'));
-
-            // Schedule transaction matching retry every 4 hours
-            $schedule->command('decta:match-transactions --retry-failed --limit=50')
-                ->cron('0 */4 * * *') // Every 4 hours
-                ->withoutOverlapping(240) // 4 hours overlap protection
-                ->appendOutputTo(storage_path('logs/decta-matching.log'));
-
-            // Schedule cleanup of old records every Sunday at 1 AM
-            $schedule->command('decta:cleanup --days-old=90 --remove-processed')
-                ->weekly()
-                ->sundays()
-                ->at('01:00')
-                ->appendOutputTo(storage_path('logs/decta-cleanup.log'));
-
-            // NEW: Schedule declined transactions check every day at 9 AM
-            $schedule->command('decta:check-declined-transactions')
-                ->dailyAt('08:00')
-                ->withoutOverlapping(1440) // 24 hours overlap protection
-                ->appendOutputTo(storage_path('logs/decta-declined-check.log'));
-        });
+                ->runInBackground()
+                ->appendOutputTo(storage_path('logs/visa_sms_retry.log'));
+        }
     }
 
     /**
@@ -170,7 +266,7 @@ class DectaServiceProvider extends ServiceProvider
      */
     public function registerTranslations(): void
     {
-        $langPath = resource_path('lang/modules/'.$this->nameLower);
+        $langPath = resource_path('lang/modules/' . $this->nameLower);
 
         if (is_dir($langPath)) {
             $this->loadTranslationsFrom($langPath, $this->nameLower);
@@ -190,7 +286,8 @@ class DectaServiceProvider extends ServiceProvider
             module_path($this->name, 'config/config.php') => config_path($this->nameLower . '.php'),
         ], 'config');
         $this->mergeConfigFrom(
-            module_path($this->name, 'config/config.php'), $this->nameLower
+            module_path($this->name, 'config/config.php'),
+            $this->nameLower
         );
     }
 
@@ -199,14 +296,14 @@ class DectaServiceProvider extends ServiceProvider
      */
     public function registerViews(): void
     {
-        $viewPath = resource_path('views/modules/'.$this->nameLower);
+        $viewPath = resource_path('views/modules/' . $this->nameLower);
         $sourcePath = module_path($this->name, 'resources/views');
 
-        $this->publishes([$sourcePath => $viewPath], ['views', $this->nameLower.'-module-views']);
+        $this->publishes([$sourcePath => $viewPath], ['views', $this->nameLower . '-module-views']);
 
         $this->loadViewsFrom(array_merge($this->getPublishableViewPaths(), [$sourcePath]), $this->nameLower);
 
-        Blade::componentNamespace(config('modules.namespace').'\\' . $this->name . '\\View\\Components', $this->nameLower);
+        Blade::componentNamespace(config('modules.namespace') . '\\' . $this->name . '\\View\\Components', $this->nameLower);
     }
 
     /**
@@ -222,6 +319,8 @@ class DectaServiceProvider extends ServiceProvider
             DectaReportService::class,
             DectaNotificationService::class,
             DectaExportService::class,
+            VisaSmsService::class,
+            VisaIssuesService::class,
         ];
     }
 
@@ -229,8 +328,8 @@ class DectaServiceProvider extends ServiceProvider
     {
         $paths = [];
         foreach (config('view.paths') as $path) {
-            if (is_dir($path.'/modules/'.$this->nameLower)) {
-                $paths[] = $path.'/modules/'.$this->nameLower;
+            if (is_dir($path . '/modules/' . $this->nameLower)) {
+                $paths[] = $path . '/modules/' . $this->nameLower;
             }
         }
 

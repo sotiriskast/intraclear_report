@@ -13,7 +13,7 @@
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
 
             <!-- Dashboard Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                 <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
                     <div class="p-6">
                         <div class="flex items-center">
@@ -113,6 +113,29 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                    <div class="p-6">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0">
+                                <div class="w-8 h-8 bg-indigo-500 rounded-full flex items-center justify-center">
+                                    <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                        <path
+                                            d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="ml-5 w-0 flex-1">
+                                <dl>
+                                    <dt class="text-sm font-medium text-gray-500 truncate">Shops</dt>
+                                    <dd id="unique-shops" class="text-2xl font-semibold text-gray-900">
+                                        {{ number_format($summary['unique_shops'] ?? 0) }}
+                                    </dd>
+                                </dl>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Report Generation Form -->
@@ -176,7 +199,8 @@
                                 <div id="date_to_error" class="hidden mt-1 text-sm text-red-600"></div>
                             </div>
                         </div>
-                        <!-- Report Type and Filters -->
+
+                        <!-- Report Type and Main Filters -->
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             <div>
                                 <label for="report_type" class="block text-sm font-medium text-gray-700 mb-2">
@@ -188,12 +212,8 @@
                                     <option value="scheme">Scheme Report</option>
                                     <option value="volume_breakdown">Volume Breakdown by Region</option>
                                     <option value="transactions">Transaction Details</option>
-{{--                                    <option value="daily_summary">Daily Summary</option>--}}
-{{--                                    <option value="merchant_breakdown">Merchant Breakdown</option>--}}
-                                    {{--                                    <option value="matching">Matching Analysis</option>--}}
-                                    {{--                                    <option value="settlements">Settlement Report</option>--}}
-{{--                                                                        <option value="declined_transactions">Declined Transactions</option>--}}
-                                    {{--                                    <option value="approval_analysis">Approval Analysis</option>--}}
+                                    <option value="merchant_breakdown">Merchant Breakdown</option>
+                                    <option value="shop_breakdown">Shop Breakdown</option>
                                 </select>
                             </div>
 
@@ -226,6 +246,27 @@
                             </div>
 
                             <div>
+                                <label for="shop_id" class="block text-sm font-medium text-gray-700 mb-2">
+                                    Shop (Optional)
+                                </label>
+                                <select id="shop_id"
+                                        name="shop_id"
+                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                                        disabled>
+                                    <option value="">All Shops</option>
+                                </select>
+                                <div id="shop-info" class="mt-1 text-xs text-gray-500 hidden">
+                                    Select a merchant first to see available shops
+                                </div>
+                                <div id="shop-loading" class="mt-1 text-xs text-blue-500 hidden">
+                                    Loading shops...
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Additional Filters -->
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
                                 <label for="currency" class="block text-sm font-medium text-gray-700 mb-2">
                                     Currency (Optional)
                                 </label>
@@ -240,9 +281,7 @@
                                     @endif
                                 </select>
                             </div>
-                        </div>
-                        <!-- Additional Filters -->
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
                             <div>
                                 <label for="status" class="block text-sm font-medium text-gray-700 mb-2">
                                     Status
@@ -268,7 +307,9 @@
                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
                                        placeholder="0.00">
                             </div>
+                        </div>
 
+                        <div class="grid grid-cols-1 md:grid-cols-1 gap-4">
                             <div>
                                 <label for="amount_max" class="block text-sm font-medium text-gray-700 mb-2">
                                     Max Amount (€)
@@ -294,10 +335,6 @@
                                     <input type="radio" name="export_format" value="csv" class="form-radio">
                                     <span class="ml-2 text-sm text-gray-700">CSV Download</span>
                                 </label>
-                                {{--                                <label class="inline-flex items-center">--}}
-                                {{--                                    <input type="radio" name="export_format" value="excel" class="form-radio">--}}
-                                {{--                                    <span class="ml-2 text-sm text-gray-700">Excel Download</span>--}}
-                                {{--                                </label>--}}
                             </div>
                         </div>
 
@@ -390,6 +427,89 @@
                     if (selectedDates.length > 0) {
                         clearFieldError('date_to');
                     }
+                }
+            });
+            // Merchant selection handler for loading shops
+            document.getElementById('merchant_id').addEventListener('change', function () {
+                const merchantId = this.value;
+                const shopSelect = document.getElementById('shop_id');
+                const shopInfo = document.getElementById('shop-info');
+                const shopLoading = document.getElementById('shop-loading');
+
+                // Reset shop dropdown
+                shopSelect.innerHTML = '<option value="">All Shops</option>';
+                shopSelect.disabled = true;
+
+                if (merchantId) {
+                    // Show loading state
+                    shopLoading.classList.remove('hidden');
+                    shopInfo.classList.add('hidden');
+
+                    fetch(`/decta/reports/merchants/${merchantId}/shops`)
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                            }
+                            return response.json();
+                        })
+                        .then(data => {
+                            console.log('Shop data received:', data);
+
+                            if (data.success && data.data.shops.length > 0) {
+                                // Enable shop dropdown and add options
+                                shopSelect.disabled = false;
+
+                                data.data.shops.forEach(shop => {
+                                    const option = document.createElement('option');
+                                    option.value = shop.shop_id;
+
+                                    // UPDATED: Use enhanced display name with shop details
+                                    option.textContent = shop.display_name;
+
+                                    // UPDATED: Add enhanced data attributes
+                                    option.setAttribute('data-owner-name', shop.owner_name || '');
+                                    option.setAttribute('data-email', shop.email || '');
+                                    option.setAttribute('data-website', shop.website || '');
+                                    option.setAttribute('data-transaction-count', shop.transaction_count || 0);
+                                    option.setAttribute('data-total-amount', shop.total_amount || 0);
+                                    if (shop.currencies && shop.currencies.length > 0) {
+                                        option.setAttribute('data-currencies', shop.currencies.join(', '));
+                                    }
+
+                                    shopSelect.appendChild(option);
+                                });
+
+                                // UPDATED: Show enhanced shop info
+                                const summary = data.data.summary;
+                                const activeShops = summary.active_shops || summary.total_shops;
+                                const shopsWithTransactions = summary.shops_with_transactions || 0;
+
+                                shopInfo.innerHTML = `
+                        <div class="text-xs text-gray-600">
+                            <div><strong>${summary.total_shops}</strong> shops available</div>
+                            <div><strong>${activeShops}</strong> active, <strong>${shopsWithTransactions}</strong> with transactions</div>
+                            <div><strong>${summary.total_transactions?.toLocaleString() || 0}</strong> total transactions</div>
+                        </div>
+                    `;
+                                shopInfo.classList.remove('hidden');
+                            } else {
+                                shopSelect.disabled = true;
+                                shopInfo.textContent = 'No shops found for this merchant';
+                                shopInfo.classList.remove('hidden');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error loading shops:', error);
+                            shopSelect.disabled = true;
+                            shopInfo.textContent = 'Error loading shops: ' + error.message;
+                            shopInfo.classList.remove('hidden');
+                        })
+                        .finally(() => {
+                            shopLoading.classList.add('hidden');
+                        });
+                } else {
+                    shopInfo.textContent = 'Select a merchant first to see available shops';
+                    shopInfo.classList.remove('hidden');
                 }
             });
 
@@ -539,10 +659,15 @@
                 // Convert FormData to URLSearchParams for the request
                 const params = new URLSearchParams();
                 for (let [key, value] of formData.entries()) {
-                    if (value) params.append(key, value);
+                    if (value && value !== '') { // Don't send empty values
+                        params.append(key, value);
+                    }
                 }
 
-                fetch('{{ route("decta.reports.generate") }}', {
+                // Debug: Log the parameters being sent
+                console.log('Report parameters:', Object.fromEntries(params.entries()));
+
+                fetch('/decta/reports/generate', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
@@ -664,32 +789,50 @@
                 let rowFormatter = null;
 
                 switch (reportType) {
+
+                    case 'scheme':
+                        headers = ['Card Type', 'Tr Type', 'Currency', 'Amount', 'Net Amount', 'Count', 'Fee', 'Merchant', 'Shop Details'];
+                        rowFormatter = (row) => [
+                            row.card_type || '-',
+                            row.transaction_type_name || row.transaction_type || '-',
+                            row.currency || '-',
+                            row.amount ? row.amount.toLocaleString() : '0',
+                            row.net_amount ? row.net_amount.toLocaleString() : '0',
+                            row.count ? row.count.toLocaleString() : '0',
+                            row.fee ? (row.fee >= 0 ? row.fee.toLocaleString() : `(${Math.abs(row.fee).toLocaleString()})`) : '0',
+                            row.merchant_legal_name || '-',
+                            // UPDATED: Enhanced shop details display
+                            formatShopDetailsForTable(row.shop_details, row.shop_id)
+                        ];
+                        break;
+
                     case 'transactions':
-                        headers = ['Payment ID', 'Date', 'Amount', 'Currency', 'Merchant', 'Status', 'Matched'];
+                        headers = ['Payment ID', 'Date', 'Amount', 'Currency', 'Merchant', 'Shop ID', 'Status', 'Matched'];
                         rowFormatter = (row) => [
                             row.payment_id,
                             new Date(row.transaction_date).toLocaleDateString(),
                             `€${row.amount.toFixed(2)}`,
                             row.currency,
                             row.merchant_name || '-',
+                            row.shop_id || '-',
                             `<span class="px-2 py-1 text-xs rounded-full ${getStatusColor(row.status)}">${row.status}</span>`,
                             row.is_matched ? '<span class="text-green-600">✓</span>' : '<span class="text-red-600">✗</span>'
                         ];
                         break;
-                    case 'daily_summary':
-                        headers = ['Date', 'Transactions', 'Amount', 'Matched', 'Match Rate'];
+
+                    case 'shop_breakdown':
+                        headers = ['Shop ID', 'Merchant', 'Transactions', 'Amount', 'Match Rate', 'Approval Rate', 'Currencies'];
                         rowFormatter = (row) => [
-                            new Date(row.date).toLocaleDateString('en-GB', {
-                                day: '2-digit',
-                                month: 'short',
-                                year: 'numeric'
-                            }),
+                            row.shop_id,
+                            row.merchant_name || '-',
                             row.total_transactions.toLocaleString(),
                             `€${row.total_amount.toFixed(2)}`,
-                            row.matched_count.toLocaleString(),
-                            `${row.match_rate}%`
+                            `${row.match_rate}%`,
+                            `${row.approval_rate}%`,
+                            (row.currencies_list && row.currencies_list.length > 0) ? row.currencies_list.join(', ') : '-'
                         ];
                         break;
+
                     case 'merchant_breakdown':
                         headers = ['Merchant ID', 'Name', 'Transactions', 'Amount', 'Match Rate'];
                         rowFormatter = (row) => [
@@ -700,19 +843,7 @@
                             `${row.match_rate}%`
                         ];
                         break;
-                    case 'scheme':
-                        headers = ['Card Type', 'Tr Type', 'Tr Ccy', 'Amount', 'Net Amount', 'Count', 'Fee', 'Merchant Legal Name'];
-                        rowFormatter = (row) => [
-                            row.card_type || '-',
-                            row.transaction_type_name || row.transaction_type || '-', // Use friendly name
-                            row.currency || '-',
-                            row.amount ? row.amount.toLocaleString() : '0',
-                            row.net_amount ? row.net_amount.toLocaleString() : '0', // Show net amount
-                            row.count ? row.count.toLocaleString() : '0',
-                            row.fee ? (row.fee >= 0 ? row.fee.toLocaleString() : `(${Math.abs(row.fee).toLocaleString()})`) : '0',
-                            row.merchant_legal_name || '-'
-                        ];
-                        break;
+
                     default:
                         // Generic table for other report types
                         headers = Object.keys(data[0]);
@@ -720,17 +851,17 @@
                 }
 
                 let tableHTML = `
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    ${headers.map(header => `<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${header}</th>`).join('')}
-                                </tr>
-                            </thead>
-                            <tbody class="bg-white divide-y divide-gray-200">
-                `;
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        ${headers.map(header => `<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${header}</th>`).join('')}
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+    `;
 
-                data.slice(0, 100).forEach((row, index) => { // Limit to 100 rows for performance
+                data.slice(0, 100).forEach((row, index) => {
                     const cells = rowFormatter(row);
                     tableHTML += `<tr class="${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}">`;
                     cells.forEach(cell => {
@@ -740,22 +871,42 @@
                 });
 
                 tableHTML += `
-                            </tbody>
-                        </table>
-                    </div>
-                `;
+            </tbody>
+        </table>
+    </div>
+    `;
 
                 if (data.length > 100) {
                     tableHTML += `<p class="text-sm text-gray-500 mt-4 text-center">Showing first 100 results of ${data.length} total. Export to see all data.</p>`;
                 }
 
-                // Add summary for scheme report
-                if (reportType === 'scheme') {
-                    const summary = calculateSchemeSummary(data);
-                    tableHTML = getSchemeSummaryHTML(summary) + tableHTML;
+                return tableHTML;
+            }
+            function formatShopDetailsForTable(shopDetails, shopId) {
+                if (!shopDetails || shopDetails.owner_name === null) {
+                    return `<div class="text-gray-500">Shop ${shopId}</div>`;
                 }
 
-                return tableHTML;
+                let html = `<div class="text-sm">`;
+
+                if (shopDetails.display_name) {
+                    html += `<div class="font-medium text-gray-900">${shopDetails.display_name}</div>`;
+                } else {
+                    html += `<div class="font-medium text-gray-900">Shop ${shopId}</div>`;
+                }
+
+                //
+                // if (shopDetails.email) {
+                //     html += `<div class="text-xs text-blue-600">${shopDetails.email}</div>`;
+                // }
+
+                // if (shopDetails.website) {
+                //     html += `<div class="text-xs text-green-600">${shopDetails.website}</div>`;
+                // }
+                html += `<div class="text-xs ${shopDetails.status === 'Active' ? 'text-green-500' : 'text-red-500'}">${shopDetails.status}</div>`;
+                html += `</div>`;
+
+                return html;
             }
 
             function calculateSchemeSummary(data) {
@@ -1678,6 +1829,7 @@
                             document.getElementById('match-rate').textContent = summary.match_rate + '%';
                             document.getElementById('total-amount').textContent = '€' + summary.total_amount.toFixed(2);
                             document.getElementById('unique-merchants').textContent = summary.unique_merchants.toLocaleString();
+                            document.getElementById('unique-shops').textContent = summary.unique_shops.toLocaleString();
                         }
                     })
                     .catch(error => console.error('Dashboard update error:', error));
@@ -1686,8 +1838,11 @@
             document.getElementById('report_type').addEventListener('change', function () {
                 const helpTexts = {
                     'volume_breakdown': 'Enhanced Volume Breakdown shows transaction amounts grouped by Continent (Europe/Non-Europe), Card Brand (Visa/Mastercard/etc.), and Card Type (Personal/Commercial). Perfect for calculating different MDR rates for EU vs Non-EU cards and Personal vs Commercial cards.',
-                    'scheme': 'Scheme Report groups transactions by card type, transaction type, currency, and merchant to provide an overview of transaction patterns and fee calculations.',
-                    'transactions': 'Transaction Details provides a detailed view of individual transactions with their matching status.',
+                    'scheme': 'Scheme Report groups transactions by card type, transaction type, currency, merchant, and shop to provide an overview of transaction patterns and fee calculations.',
+                    'transactions': 'Transaction Details provides a detailed view of individual transactions with their matching status and shop information.',
+                    'merchant_breakdown': 'Merchant Breakdown shows transaction statistics grouped by merchant.',
+                    'shop_breakdown': 'Shop Breakdown shows detailed transaction statistics grouped by individual shops within merchants.'
+
                     // 'daily_summary': 'Daily Summary shows aggregated transaction data grouped by date.',
                     // 'merchant_breakdown': 'Merchant Breakdown shows transaction statistics grouped by merchant.',
                     // 'matching': 'Matching Analysis shows statistics about transaction matching success rates.',
@@ -1709,7 +1864,8 @@
                     helpDiv.textContent = helpTexts[this.value];
                     this.parentElement.appendChild(helpDiv);
                 }
-            });            // Update dashboard every 30 seconds
+            });
+            // Update dashboard every 30 seconds
             setInterval(updateDashboard, 30000);
         });
     </script>

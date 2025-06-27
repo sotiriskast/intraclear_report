@@ -5,6 +5,7 @@ use App\Http\Controllers\ShopController;
 use App\Http\Controllers\ShopFeeController;
 use App\Http\Controllers\ShopSettingController;
 use App\Http\Controllers\SettlementController;
+use App\Http\Controllers\UserController;
 use App\Livewire\MerchantAnalytics;
 use App\Livewire\MerchantManagement;
 use App\Livewire\MerchantView;
@@ -15,7 +16,34 @@ use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Cache;
 
-Route::middleware(['auth:web', 'verified', '2fa.required'
+// Default redirect for root - check user type
+Route::get('/', function () {
+    if (auth()->check()) {
+        $user = auth()->user();
+        // CRITICAL: Check if user is active before any redirects
+        if (!$user->active) {
+            auth()->logout();
+            // Flash message to session for login page
+            return redirect('/login')->with('error', 'Your account has been deactivated. Please contact support.');
+        }
+        // Redirect based on user type
+        if ($user->user_type === 'merchant') {
+            // Additional check: ensure merchant account is also active
+            if (!$user->merchant || !$user->merchant->active) {
+                auth()->logout();
+                // Flash message to session for merchant login page
+                return redirect('/login')->with('error', 'Merchant account is inactive. Please contact support.');
+            }
+            return redirect('/merchant/dashboard');
+        }
+        // Unknown user type - logout for security
+        auth()->logout();
+        return redirect('/login')->with('error', 'Invalid account type. Please contact support.');
+    }
+    return redirect('/login');
+})->name('home');
+
+Route::middleware(['auth:web', 'verified', '2fa.required', 'admin.access'
 ])->group(function () {
     Route::get('/', function () {
         return redirect('/admin/dashboard');
@@ -27,7 +55,7 @@ Route::middleware(['auth:web', 'verified', '2fa.required'
 
         Route::middleware(['can:manage-users'])->group(function () {
             // User Management Routes
-            Route::resource('users', \App\Http\Controllers\UserController::class)
+            Route::resource('users', UserController::class)
                 ->names([
                     'index' => 'admin.users.index',
                     'create' => 'admin.users.create',
@@ -36,6 +64,12 @@ Route::middleware(['auth:web', 'verified', '2fa.required'
                     'update' => 'admin.users.update',
                     'destroy' => 'admin.users.destroy',
                 ]);
+            Route::patch('users/{user}/toggle-status', [UserController::class, 'toggleStatus'])
+                ->name('admin.users.toggle-status');
+            Route::patch('users/{user}/activate', [UserController::class, 'activate'])
+                ->name('admin.users.activate');
+            Route::patch('users/{user}/deactivate', [UserController::class, 'deactivate'])
+                ->name('admin.users.deactivate');
         });
 
         Route::middleware(['can:manage-roles'])->group(function () {
@@ -67,7 +101,6 @@ Route::middleware(['auth:web', 'verified', '2fa.required'
             Route::put('/shops/{shop}', [ShopController::class, 'update'])->name('admin.shops.update');
             Route::get('/shops/{shop}/settings', [ShopController::class, 'settings'])->name('admin.shops.settings');
         });
-
         // Merchant Fees and Settings
         Route::middleware(['can:manage-merchants-fees'])->group(function () {
             // Shop Fees and Settings
@@ -113,7 +146,8 @@ Route::middleware(['auth:web', 'verified', '2fa.required'
                     'edit' => 'admin.fee-types.edit',
                     'update' => 'admin.fee-types.update',
                     'destroy' => 'admin.fee-types.destroy',
-                ]);        });
+                ]);
+        });
 
         //Settlement Report
         Route::middleware(['can:manage-settlements'])->group(function () {
@@ -202,7 +236,7 @@ Route::middleware(['auth:web', 'verified', '2fa.required'
             $healthChecks['status'] = $errorCount > 2 ? 'critical' : 'degraded';
         }
 
-        $statusCode = match($healthChecks['status']) {
+        $statusCode = match ($healthChecks['status']) {
             'ok' => Response::HTTP_OK,
             'degraded' => Response::HTTP_OK, // Still return 200 for degraded
             'critical' => Response::HTTP_SERVICE_UNAVAILABLE,
@@ -229,3 +263,8 @@ Route::middleware(['auth:web', 'verified', '2fa.required'
     });
 
 });
+
+//foreach (glob(__DIR__ . '/merchant/*.php') as $routeFile) {
+//    require $routeFile;
+//}
+
