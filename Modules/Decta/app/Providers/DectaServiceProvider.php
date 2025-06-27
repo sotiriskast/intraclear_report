@@ -17,15 +17,18 @@ use Modules\Decta\Console\DectaStatusCommand;
 use Modules\Decta\Console\DectaTestNotificationCommand;
 use Modules\Decta\Console\DectaSetupCommand;
 use Modules\Decta\Console\DectaCheckDeclinedTransactionsCommand;
+use Modules\Decta\Console\VisaNotificationStatusCommand;
 use Modules\Decta\Console\VisaSmsDownloadCommand;
 use Modules\Decta\Console\VisaSmsProcessCommand;
 use Modules\Decta\Console\VisaSmsStatusCommand;
 use Modules\Decta\Console\VisaSmsFixConflictsCommand;
+use Modules\Decta\Console\VisaTestNotificationCommand;
 use Modules\Decta\Services\DectaExportService;
 use Modules\Decta\Console\VisaIssuesDownloadCommand;
 use Modules\Decta\Console\VisaIssuesProcessCommand;
 use Modules\Decta\Console\VisaIssuesStatusCommand;
 use Modules\Decta\Services\VisaIssuesService;
+use Modules\Decta\Services\VisaNotificationService;
 use Modules\Decta\Services\VisaSmsService;
 use Nwidart\Modules\Traits\PathNamespace;
 use Illuminate\Console\Scheduling\Schedule;
@@ -121,6 +124,9 @@ class DectaServiceProvider extends ServiceProvider
                 $app->make(DectaFileRepository::class)
             );
         });
+        $this->app->bind(VisaNotificationService::class, function ($app) {
+            return new VisaNotificationService();
+        });
     }
 
     /**
@@ -151,6 +157,8 @@ class DectaServiceProvider extends ServiceProvider
             VisaIssuesDownloadCommand::class,
             VisaIssuesProcessCommand::class,
             VisaIssuesStatusCommand::class,
+            VisaNotificationStatusCommand::class,
+            VisaTestNotificationCommand::class,
         ]);
     }
 
@@ -230,7 +238,7 @@ class DectaServiceProvider extends ServiceProvider
         $downloadSchedule = config('decta.visa_sms.scheduling.download_schedule', '0 3 * * *');
 
         // Download Visa SMS files daily
-        $schedule->command('visa:download-sms-reports')
+        $schedule->command('visa:download-sms-reports --days-back=1')
             ->cron($downloadSchedule)
             ->withoutOverlapping(1440) // 24 hours overlap protection
             ->runInBackground()

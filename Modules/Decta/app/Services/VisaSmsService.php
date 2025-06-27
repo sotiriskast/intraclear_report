@@ -39,10 +39,11 @@ class VisaSmsService
      * Constructor
      */
     public function __construct(
-        DectaSftpService $sftpService,
+        DectaSftpService           $sftpService,
         DectaTransactionRepository $transactionRepository,
-        DectaFileRepository $fileRepository
-    ) {
+        DectaFileRepository        $fileRepository
+    )
+    {
         $this->sftpService = $sftpService;
         $this->transactionRepository = $transactionRepository;
         $this->fileRepository = $fileRepository;
@@ -368,13 +369,13 @@ class VisaSmsService
                 throw new Exception("Invalid date format. Use YYYY-MM-DD");
             }
         } else {
-            // Default: check yesterday (reports are available 1 day back)
-            // If today is 20/6, we check for files from 19/6
+            // Default: check reports are available 2 day back
+            // If today is 20/6, we check for files from 18/6
             $daysBack = $options['days_back'] ?? 7;
 
             // Start from yesterday
             for ($i = 1; $i <= $daysBack; $i++) {
-                $dates[] = Carbon::now()->subDays($i);
+                $dates[] = Carbon::now()->subDays($i + 1);
             }
         }
 
@@ -390,7 +391,7 @@ class VisaSmsService
 
         // Filter by file ID if specified
         if (isset($options['file_id'])) {
-            $file = $this->fileRepository->findById((int) $options['file_id']);
+            $file = $this->fileRepository->findById((int)$options['file_id']);
             return $file ? [$file] : [];
         }
 

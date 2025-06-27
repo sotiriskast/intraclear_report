@@ -4,6 +4,7 @@ namespace Modules\Decta\Console;
 
 use Illuminate\Console\Command;
 use Modules\Decta\Services\VisaSmsService;
+use Modules\Decta\Services\VisaNotificationService;
 use Illuminate\Support\Facades\Log;
 use Exception;
 
@@ -19,7 +20,8 @@ class VisaSmsProcessCommand extends Command
                             {--filename= : Process specific file by filename}
                             {--status=pending : Process files with specific status (pending,failed)}
                             {--reprocess : Reprocess already processed files}
-                            {--dry-run : Show what would be processed without processing}';
+                            {--dry-run : Show what would be processed without processing}
+                            {--no-email : Disable email notifications for this run}';
 
     /**
      * The console command description.
@@ -34,12 +36,18 @@ class VisaSmsProcessCommand extends Command
     protected VisaSmsService $visaSmsService;
 
     /**
+     * Visa Notification Service
+     */
+    protected VisaNotificationService $notificationService;
+
+    /**
      * Create a new command instance.
      */
-    public function __construct(VisaSmsService $visaSmsService)
+    public function __construct(VisaSmsService $visaSmsService, VisaNotificationService $notificationService)
     {
         parent::__construct();
         $this->visaSmsService = $visaSmsService;
+        $this->notificationService = $notificationService;
     }
 
     /**
@@ -49,6 +57,9 @@ class VisaSmsProcessCommand extends Command
     {
         $this->info('🔄 Starting Visa SMS Reports Processing');
         $this->line('=========================================');
+
+        $startTime = now();
+        $errorMessages = [];
 
         try {
             // Prepare options from command arguments
@@ -75,6 +86,18 @@ class VisaSmsProcessCommand extends Command
 
             if (empty($results['details'])) {
                 $this->warn('No files found to process.');
+
+                // Send notification for no files found
+                $this->sendNotificationIfEnabled([
+                    'files_processed' => 0,
+                    'files_failed' => 0,
+                    'total_transactions_updated' => 0,
+                    'details' => [],
+                    'error_messages' => [],
+                    'message' => 'No Visa SMS files found to process',
+                    'duration' => $startTime->diffInMinutes(now()),
+                ], true);
+
                 return Command::SUCCESS;
             }
 
@@ -90,15 +113,88 @@ class VisaSmsProcessCommand extends Command
             // Display detailed results table
             $this->displayDetailsTable($results['details']);
 
+            // Collect error messages from results
+            foreach ($results['details'] as $detail) {
+                if (!($detail['success'] ?? false) && !empty($detail['error'])) {
+                    $errorMessages[] = "Failed to process {$detail['filename']}: {$detail['error']}";
+                }
+            }
+
+            // Prepare notification data
+            $notificationData = [
+                'files_processed' => $results['files_processed'] ?? 0,
+                'files_failed' => $results['files_failed'] ?? 0,
+                'total_transactions_updated' => $results['total_transactions_updated'] ?? 0,
+                'details' => $results['details'] ?? [],
+                'error_messages' => $errorMessages,
+                'duration' => $startTime->diffInMinutes(now()),
+                'options' => $options
+            ];
+
+            // Send notification
+            $success = ($results['files_failed'] ?? 0) === 0;
+            $this->sendNotificationIfEnabled($notificationData, $success);
+
             return $results['files_failed'] > 0 ? Command::FAILURE : Command::SUCCESS;
 
         } catch (Exception $e) {
-            $this->error("💥 Fatal error: " . $e->getMessage());
+            $error = "💥 Fatal error: " . $e->getMessage();
+            $this->error($error);
+            $errorMessages[] = $error;
+
             Log::error('Visa SMS processing command failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
+
+            // Send failure notification
+            $this->sendNotificationIfEnabled([
+                'files_processed' => 0,
+                'files_failed' => 1,
+                'total_transactions_updated' => 0,
+                'details' => [],
+                'error_messages' => $errorMessages,
+                'duration' => $startTime->diffInMinutes(now()),
+            ], false);
+
             return Command::FAILURE;
+        }
+    }
+
+    /**
+     * Send notification if enabled and not disabled by --no-email option
+     */
+    private function sendNotificationIfEnabled(array $results, bool $success): void
+    {
+        // Skip if --no-email option is used
+        if ($this->option('no-email')) {
+            return;
+        }
+
+        // Check if SMS processing notifications are enabled
+        if (!config('decta.visa_sms.notifications.enabled', true)) {
+            return;
+        }
+
+        // Check specific success/failure settings
+        if ($success && !config('decta.visa_sms.notifications.notify_on_success', false)) {
+            return;
+        }
+
+        if (!$success && !config('decta.visa_sms.notifications.notify_on_failure', true)) {
+            return;
+        }
+
+        try {
+            $this->notificationService->sendSmsProcessingNotification($results, $success);
+            $this->line($success ? '📧 Success notification sent' : '📧 Failure notification sent');
+        } catch (Exception $e) {
+            $this->warn("Failed to send email notification: {$e->getMessage()}");
+            Log::warning('Failed to send Visa SMS processing notification', [
+                'error' => $e->getMessage(),
+                'results' => $results,
+                'success' => $success,
+            ]);
         }
     }
 
